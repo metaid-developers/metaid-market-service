@@ -1,0 +1,417 @@
+package mrc20_service
+
+import (
+	"encoding/hex"
+	"errors"
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"metaid-market-service/common"
+)
+
+type Mrc20Builder struct {
+	Net            *chaincfg.Params
+	MetaIdData     *MetaIdData
+	MintPins       []*MintPin
+	TransferMrc20s []*TransferMrc20
+	FeeRate        int64
+
+	RevealPrivateKeyHex string
+	RevealAddress       string
+
+	revealTaprootDataInputIndex uint32
+	revealOutValue              int64
+	TxCtxData                   *inscriptionTxCtxData
+	RevealPsbtBuilder           *common.PsbtBuilder
+	revealTx                    *wire.MsgTx
+
+	mrc20OutValue       int64
+	mrc20OutAddressList []string
+}
+
+type MintPin struct {
+	PinId           string
+	PinUxtoTxId     string
+	PinUxtoIndex    uint32
+	PinUtxoOutValue int64
+	PrivateKeyHex   string
+	Address         string
+	PkScript        string
+}
+
+type TransferMrc20 struct {
+	PrivateKeyHex string
+	Address       string
+	PkScript      string
+	UtxoTxId      string
+	UtxoIndex     uint32
+	UtxoOutValue  int64
+	Mrc20Amount   int64
+	Mrc20TickerId string
+}
+
+type MetaIdData struct {
+	MetaIDFlag  string
+	Operation   string
+	Path        string
+	Content     []byte
+	Encryption  string
+	Version     string
+	ContentType string
+}
+
+type inscriptionTxCtxData struct {
+	privateKey              *btcec.PrivateKey
+	InscriptionScript       []byte
+	CommitTxAddressPkScript []byte
+	ControlBlockWitness     []byte
+	recoveryPrivateKeyWIF   string
+	RecoveryPrivateKeyHex   string
+	revealTxPrevOutput      *wire.TxOut
+}
+
+func NewMrc20BuilderFromPsbtRaws(net *chaincfg.Params, revealPsbtRaw string) (*Mrc20Builder, error) {
+	var (
+		revealPsbtBuilder *common.PsbtBuilder
+		revealTx          *wire.MsgTx
+		err               error
+	)
+
+	revealPsbtBuilder, err = common.NewPsbtBuilder(net, revealPsbtRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Mrc20Builder{
+		Net:               net,
+		RevealPsbtBuilder: revealPsbtBuilder,
+		revealTx:          revealTx,
+	}, nil
+}
+
+func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
+	var (
+		revealPsbtBuilder     *common.PsbtBuilder
+		inputs                []common.Input      = make([]common.Input, 0)
+		inSigners             []*common.InputSign = make([]*common.InputSign, 0)
+		outputs               []common.Output     = make([]common.Output, 0)
+		taprootDataInputIndex uint32              = 0
+		err                   error
+	)
+	if m.MintPins != nil && len(m.MintPins) != 0 {
+		for i, v := range m.MintPins {
+			in := common.Input{
+				OutTxId:  v.PinUxtoTxId,
+				OutIndex: v.PinUxtoIndex,
+			}
+			inputs = append(inputs, in)
+			taprootDataInputIndex++
+
+			inSigner := &common.InputSign{
+				UtxoType: common.Witness,
+				Index:    i,
+				//OutRaw:         "",
+				PkScript:     v.PkScript,
+				RedeemScript: "",
+				Amount:       uint64(v.PinUtxoOutValue),
+				SighashType:  txscript.SigHashAll,
+				PriHex:       v.PrivateKeyHex,
+				//MultiSigScript: "",
+				//PreSigScript:   "",
+			}
+			inSigners = append(inSigners, inSigner)
+
+			out := common.Output{
+				Address: v.Address,
+				Amount:  uint64(v.PinUtxoOutValue),
+				//Script:  "",
+			}
+			outputs = append(outputs, out)
+		}
+	}
+
+	for _, mrc20OutAddress := range m.mrc20OutAddressList {
+		mrc20Out := common.Output{
+			Address: mrc20OutAddress,
+			Amount:  uint64(m.mrc20OutValue),
+			//Script:  "",
+		}
+		outputs = append(outputs, mrc20Out)
+	}
+
+	emptyTxId := "0000000000000000000000000000000000000000000000000000000000000000"
+	taprootDataIn := common.Input{
+		OutTxId:  emptyTxId,
+		OutIndex: taprootDataInputIndex,
+	}
+
+	inputs = append(inputs, taprootDataIn)
+
+	revealPsbtBuilder, err = common.CreatePsbtBuilder(m.Net, inputs, outputs)
+	if err != nil {
+		return err
+	}
+	m.RevealPsbtBuilder = revealPsbtBuilder
+
+	taprootDataInSigner := &common.InputSign{
+		UtxoType: common.Witness,
+		Index:    int(taprootDataInputIndex),
+		//OutRaw:         "",
+		PkScript:            hex.EncodeToString(m.TxCtxData.CommitTxAddressPkScript),
+		RedeemScript:        hex.EncodeToString(m.TxCtxData.InscriptionScript),
+		ControlBlockWitness: hex.EncodeToString(m.TxCtxData.ControlBlockWitness),
+		Amount:              uint64(m.revealOutValue + m.CalRevealPsbtFee(m.FeeRate)),
+		SighashType:         txscript.SigHashAll,
+		PriHex:              "",
+		//MultiSigScript: "",
+		//PreSigScript:   "",
+	}
+	inSigners = append(inSigners, taprootDataInSigner)
+
+	err = revealPsbtBuilder.UpdateAndAddInputWitness(inSigners)
+	if err != nil {
+		return err
+	}
+
+	m.RevealPsbtBuilder = revealPsbtBuilder
+	m.revealTaprootDataInputIndex = taprootDataInputIndex
+	m.TxCtxData.revealTxPrevOutput = &wire.TxOut{
+		PkScript: m.TxCtxData.CommitTxAddressPkScript,
+		Value:    m.revealOutValue + m.CalRevealPsbtFee(m.FeeRate),
+	}
+	return nil
+}
+
+func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
+	var (
+		tx     *wire.MsgTx = m.RevealPsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx
+		txSize int         = tx.SerializeSize()
+		txFee  int64       = 0
+	)
+
+	emptySignature := make([]byte, 64)
+	emptyControlBlockWitness := make([]byte, 33)
+	fee := (int64(wire.TxWitness{emptySignature, m.TxCtxData.InscriptionScript, emptyControlBlockWitness}.SerializeSize()+2+3) / 4) * feeRate
+
+	txFee = fee + int64(txSize)*feeRate
+	return txFee + m.revealOutValue
+}
+
+func (m *Mrc20Builder) completeRevealPsbt(commitTxId string, commitTxOutIndex uint32) error {
+	var (
+		commitPreOutPoint *wire.OutPoint
+		txHash            *chainhash.Hash
+		err               error
+	)
+	txHash, err = chainhash.NewHashFromStr(commitTxId)
+	if err != nil {
+		return err
+	}
+	commitPreOutPoint = wire.NewOutPoint(txHash, commitTxOutIndex)
+	m.RevealPsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxIn[m.revealTaprootDataInputIndex].PreviousOutPoint = *commitPreOutPoint
+	return nil
+}
+
+func (m *Mrc20Builder) signRevealPsbt(mintPins []*MintPin, transferMrc20s []*TransferMrc20, taprootInSigner *common.InputSign) error {
+	var (
+		revealSigners        []*common.InputSign = make([]*common.InputSign, 0)
+		revealTaprootSigners []*common.InputSign = make([]*common.InputSign, 0)
+		err                  error
+	)
+	if mintPins == nil {
+		mintPins = m.MintPins
+	}
+	if transferMrc20s == nil {
+		transferMrc20s = m.TransferMrc20s
+	}
+	if len(mintPins) == 0 && len(transferMrc20s) == 0 {
+		return errors.New("empty mintPins and transferMrc20s")
+	}
+
+	for i, v := range mintPins {
+		//pkScript, err := AddressToPkScript(m.Net, v.Address)
+		//if err != nil {
+		//	return err
+		//}
+		inSigner := &common.InputSign{
+			UtxoType: common.Witness,
+			Index:    i,
+			//OutRaw:         "",
+			PkScript:     v.PkScript,
+			RedeemScript: "",
+			Amount:       uint64(v.PinUtxoOutValue),
+			SighashType:  txscript.SigHashAll,
+			PriHex:       v.PrivateKeyHex,
+			//MultiSigScript: "",
+			//PreSigScript:   "",
+		}
+		revealSigners = append(revealSigners, inSigner)
+	}
+
+	for i, v := range transferMrc20s {
+		//pkScript, err := AddressToPkScript(m.Net, v.Address)
+		//if err != nil {
+		//	return err
+		//}
+		inSigner := &common.InputSign{
+			UtxoType: common.Witness,
+			Index:    i,
+			//OutRaw:         "",
+			PkScript:     v.PkScript,
+			RedeemScript: "",
+			Amount:       uint64(v.UtxoOutValue),
+			SighashType:  txscript.SigHashAll,
+			PriHex:       v.PrivateKeyHex,
+			//MultiSigScript: "",
+			//PreSigScript:   "",
+		}
+		revealSigners = append(revealSigners, inSigner)
+
+	}
+
+	err = m.RevealPsbtBuilder.UpdateAndSignInput(revealSigners)
+	if err != nil {
+		return err
+	}
+
+	if taprootInSigner == nil {
+		taprootInSigner = &common.InputSign{
+			UtxoType: common.Taproot,
+			Index:    int(m.revealTaprootDataInputIndex),
+			//OutRaw:         "",
+			PkScript:            hex.EncodeToString(m.TxCtxData.CommitTxAddressPkScript),
+			RedeemScript:        hex.EncodeToString(m.TxCtxData.InscriptionScript),
+			ControlBlockWitness: hex.EncodeToString(m.TxCtxData.ControlBlockWitness),
+			Amount:              uint64(m.revealOutValue + m.CalRevealPsbtFee(m.FeeRate)),
+			SighashType:         txscript.SigHashAll,
+			PriHex:              m.TxCtxData.RecoveryPrivateKeyHex,
+			//MultiSigScript: "",
+			//PreSigScript:   "",
+		}
+		revealTaprootSigners = append(revealTaprootSigners, taprootInSigner)
+	}
+
+	err = m.RevealPsbtBuilder.UpdateAndSignTaprootInput(revealTaprootSigners)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Mrc20Builder) ExtractRevealTransaction() (string, string, error) {
+	var (
+		commitTxHex string
+		revealTxHex string
+		err         error
+	)
+
+	revealTxHex, err = m.RevealPsbtBuilder.ExtractPsbtTransaction()
+	if err != nil {
+		return "", "", err
+	}
+	return commitTxHex, revealTxHex, nil
+}
+
+func createMetaIdTxCtxData(net *chaincfg.Params, metaIdData *MetaIdData) (*inscriptionTxCtxData, error) {
+	privateKey, err := btcec.NewPrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	inscriptionBuilder := txscript.NewScriptBuilder().
+		AddData(schnorr.SerializePubKey(privateKey.PubKey())).
+		AddOp(txscript.OP_CHECKSIG).
+		AddOp(txscript.OP_FALSE).
+		AddOp(txscript.OP_IF).
+		AddData([]byte(metaIdData.MetaIDFlag)). //<metaid_flag>
+		AddData([]byte(metaIdData.Operation))   //<operation>
+
+	inscriptionBuilder.AddData([]byte(metaIdData.Path)) //<path>
+	if metaIdData.Encryption == "" {
+		inscriptionBuilder.AddOp(txscript.OP_0)
+	} else {
+		inscriptionBuilder.AddData([]byte(metaIdData.Encryption)) //<Encryption>
+	}
+
+	if metaIdData.Version == "" {
+		inscriptionBuilder.AddOp(txscript.OP_0)
+	} else {
+		inscriptionBuilder.AddData([]byte(metaIdData.Version)) //<version>
+	}
+
+	if metaIdData.ContentType == "" {
+		inscriptionBuilder.AddOp(txscript.OP_0)
+	} else {
+		inscriptionBuilder.AddData([]byte(metaIdData.ContentType)) //<content-type>
+	}
+	maxChunkSize := 520
+	bodySize := len(metaIdData.Content)
+	for i := 0; i < bodySize; i += maxChunkSize {
+		end := i + maxChunkSize
+		if end > bodySize {
+			end = bodySize
+		}
+		inscriptionBuilder.AddFullData(metaIdData.Content[i:end]) //<payload>
+	}
+
+	inscriptionScript, err := inscriptionBuilder.Script()
+	if err != nil {
+		return nil, err
+	}
+	inscriptionScript = append(inscriptionScript, txscript.OP_ENDIF)
+
+	proof := &txscript.TapscriptProof{
+		TapLeaf:  txscript.NewBaseTapLeaf(schnorr.SerializePubKey(privateKey.PubKey())),
+		RootNode: txscript.NewBaseTapLeaf(inscriptionScript),
+	}
+
+	controlBlock := proof.ToControlBlock(privateKey.PubKey())
+	controlBlockWitness, err := controlBlock.ToBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	tapHash := proof.RootNode.TapHash()
+	commitTxAddress, err := btcutil.NewAddressTaproot(schnorr.SerializePubKey(txscript.ComputeTaprootOutputKey(privateKey.PubKey(), tapHash[:])), net)
+	if err != nil {
+		return nil, err
+	}
+	commitTxAddressPkScript, err := txscript.PayToAddrScript(commitTxAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	recoveryPrivateKeyWIF, err := btcutil.NewWIF(txscript.TweakTaprootPrivKey(*privateKey, tapHash[:]), net, true)
+	if err != nil {
+		return nil, err
+	}
+
+	recoveryPrivateKeyHex := hex.EncodeToString(privateKey.Serialize())
+
+	return &inscriptionTxCtxData{
+		privateKey:              privateKey,
+		InscriptionScript:       inscriptionScript,
+		CommitTxAddressPkScript: commitTxAddressPkScript,
+		ControlBlockWitness:     controlBlockWitness,
+		recoveryPrivateKeyWIF:   recoveryPrivateKeyWIF.String(),
+		RecoveryPrivateKeyHex:   recoveryPrivateKeyHex,
+	}, nil
+}
+
+// address to pkScript
+func AddressToPkScript(net *chaincfg.Params, address string) (string, error) {
+	addr, err := btcutil.DecodeAddress(address, net)
+	if err != nil {
+		return "", err
+	}
+	pkScriptByte, err := txscript.PayToAddrScript(addr)
+	if err != nil {
+		return "", err
+	}
+	pkScript := hex.EncodeToString(pkScriptByte)
+	return pkScript, nil
+}
