@@ -113,3 +113,32 @@ func GetTxInfo(net, txId string) (*CheckTxInfo, error) {
 	}
 	return data, nil
 }
+
+// GetTxInfo
+func GetTxRaw(txId string) (string, error) {
+	var (
+		url    string
+		result string
+		resp   *OwnResp
+		data   string
+		err    error
+	)
+	query := map[string]string{
+		"txId": txId,
+	}
+	url = fmt.Sprintf("%s/btc/getRawTx", conf.OwnDomain)
+	result, err = tool.PostUrl(url, query, nil)
+	if err != nil {
+		return "", errReq
+	}
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return "", fmt.Errorf("get request err:%s", err.Error())
+	}
+
+	if resp.Code != OwnCodeSuccess {
+		return "", fmt.Errorf("%s", resp.Msg)
+	}
+	data = resp.Msg
+	data = strings.Trim(data, "\"")
+	return data, nil
+}

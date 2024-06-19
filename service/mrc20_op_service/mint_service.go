@@ -45,14 +45,27 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	)
 	for _, pin := range req.MintPins {
 		pinUtxoIds += pinUtxoIds + "," + fmt.Sprintf("%s:%d", pin.PinUxtoTxId, pin.PinUxtoIndex)
-		mintPins = append(mintPins, &mrc20_service.MintPin{
+		mintPin := &mrc20_service.MintPin{
 			PinId:           pin.PinId,
 			PinUxtoTxId:     pin.PinUxtoTxId,
 			PinUxtoIndex:    pin.PinUxtoIndex,
 			PinUtxoOutValue: pin.PinUtxoOutValue,
 			Address:         pin.Address,
 			PkScript:        pin.PkScript,
-		})
+		}
+		addressClass, err := common.CheckAddressClass(common.GetNetParams(conf.Net), pin.Address)
+		if err != nil {
+			return nil, err
+		}
+		if addressClass == txscript.PubKeyHashTy {
+			mintPin.OutRaw, err = common.FetchTxHex(pin.PinUxtoTxId)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Printf("mintPin.OutRaw: %s\n", mintPin.OutRaw)
+			//mintPin.PkScript = ""
+		}
+		mintPins = append(mintPins, mintPin)
 		revealInputIndex++
 	}
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{

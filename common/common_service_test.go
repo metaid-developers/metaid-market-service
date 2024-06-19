@@ -1,6 +1,8 @@
 package common
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestCheckLegacyAddressType(t *testing.T) {
 	var (
@@ -38,4 +40,19 @@ func TestPkScriptToAddress(t *testing.T) {
 		t.Errorf("err:%s", err.Error())
 	}
 	t.Logf("Res:%s", res)
+}
+
+func TestCheckAddressClass(t *testing.T) {
+	var (
+		net     string = "testnet"
+		address string = "mnVinwawKEtqyFJk3BHqmaEGkKNGrxYRh9"
+		//address string = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
+		//address string = "tb1ppkvfwnw67q4w8pt86l7wr3jkngsyymqucrn6vxak7zpntawm6n6qwz929l"
+		//address string = "2N1T8zd8iNoejkgbxPEq3bKdMSA9PMJ4woe"
+	)
+	addressClass, err := CheckAddressClass(GetNetParams(net), address)
+	if err != nil {
+		t.Errorf("err:%s", err.Error())
+	}
+	t.Logf("AddressClass:%s", addressClass)
 }

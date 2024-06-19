@@ -96,6 +96,22 @@ func PkScriptToAddress(net, pkScript string) (string, error) {
 	return address, nil
 }
 
+func CheckAddressClass(net *chaincfg.Params, address string) (txscript.ScriptClass, error) {
+	addr, err := btcutil.DecodeAddress(address, net)
+	if err != nil {
+		return txscript.NonStandardTy, err
+	}
+	pkScriptByte, err := txscript.PayToAddrScript(addr)
+	if err != nil {
+		return txscript.NonStandardTy, err
+	}
+	scriptClass, _, _, err := txscript.ExtractPkScriptAddrs(pkScriptByte, net)
+	if err != nil {
+		return txscript.NonStandardTy, err
+	}
+	return scriptClass, nil
+}
+
 func GetUtxoInfo(net, txId string, txIndex int64) *own_service.OwnUtxoInfo {
 	var (
 		infoMap   map[string]*own_service.OwnUtxoInfo
@@ -179,4 +195,8 @@ func CheckPublicKeyAddress(netParams *chaincfg.Params, publicKeyStr, checkAddres
 	}
 
 	return false, nil
+}
+
+func FetchTxHex(txId string) (string, error) {
+	return own_service.GetTxRaw(txId)
 }

@@ -78,3 +78,46 @@ func SignMrc20Mint(builder *Mrc20Builder, commitTxId string, commitTxOutIndex ui
 	}
 	return builder, nil
 }
+
+func Mrc20TransferBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int64, error) {
+	var (
+		err          error
+		mrc20Builder *Mrc20Builder
+		fee          int64 = 0
+
+		content                = opRep.OpPayload
+		path                   = "/ft/mrc20/transfer"
+		metaIdData *MetaIdData = &MetaIdData{
+			MetaIDFlag:  opRep.MetaIdFlag,
+			Operation:   "hide",
+			Path:        path,
+			Content:     []byte(content),
+			Encryption:  "",
+			Version:     "",
+			ContentType: "application/json",
+		}
+	)
+	mrc20Builder = &Mrc20Builder{
+		Net:            opRep.Net,
+		MetaIdData:     metaIdData,
+		MintPins:       opRep.MintPins,
+		TransferMrc20s: opRep.TransferMrc20s,
+		FeeRate:        feeRate,
+
+		mrc20OutValue:       opRep.Mrc20OutValue,
+		mrc20OutAddressList: opRep.Mrc20OutAddressList,
+	}
+
+	txCtxData, err := createMetaIdTxCtxData(opRep.Net, mrc20Builder.MetaIdData)
+	if err != nil {
+		return nil, 0, err
+	}
+	mrc20Builder.TxCtxData = txCtxData
+
+	err = mrc20Builder.buildEmptyRevealPsbt()
+	if err != nil {
+		return nil, 0, err
+	}
+	fee = mrc20Builder.CalRevealPsbtFee(feeRate)
+	return mrc20Builder, fee, nil
+}

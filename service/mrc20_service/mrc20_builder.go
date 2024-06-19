@@ -3,6 +3,7 @@ package mrc20_service
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
@@ -40,17 +41,20 @@ type MintPin struct {
 	PinUtxoOutValue int64
 	PrivateKeyHex   string
 	Address         string
+	ReeemScript     string
 	PkScript        string
+	OutRaw          string
 }
 
 type TransferMrc20 struct {
 	PrivateKeyHex string
 	Address       string
 	PkScript      string
+	OutRaw        string
 	UtxoTxId      string
 	UtxoIndex     uint32
 	UtxoOutValue  int64
-	Mrc20Amount   int64
+	Mrc20Amount   string
 	Mrc20TickerId string
 }
 
@@ -111,12 +115,31 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 			inputs = append(inputs, in)
 			taprootDataInputIndex++
 
+			utxoType := common.Witness
+			addressClass, err := common.CheckAddressClass(m.Net, v.Address)
+			if err != nil {
+				return err
+			}
+			if addressClass == txscript.WitnessV1TaprootTy {
+				utxoType = common.Taproot
+			} else if addressClass == txscript.PubKeyHashTy {
+				utxoType = common.NonWitness
+				if v.OutRaw == "" {
+					return errors.New("outRaw is empty")
+				}
+			} else if addressClass == txscript.ScriptHashTy {
+				//if v.ReeemScript == "" {
+				//	return errors.New("redeemScript is empty")
+				//}
+			}
+			fmt.Printf("addressClass:%v\n", addressClass)
+
 			inSigner := &common.InputSign{
-				UtxoType: common.Witness,
-				Index:    i,
-				//OutRaw:         "",
+				UtxoType:     utxoType,
+				Index:        i,
+				OutRaw:       v.OutRaw,
 				PkScript:     v.PkScript,
-				RedeemScript: "",
+				RedeemScript: v.ReeemScript,
 				Amount:       uint64(v.PinUtxoOutValue),
 				SighashType:  txscript.SigHashAll,
 				PriHex:       v.PrivateKeyHex,
@@ -158,7 +181,7 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 	m.RevealPsbtBuilder = revealPsbtBuilder
 
 	taprootDataInSigner := &common.InputSign{
-		UtxoType: common.Witness,
+		UtxoType: common.Taproot,
 		Index:    int(taprootDataInputIndex),
 		//OutRaw:         "",
 		PkScript:            hex.EncodeToString(m.TxCtxData.CommitTxAddressPkScript),

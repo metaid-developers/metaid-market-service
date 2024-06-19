@@ -127,6 +127,25 @@ func CreatePsbtBuilder(netParams *chaincfg.Params, ins []Input, outs []Output) (
 func (s *PsbtBuilder) UpdateAndAddInputWitness(signIns []*InputSign) error {
 	for _, v := range signIns {
 		switch v.UtxoType {
+		case NonWitness:
+			tx := wire.NewMsgTx(2)
+			nonWitnessUtxoHex, err := hex.DecodeString(v.OutRaw)
+			if err != nil {
+				return err
+			}
+			err = tx.Deserialize(bytes.NewReader(nonWitnessUtxoHex))
+			if err != nil {
+				return err
+			}
+			err = s.PsbtUpdater.AddInNonWitnessUtxo(tx, v.Index)
+			if err != nil {
+				return err
+			}
+			err = s.PsbtUpdater.AddInSighashType(v.SighashType, v.Index)
+			if err != nil {
+				return err
+			}
+			break
 		case Witness, Taproot:
 			witnessUtxoScriptHex, err := hex.DecodeString(v.PkScript)
 			if err != nil {
@@ -142,36 +161,36 @@ func (s *PsbtBuilder) UpdateAndAddInputWitness(signIns []*InputSign) error {
 				return err
 			}
 
-			if v.UtxoType == Taproot {
-				if v.RedeemScript != "" {
-					redeemScript, err := hex.DecodeString(v.RedeemScript)
-					if err != nil {
-						return err
-					}
-					baseTapLeaf := txscript.NewBaseTapLeaf(redeemScript)
-					targetLeafHash := baseTapLeaf.TapHash()
-					newTaprootScriptSpendSig := make([]*psbt.TaprootScriptSpendSig, 0)
-					newTaprootScriptSpendSig = append(newTaprootScriptSpendSig, &psbt.TaprootScriptSpendSig{
-						XOnlyPubKey: make([]byte, 32),
-						LeafHash:    targetLeafHash.CloneBytes(),
-						Signature:   make([]byte, schnorr.SignatureSize+1),
-						SigHash:     v.SighashType,
-					})
-					s.PsbtUpdater.Upsbt.Inputs[v.Index].TaprootScriptSpendSig = newTaprootScriptSpendSig
-
-					controlBlock, err := hex.DecodeString(v.ControlBlockWitness)
-					if err != nil {
-						return err
-					}
-					newTaprootLeafScript := make([]*psbt.TaprootTapLeafScript, 0)
-					newTaprootLeafScript = append(newTaprootLeafScript, &psbt.TaprootTapLeafScript{
-						ControlBlock: controlBlock,
-						Script:       baseTapLeaf.Script,
-						LeafVersion:  baseTapLeaf.LeafVersion,
-					})
-					s.PsbtUpdater.Upsbt.Inputs[v.Index].TaprootLeafScript = newTaprootLeafScript
-				}
-			}
+			//if v.UtxoType == Taproot {
+			//	if v.RedeemScript != "" {
+			//		redeemScript, err := hex.DecodeString(v.RedeemScript)
+			//		if err != nil {
+			//			return err
+			//		}
+			//		baseTapLeaf := txscript.NewBaseTapLeaf(redeemScript)
+			//		targetLeafHash := baseTapLeaf.TapHash()
+			//		newTaprootScriptSpendSig := make([]*psbt.TaprootScriptSpendSig, 0)
+			//		newTaprootScriptSpendSig = append(newTaprootScriptSpendSig, &psbt.TaprootScriptSpendSig{
+			//			XOnlyPubKey: make([]byte, 32),
+			//			LeafHash:    targetLeafHash.CloneBytes(),
+			//			Signature:   make([]byte, schnorr.SignatureSize+1),
+			//			SigHash:     v.SighashType,
+			//		})
+			//		s.PsbtUpdater.Upsbt.Inputs[v.Index].TaprootScriptSpendSig = newTaprootScriptSpendSig
+			//
+			//		controlBlock, err := hex.DecodeString(v.ControlBlockWitness)
+			//		if err != nil {
+			//			return err
+			//		}
+			//		newTaprootLeafScript := make([]*psbt.TaprootTapLeafScript, 0)
+			//		newTaprootLeafScript = append(newTaprootLeafScript, &psbt.TaprootTapLeafScript{
+			//			ControlBlock: controlBlock,
+			//			Script:       baseTapLeaf.Script,
+			//			LeafVersion:  baseTapLeaf.LeafVersion,
+			//		})
+			//		s.PsbtUpdater.Upsbt.Inputs[v.Index].TaprootLeafScript = newTaprootLeafScript
+			//	}
+			//}
 
 			break
 		}
@@ -187,6 +206,9 @@ func (s *PsbtBuilder) UpdateAndSignTaprootInput(signIns []*InputSign) error {
 	for i, txIn := range s.PsbtUpdater.Upsbt.UnsignedTx.TxIn {
 		outPoint := txIn.PreviousOutPoint
 		txOut := s.PsbtUpdater.Upsbt.Inputs[i].WitnessUtxo
+		if txOut == nil {
+			txOut = s.PsbtUpdater.Upsbt.Inputs[i].NonWitnessUtxo.TxOut[outPoint.Index]
+		}
 		prevOutputFetcher.AddPrevOut(outPoint, txOut)
 	}
 	for _, v := range signIns {
@@ -310,6 +332,9 @@ func (s *PsbtBuilder) UpdateAndSignInput(signIns []*InputSign) error {
 	for i, txIn := range s.PsbtUpdater.Upsbt.UnsignedTx.TxIn {
 		outPoint := txIn.PreviousOutPoint
 		txOut := s.PsbtUpdater.Upsbt.Inputs[i].WitnessUtxo
+		if txOut == nil {
+			txOut = s.PsbtUpdater.Upsbt.Inputs[i].NonWitnessUtxo.TxOut[outPoint.Index]
+		}
 		multiPrevOutputFetcher.AddPrevOut(outPoint, txOut)
 	}
 
@@ -370,20 +395,8 @@ func (s *PsbtBuilder) UpdateAndSignInput(signIns []*InputSign) error {
 			if err != nil {
 				return err
 			}
-			//redeemScript = pubByte
 
-			//fmt.Printf("PkScript: %s\n", hex.EncodeToString(s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].PkScript))
 			sigScript, err = txscript.RawTxInSignature(s.PsbtUpdater.Upsbt.UnsignedTx, v.Index, s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].PkScript, v.SighashType, privateKey)
-			//prevOutputFetcher := NewPrevOutputFetcher(
-			//	s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].PkScript,
-			//	s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].Value,
-			//)
-			//sigHashes := txscript.NewTxSigHashes(s.PsbtUpdater.Upsbt.UnsignedTx, prevOutputFetcher)
-			//sigScript, err = txscript.RawTxInWitnessSignature(s.PsbtUpdater.Upsbt.UnsignedTx, sigHashes,
-			//	v.Index,
-			//	s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].Value,
-			//	s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].PkScript,
-			//	v.SighashType, privateKey)
 			if err != nil {
 				return err
 			}
