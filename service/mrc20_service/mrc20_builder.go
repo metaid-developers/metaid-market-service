@@ -15,11 +15,14 @@ import (
 )
 
 type Mrc20Builder struct {
-	Net            *chaincfg.Params
-	MetaIdData     *MetaIdData
-	MintPins       []*MintPin
-	TransferMrc20s []*TransferMrc20
-	FeeRate        int64
+	Net                *chaincfg.Params
+	MetaIdData         *MetaIdData
+	MintPins           []*MintPin
+	TransferMrc20s     []*TransferMrc20
+	Mrc20Outs          []*Mrc20OutInfo
+	FeeRate            int64
+	op                 string
+	mrc20ChangeAddress string
 
 	RevealPrivateKeyHex string
 	RevealAddress       string
@@ -148,6 +151,11 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 			}
 			inSigners = append(inSigners, inSigner)
 
+		}
+	}
+
+	if m.op == "mint" {
+		for _, v := range m.MintPins {
 			out := common.Output{
 				Address: v.Address,
 				Amount:  uint64(v.PinUtxoOutValue),
@@ -155,21 +163,35 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 			}
 			outputs = append(outputs, out)
 		}
-	}
-
-	for _, mrc20OutAddress := range m.mrc20OutAddressList {
-		mrc20Out := common.Output{
-			Address: mrc20OutAddress,
-			Amount:  uint64(m.mrc20OutValue),
+		for _, mrc20OutAddress := range m.mrc20OutAddressList {
+			mrc20Out := common.Output{
+				Address: mrc20OutAddress,
+				Amount:  uint64(m.mrc20OutValue),
+				//Script:  "",
+			}
+			outputs = append(outputs, mrc20Out)
+		}
+	} else if m.op == "transfer" {
+		out := common.Output{
+			Address: m.mrc20ChangeAddress,
+			Amount:  uint64(546),
 			//Script:  "",
 		}
-		outputs = append(outputs, mrc20Out)
+		outputs = append(outputs, out)
+		for _, v := range m.Mrc20Outs {
+			out := common.Output{
+				Address: v.Address,
+				Amount:  uint64(v.OutValue),
+				//Script:  "",
+			}
+			outputs = append(outputs, out)
+		}
 	}
 
 	emptyTxId := "0000000000000000000000000000000000000000000000000000000000000000"
 	taprootDataIn := common.Input{
 		OutTxId:  emptyTxId,
-		OutIndex: taprootDataInputIndex,
+		OutIndex: 0,
 	}
 
 	inputs = append(inputs, taprootDataIn)

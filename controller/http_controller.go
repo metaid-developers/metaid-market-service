@@ -47,6 +47,8 @@ func Run() {
 
 		v1.POST("/inscribe/mrc20/mint/pre", auth.AuthSignMiddleware(), Mrc20MintPre)
 		v1.POST("/inscribe/mrc20/mint/commit", auth.AuthSignMiddleware(), Mrc20MintCommit)
+		v1.POST("/inscribe/mrc20/transfer/pre", auth.AuthSignMiddleware(), Mrc20TransferPre)
+		v1.POST("/inscribe/mrc20/transfer/commit", auth.AuthSignMiddleware(), Mrc20TransferCommit)
 
 		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
 	}

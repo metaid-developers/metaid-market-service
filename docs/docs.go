@@ -142,6 +142,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/inscribe/mrc20/transfer/commit": {
+            "post": {
+                "description": "Inscribe Mrc20 Transfer Commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inscribe-Mrc20"
+                ],
+                "summary": "Inscribe Mrc20 Transfer Commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.Mrc20TransferCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20TransferCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/inscribe/mrc20/transfer/pre": {
+            "post": {
+                "description": "Inscribe Mrc20 Transfer Pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inscribe-Mrc20"
+                ],
+                "summary": "Inscribe Mrc20 Transfer Pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.Mrc20TransferPreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20TransferPreResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/market/address/assets": {
             "get": {
                 "description": "Fetch market address assets",
@@ -708,6 +770,9 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
+                "outRaw": {
+                    "type": "string"
+                },
                 "pinId": {
                     "type": "string"
                 },
@@ -765,6 +830,69 @@ const docTemplate = `{
                 }
             }
         },
+        "request.Mrc20OutInfo": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "string"
+                },
+                "outValue": {
+                    "type": "integer"
+                },
+                "pkScript": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.Mrc20TransferCommitRequest": {
+            "type": "object",
+            "properties": {
+                "commitTxOutIndex": {
+                    "type": "integer"
+                },
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealPrePsbtRaw": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.Mrc20TransferPreRequest": {
+            "type": "object",
+            "properties": {
+                "changeAddress": {
+                    "type": "string"
+                },
+                "changeOutValue": {
+                    "type": "integer"
+                },
+                "mrc20Outs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/request.Mrc20OutInfo"
+                    }
+                },
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "tickerId": {
+                    "type": "string"
+                },
+                "transfers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/request.TransferMrc20Utxo"
+                    }
+                }
+            }
+        },
         "request.PushOrderReq": {
             "type": "object",
             "properties": {
@@ -805,6 +933,32 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.TransferMrc20Utxo": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "amount": {
+                    "type": "string"
+                },
+                "pkScript": {
+                    "type": "string"
+                },
+                "tickerId": {
+                    "type": "string"
+                },
+                "utxoOutValue": {
+                    "type": "integer"
+                },
+                "uxtoIndex": {
+                    "type": "integer"
+                },
+                "uxtoTxId": {
                     "type": "string"
                 }
             }
@@ -886,6 +1040,51 @@ const docTemplate = `{
         "respond.Mrc20MintPreResp": {
             "type": "object",
             "properties": {
+                "extra": {},
+                "orderId": {
+                    "type": "string"
+                },
+                "revealAddress": {
+                    "type": "string"
+                },
+                "revealFee": {
+                    "type": "integer"
+                },
+                "revealInputIndex": {
+                    "type": "integer"
+                },
+                "revealPrePsbtRaw": {
+                    "type": "string"
+                },
+                "serviceAddress": {
+                    "type": "string"
+                },
+                "serviceFee": {
+                    "type": "integer"
+                },
+                "totalFee": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20TransferCommitResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealTxId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.Mrc20TransferPreResp": {
+            "type": "object",
+            "properties": {
+                "extra": {},
                 "orderId": {
                     "type": "string"
                 },

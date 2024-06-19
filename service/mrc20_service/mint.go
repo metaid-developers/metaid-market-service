@@ -13,9 +13,17 @@ type Mrc20OpRequest struct {
 	OpPayload           string
 	MintPins            []*MintPin
 	TransferMrc20s      []*TransferMrc20
+	Mrc20Outs           []*Mrc20OutInfo
 	Mrc20OutValue       int64
 	Mrc20OutAddressList []string
 	ChangeAddress       string
+}
+
+type Mrc20OutInfo struct {
+	Amount   string `json:"amount"`
+	Address  string `json:"address"`
+	PkScript string `json:"pkScript"`
+	OutValue int64  `json:"outValue"`
 }
 
 func Mrc20MintBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int64, error) {
@@ -42,6 +50,7 @@ func Mrc20MintBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int6
 		MintPins:       opRep.MintPins,
 		TransferMrc20s: opRep.TransferMrc20s,
 		FeeRate:        feeRate,
+		op:             opRep.Op,
 
 		mrc20OutValue:       opRep.Mrc20OutValue,
 		mrc20OutAddressList: opRep.Mrc20OutAddressList,
@@ -98,11 +107,14 @@ func Mrc20TransferBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, 
 		}
 	)
 	mrc20Builder = &Mrc20Builder{
-		Net:            opRep.Net,
-		MetaIdData:     metaIdData,
-		MintPins:       opRep.MintPins,
-		TransferMrc20s: opRep.TransferMrc20s,
-		FeeRate:        feeRate,
+		Net:                opRep.Net,
+		MetaIdData:         metaIdData,
+		MintPins:           opRep.MintPins,
+		TransferMrc20s:     opRep.TransferMrc20s,
+		Mrc20Outs:          opRep.Mrc20Outs,
+		FeeRate:            feeRate,
+		op:                 opRep.Op,
+		mrc20ChangeAddress: opRep.ChangeAddress,
 
 		mrc20OutValue:       opRep.Mrc20OutValue,
 		mrc20OutAddressList: opRep.Mrc20OutAddressList,

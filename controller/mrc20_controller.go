@@ -61,3 +61,55 @@ func Mrc20MintCommit(c *gin.Context) {
 	}
 	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }
+
+// @Summary Inscribe Mrc20 Transfer Pre
+// @Description Inscribe Mrc20 Transfer Pre
+// @Produce  json
+// @Param Request body request.Mrc20TransferPreRequest true "Request"
+// @Tags Inscribe-Mrc20
+// @Success 200 {object} respond.Mrc20TransferPreResp ""
+// @Router /api/v1/inscribe/mrc20/transfer/pre [post]
+func Mrc20TransferPre(c *gin.Context) {
+	var (
+		t            int64  = tool.MakeTimestamp()
+		publicKey    string = ""
+		requestModel *request.Mrc20TransferPreRequest
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.Mrc20TransferPre(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
+// @Summary Inscribe Mrc20 Transfer Commit
+// @Description Inscribe Mrc20 Transfer Commit
+// @Produce  json
+// @Param Request body request.Mrc20TransferCommitRequest true "Request"
+// @Tags Inscribe-Mrc20
+// @Success 200 {object} respond.Mrc20TransferCommitResp ""
+// @Router /api/v1/inscribe/mrc20/transfer/commit [post]
+func Mrc20TransferCommit(c *gin.Context) {
+	var (
+		t            int64  = tool.MakeTimestamp()
+		publicKey    string = ""
+		requestModel *request.Mrc20TransferCommitRequest
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.Mrc20TransferCommit(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}

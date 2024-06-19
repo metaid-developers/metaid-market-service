@@ -167,16 +167,28 @@ func (s *PsbtBuilder) UpdateAndAddInputWitness(signIns []*InputSign) error {
 			//		if err != nil {
 			//			return err
 			//		}
+			//
+			//		xOnlyPubKey := make([]byte, 32)
+			//		if v.PriHex != "" {
+			//			privateKeyBytes, err := hex.DecodeString(v.PriHex)
+			//			if err != nil {
+			//				return err
+			//			}
+			//			privateKey, _ := btcec.PrivKeyFromBytes(privateKeyBytes)
+			//			xOnlyPubKey = schnorr.SerializePubKey(privateKey.PubKey())
+			//		}
+			//		_ = xOnlyPubKey
+			//
 			//		baseTapLeaf := txscript.NewBaseTapLeaf(redeemScript)
-			//		targetLeafHash := baseTapLeaf.TapHash()
-			//		newTaprootScriptSpendSig := make([]*psbt.TaprootScriptSpendSig, 0)
-			//		newTaprootScriptSpendSig = append(newTaprootScriptSpendSig, &psbt.TaprootScriptSpendSig{
-			//			XOnlyPubKey: make([]byte, 32),
-			//			LeafHash:    targetLeafHash.CloneBytes(),
-			//			Signature:   make([]byte, schnorr.SignatureSize+1),
-			//			SigHash:     v.SighashType,
-			//		})
-			//		s.PsbtUpdater.Upsbt.Inputs[v.Index].TaprootScriptSpendSig = newTaprootScriptSpendSig
+			//		//targetLeafHash := baseTapLeaf.TapHash()
+			//		//newTaprootScriptSpendSig := make([]*psbt.TaprootScriptSpendSig, 0)
+			//		//newTaprootScriptSpendSig = append(newTaprootScriptSpendSig, &psbt.TaprootScriptSpendSig{
+			//		//	XOnlyPubKey: xOnlyPubKey,
+			//		//	LeafHash:    targetLeafHash.CloneBytes(),
+			//		//	Signature:   make([]byte, schnorr.SignatureSize+1),
+			//		//	SigHash:     v.SighashType,
+			//		//})
+			//		//s.PsbtUpdater.Upsbt.Inputs[v.Index].TaprootScriptSpendSig = newTaprootScriptSpendSig
 			//
 			//		controlBlock, err := hex.DecodeString(v.ControlBlockWitness)
 			//		if err != nil {
