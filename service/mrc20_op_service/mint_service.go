@@ -48,11 +48,14 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		extra map[string]interface{} = make(map[string]interface{})
 	)
 	for _, pin := range req.MintPins {
-		pinUtxoIds += pinUtxoIds + "," + fmt.Sprintf("%s:%d", pin.PinUxtoTxId, pin.PinUxtoIndex)
+		if pin.PinUtxoTxId == "" || pin.PinUtxoOutValue <= 0 {
+			return nil, errors.New("mint pin parameter error")
+		}
+		pinUtxoIds += pinUtxoIds + "," + fmt.Sprintf("%s:%d", pin.PinUtxoTxId, pin.PinUtxoIndex)
 		mintPin := &mrc20_service.MintPin{
 			PinId:           pin.PinId,
-			PinUxtoTxId:     pin.PinUxtoTxId,
-			PinUxtoIndex:    pin.PinUxtoIndex,
+			PinUtxoTxId:     pin.PinUtxoTxId,
+			PinUtxoIndex:    pin.PinUtxoIndex,
 			PinUtxoOutValue: pin.PinUtxoOutValue,
 			Address:         pin.Address,
 			PkScript:        pin.PkScript,
@@ -62,7 +65,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			return nil, err
 		}
 		if addressClass == txscript.PubKeyHashTy {
-			mintPin.OutRaw, err = common.FetchTxHex(pin.PinUxtoTxId)
+			mintPin.OutRaw, err = common.FetchTxHex(pin.PinUtxoTxId)
 			if err != nil {
 				return nil, err
 			}

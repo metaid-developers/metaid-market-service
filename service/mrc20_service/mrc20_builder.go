@@ -39,8 +39,8 @@ type Mrc20Builder struct {
 
 type MintPin struct {
 	PinId           string
-	PinUxtoTxId     string
-	PinUxtoIndex    uint32
+	PinUtxoTxId     string
+	PinUtxoIndex    uint32
 	PinUtxoOutValue int64
 	PrivateKeyHex   string
 	Address         string
@@ -52,6 +52,7 @@ type MintPin struct {
 type TransferMrc20 struct {
 	PrivateKeyHex string
 	Address       string
+	ReeemScript   string
 	PkScript      string
 	OutRaw        string
 	UtxoTxId      string
@@ -112,8 +113,8 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 	if m.MintPins != nil && len(m.MintPins) != 0 {
 		for i, v := range m.MintPins {
 			in := common.Input{
-				OutTxId:  v.PinUxtoTxId,
-				OutIndex: v.PinUxtoIndex,
+				OutTxId:  v.PinUtxoTxId,
+				OutIndex: v.PinUtxoIndex,
 			}
 			inputs = append(inputs, in)
 			taprootDataInputIndex++
@@ -151,6 +152,49 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 			}
 			inSigners = append(inSigners, inSigner)
 
+		}
+	}
+	if m.TransferMrc20s != nil && len(m.TransferMrc20s) != 0 {
+		for i, v := range m.TransferMrc20s {
+			in := common.Input{
+				OutTxId:  v.UtxoTxId,
+				OutIndex: v.UtxoIndex,
+			}
+			inputs = append(inputs, in)
+			taprootDataInputIndex++
+
+			utxoType := common.Witness
+			addressClass, err := common.CheckAddressClass(m.Net, v.Address)
+			if err != nil {
+				return err
+			}
+			if addressClass == txscript.WitnessV1TaprootTy {
+				utxoType = common.Taproot
+			} else if addressClass == txscript.PubKeyHashTy {
+				utxoType = common.NonWitness
+				if v.OutRaw == "" {
+					return errors.New("outRaw is empty")
+				}
+			} else if addressClass == txscript.ScriptHashTy {
+				//if v.ReeemScript == "" {
+				//	return errors.New("redeemScript is empty")
+				//}
+			}
+			fmt.Printf("addressClass:%v\n", addressClass)
+
+			inSigner := &common.InputSign{
+				UtxoType:     utxoType,
+				Index:        i,
+				OutRaw:       v.OutRaw,
+				PkScript:     v.PkScript,
+				RedeemScript: v.ReeemScript,
+				Amount:       uint64(v.UtxoOutValue),
+				SighashType:  txscript.SigHashAll,
+				PriHex:       v.PrivateKeyHex,
+				//MultiSigScript: "",
+				//PreSigScript:   "",
+			}
+			inSigners = append(inSigners, inSigner)
 		}
 	}
 

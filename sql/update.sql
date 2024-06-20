@@ -102,3 +102,37 @@ create table tb_mrc20_mint_order
     constraint tb_mrc20_mint_order_orderId_uindex
         unique (orderId)
 );
+
+
+create table tb_mrc20_transfer_order
+(
+    id                  bigint auto_increment primary key,
+    orderId             varchar(80)    default '' not null,
+    inscribeState       int            default 0  not null comment '1-Pending,2-Paid,3-Finish',
+    ticketId            varchar(80)    default '' not null,
+    payload            varchar(512)    default '' not null,
+    totalFee            bigint         default 0  not null,
+    minerFee            bigint         default 0  not null,
+    serviceFee          bigint         default 0  not null,
+    revealOutValue      bigint         default 0  not null,
+    redeemScript        varchar(2048)  default '' not null,
+    controlBlockWitness varchar(2048)  default '' not null,
+    revealTxPrivateKey  varchar(2048)  default '' not null,
+    revealTxAddress     varchar(80)    default '' not null,
+    commitTxRaw         TEXT,
+    revealInputIndex    bigint         default 0  not null,
+    revealPrePsbtRaw    TEXT,
+    revealMidPsbtRaw    TEXT,
+    revealFinalPsbtRaw  TEXT,
+    commitTxId          varchar(128)   default '' not null,
+    txId                varchar(128)   default '' not null,
+    blockHeight         bigint         default 0  not null,
+    confirmationState   int            default 0  not null comment '1-Unconfirmed, 2-Confirmed',
+    timestamp           bigint         default 0  not null,
+    version             int            default 0  not null,
+    createTime          bigint         default 0  not null,
+    updateTime          bigint         default 0  not null,
+    state               int            default 0  not null,
+    constraint tb_mrc20_transfer_order_orderId_uindex
+        unique (orderId)
+);

@@ -47,16 +47,32 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		extra   map[string]interface{} = make(map[string]interface{})
 	)
 	for _, v := range req.Transfers {
-		transferMrc20s = append(transferMrc20s, &mrc20_service.TransferMrc20{
+		if v.Amount == "" || v.UtxoOutValue <= 0 || v.UtxoTxId == "" {
+			return nil, errors.New("transfer request parameter error")
+		}
+		transferMrc20 := &mrc20_service.TransferMrc20{
 			Address:       v.Address,
 			PkScript:      v.PkScript,
-			UtxoTxId:      v.UxtoTxId,
-			UtxoIndex:     v.UxtoIndex,
+			UtxoTxId:      v.UtxoTxId,
+			UtxoIndex:     v.UtxoIndex,
 			UtxoOutValue:  v.UtxoOutValue,
 			Mrc20Amount:   v.Amount,
 			Mrc20TickerId: v.TickerId,
-		})
-		mrc20UtxoIds += v.UxtoTxId + "_"
+		}
+		addressClass, err := common.CheckAddressClass(common.GetNetParams(conf.Net), v.Address)
+		if err != nil {
+			return nil, err
+		}
+		if addressClass == txscript.PubKeyHashTy {
+			transferMrc20.OutRaw, err = common.FetchTxHex(v.UtxoTxId)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Printf("transferMrc20.OutRaw: %s\n", transferMrc20.OutRaw)
+			//mintPin.PkScript = ""
+		}
+		transferMrc20s = append(transferMrc20s, transferMrc20)
+		mrc20UtxoIds += v.UtxoTxId + "_"
 		revealInputIndex++
 	}
 	for _, v := range req.Mrc20Outs {

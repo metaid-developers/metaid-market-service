@@ -901,13 +901,13 @@ const docTemplate = `{
                 "pinId": {
                     "type": "string"
                 },
+                "pinUtxoIndex": {
+                    "type": "integer"
+                },
                 "pinUtxoOutValue": {
                     "type": "integer"
                 },
-                "pinUxtoIndex": {
-                    "type": "integer"
-                },
-                "pinUxtoTxId": {
+                "pinUtxoTxId": {
                     "type": "string"
                 },
                 "pkScript": {
@@ -1077,13 +1077,13 @@ const docTemplate = `{
                 "tickerId": {
                     "type": "string"
                 },
+                "utxoIndex": {
+                    "type": "integer"
+                },
                 "utxoOutValue": {
                     "type": "integer"
                 },
-                "uxtoIndex": {
-                    "type": "integer"
-                },
-                "uxtoTxId": {
+                "utxoTxId": {
                     "type": "string"
                 }
             }
@@ -1145,6 +1145,26 @@ const docTemplate = `{
                 },
                 "processingTime": {
                     "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20Info": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "decimals": {
+                    "type": "string"
+                },
+                "mrc20Id": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "txPoint": {
+                    "type": "string"
                 }
             }
         },
@@ -1212,13 +1232,13 @@ const docTemplate = `{
                 "amtPerMint": {
                     "type": "string"
                 },
-                "blockheight": {
+                "blockHeight": {
                     "type": "string"
                 },
                 "decimals": {
                     "type": "string"
                 },
-                "metadata": {
+                "metaData": {
                     "type": "string"
                 },
                 "mintCount": {
@@ -1292,8 +1312,8 @@ const docTemplate = `{
         "respond.Mrc20Utxo": {
             "type": "object",
             "properties": {
-                "amtChange": {
-                    "type": "integer"
+                "address": {
+                    "type": "string"
                 },
                 "blockHeight": {
                     "type": "integer"
@@ -1301,44 +1321,32 @@ const docTemplate = `{
                 "chain": {
                     "type": "string"
                 },
-                "errorMsg": {
-                    "type": "string"
+                "mrc20s": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20Info"
+                    }
                 },
-                "fromAddress": {
-                    "type": "string"
-                },
-                "index": {
+                "outputIndex": {
                     "type": "integer"
                 },
-                "mrc20Id": {
-                    "type": "string"
-                },
-                "mrcOption": {
-                    "type": "string"
-                },
-                "pinContent": {
-                    "type": "string"
-                },
-                "pinId": {
-                    "type": "string"
-                },
-                "status": {
+                "satoshi": {
                     "type": "integer"
                 },
-                "tick": {
+                "satoshis": {
+                    "type": "integer"
+                },
+                "scriptPk": {
                     "type": "string"
                 },
                 "timestamp": {
                     "type": "integer"
                 },
-                "toAddress": {
+                "txId": {
                     "type": "string"
                 },
-                "txPoint": {
-                    "type": "string"
-                },
-                "verify": {
-                    "type": "boolean"
+                "vout": {
+                    "type": "integer"
                 }
             }
         },

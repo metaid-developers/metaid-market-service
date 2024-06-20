@@ -6,8 +6,8 @@ type Mrc20TickInfo struct {
 	Decimals    string      `json:"decimals"`
 	AmtPerMint  string      `json:"amtPerMint"`
 	MintCount   string      `json:"mintCount"`
-	Blockheight string      `json:"blockheight"`
-	Metadata    string      `json:"metadata"`
+	BlockHeight string      `json:"blockHeight"`
+	MetaData    string      `json:"metaData"`
 	Type        string      `json:"type"`
 	Qual        interface{} `json:"qual"`
 	TotalMinted int64       `json:"totalMinted"`
@@ -66,21 +66,43 @@ type Mrc20UtxoResp struct {
 	List  []*Mrc20Utxo `json:"list"`
 }
 
+//type Mrc20Utxo struct {
+//	Tick        string `json:"tick"`
+//	Mrc20Id     string `json:"mrc20Id"`
+//	TxPoint     string `json:"txPoint"`
+//	PinId       string `json:"pinId"`
+//	PinContent  string `json:"pinContent"`
+//	Verify      bool   `json:"verify"`
+//	BlockHeight int64  `json:"blockHeight"`
+//	MrcOption   string `json:"mrcOption"`
+//	FromAddress string `json:"fromAddress"`
+//	ToAddress   string `json:"toAddress"`
+//	ErrorMsg    string `json:"errorMsg"`
+//	AmtChange   int64  `json:"amtChange"`
+//	Status      int64  `json:"status"`
+//	Chain       string `json:"chain"`
+//	Index       int64  `json:"index"`
+//	Timestamp   int64  `json:"timestamp"`
+//}
+
 type Mrc20Utxo struct {
-	Tick        string `json:"tick"`
-	Mrc20Id     string `json:"mrc20Id"`
-	TxPoint     string `json:"txPoint"`
-	PinId       string `json:"pinId"`
-	PinContent  string `json:"pinContent"`
-	Verify      bool   `json:"verify"`
-	BlockHeight int64  `json:"blockHeight"`
-	MrcOption   string `json:"mrcOption"`
-	FromAddress string `json:"fromAddress"`
-	ToAddress   string `json:"toAddress"`
-	ErrorMsg    string `json:"errorMsg"`
-	AmtChange   int64  `json:"amtChange"`
-	Status      int64  `json:"status"`
-	Chain       string `json:"chain"`
-	Index       int64  `json:"index"`
-	Timestamp   int64  `json:"timestamp"`
+	Chain       string       `json:"chain"`
+	BlockHeight int64        `json:"blockHeight"`
+	Address     string       `json:"address"`
+	Satoshi     int64        `json:"satoshi"`
+	Satoshis    int64        `json:"satoshis"`
+	ScriptPk    string       `json:"scriptPk"`
+	TxId        string       `json:"txId"`
+	Vout        int64        `json:"vout"`
+	OutputIndex int64        `json:"outputIndex"`
+	Mrc20s      []*Mrc20Info `json:"mrc20s"`
+	Timestamp   int64        `json:"timestamp"`
+}
+
+type Mrc20Info struct {
+	Tick     string `json:"tick"`
+	Mrc20Id  string `json:"mrc20Id"`
+	TxPoint  string `json:"txPoint"`
+	Amount   string `json:"amount"`
+	Decimals string `json:"decimals"`
 }

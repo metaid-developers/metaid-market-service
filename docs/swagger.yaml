@@ -109,11 +109,11 @@ definitions:
         type: string
       pinId:
         type: string
+      pinUtxoIndex:
+        type: integer
       pinUtxoOutValue:
         type: integer
-      pinUxtoIndex:
-        type: integer
-      pinUxtoTxId:
+      pinUtxoTxId:
         type: string
       pkScript:
         type: string
@@ -222,11 +222,11 @@ definitions:
         type: string
       tickerId:
         type: string
+      utxoIndex:
+        type: integer
       utxoOutValue:
         type: integer
-      uxtoIndex:
-        type: integer
-      uxtoTxId:
+      utxoTxId:
         type: string
     type: object
   respond.AddressAssetListResp:
@@ -267,6 +267,19 @@ definitions:
         type: string
       processingTime:
         type: integer
+    type: object
+  respond.Mrc20Info:
+    properties:
+      amount:
+        type: string
+      decimals:
+        type: string
+      mrc20Id:
+        type: string
+      tick:
+        type: string
+      txPoint:
+        type: string
     type: object
   respond.Mrc20MintCommitResp:
     properties:
@@ -310,11 +323,11 @@ definitions:
     properties:
       amtPerMint:
         type: string
-      blockheight:
+      blockHeight:
         type: string
       decimals:
         type: string
-      metadata:
+      metaData:
         type: string
       mintCount:
         type: string
@@ -363,38 +376,30 @@ definitions:
     type: object
   respond.Mrc20Utxo:
     properties:
-      amtChange:
-        type: integer
+      address:
+        type: string
       blockHeight:
         type: integer
       chain:
         type: string
-      errorMsg:
-        type: string
-      fromAddress:
-        type: string
-      index:
+      mrc20s:
+        items:
+          $ref: '#/definitions/respond.Mrc20Info'
+        type: array
+      outputIndex:
         type: integer
-      mrc20Id:
-        type: string
-      mrcOption:
-        type: string
-      pinContent:
-        type: string
-      pinId:
-        type: string
-      status:
+      satoshi:
         type: integer
-      tick:
+      satoshis:
+        type: integer
+      scriptPk:
         type: string
       timestamp:
         type: integer
-      toAddress:
+      txId:
         type: string
-      txPoint:
-        type: string
-      verify:
-        type: boolean
+      vout:
+        type: integer
     type: object
   respond.Mrc20UtxoResp:
     properties:

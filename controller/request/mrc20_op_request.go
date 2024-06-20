@@ -10,8 +10,8 @@ type Mrc20MintPreRequest struct {
 
 type MintPinInfo struct {
 	PinId           string `json:"pinId"`
-	PinUxtoTxId     string `json:"pinUxtoTxId"`
-	PinUxtoIndex    uint32 `json:"pinUxtoIndex"`
+	PinUtxoTxId     string `json:"pinUtxoTxId"`
+	PinUtxoIndex    uint32 `json:"pinUtxoIndex"`
 	PinUtxoOutValue int64  `json:"pinUtxoOutValue"`
 	Address         string `json:"address"`
 	PkScript        string `json:"pkScript"`
@@ -35,13 +35,14 @@ type Mrc20TransferPreRequest struct {
 }
 
 type TransferMrc20Utxo struct {
-	UxtoTxId     string `json:"uxtoTxId"`
-	UxtoIndex    uint32 `json:"uxtoIndex"`
+	UtxoTxId     string `json:"utxoTxId"`
+	UtxoIndex    uint32 `json:"utxoIndex"`
 	UtxoOutValue int64  `json:"utxoOutValue"`
 	TickerId     string `json:"tickerId"`
 	Amount       string `json:"amount"`
 	Address      string `json:"address"`
 	PkScript     string `json:"pkScript"`
+	OutRaw       string `json:"outRaw"`
 }
 
 type Mrc20OutInfo struct {

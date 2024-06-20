@@ -41,8 +41,8 @@ type Mrc20TickInfo struct {
 	Decimals    string      `json:"decimals"`
 	AmtPerMint  string      `json:"amtPerMint"`
 	MintCount   string      `json:"mintCount"`
-	Blockheight string      `json:"blockheight"`
-	Metadata    string      `json:"metadata"`
+	BlockHeight string      `json:"blockheight"`
+	MetaData    string      `json:"metadata"`
 	Type        string      `json:"type"`
 	Qual        interface{} `json:"qual"`
 	TotalMinted int64       `json:"totalMinted"`
