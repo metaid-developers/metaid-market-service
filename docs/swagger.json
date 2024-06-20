@@ -75,6 +75,131 @@
                 }
             }
         },
+        "/api/v1/common/mrc20/address/shovel": {
+            "get": {
+                "description": "Fetch address mrc20 shovels",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch address mrc20 shovels",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size：max=50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20ShovelResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/common/mrc20/address/utxo": {
+            "get": {
+                "description": "Fetch address mrc20 utxo",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch address mrc20 utxo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size：max=50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20UtxoResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/common/mrc20/tick/info": {
+            "get": {
+                "description": "Fetch mrc20 tick info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch mrc20 tick info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20TickInfo"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/inscribe/mrc20/mint/commit": {
             "post": {
                 "description": "Inscribe Mrc20 Mint Commit",
@@ -1062,6 +1187,59 @@
                 }
             }
         },
+        "respond.Mrc20ShovelResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.ShovelInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20TickInfo": {
+            "type": "object",
+            "properties": {
+                "amtPerMint": {
+                    "type": "string"
+                },
+                "blockheight": {
+                    "type": "string"
+                },
+                "decimals": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "string"
+                },
+                "mintCount": {
+                    "type": "string"
+                },
+                "mrc20Id": {
+                    "type": "string"
+                },
+                "pinNumber": {
+                    "type": "integer"
+                },
+                "qual": {},
+                "tick": {
+                    "type": "string"
+                },
+                "tokenName": {
+                    "type": "string"
+                },
+                "totalMinted": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "respond.Mrc20TransferCommitResp": {
             "type": "object",
             "properties": {
@@ -1102,6 +1280,73 @@
                     "type": "integer"
                 },
                 "totalFee": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20Utxo": {
+            "type": "object",
+            "properties": {
+                "amtChange": {
+                    "type": "integer"
+                },
+                "blockHeight": {
+                    "type": "integer"
+                },
+                "chain": {
+                    "type": "string"
+                },
+                "errorMsg": {
+                    "type": "string"
+                },
+                "fromAddress": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "mrc20Id": {
+                    "type": "string"
+                },
+                "mrcOption": {
+                    "type": "string"
+                },
+                "pinContent": {
+                    "type": "string"
+                },
+                "pinId": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "toAddress": {
+                    "type": "string"
+                },
+                "txPoint": {
+                    "type": "string"
+                },
+                "verify": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "respond.Mrc20UtxoResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20Utxo"
+                    }
+                },
+                "total": {
                     "type": "integer"
                 }
             }
@@ -1224,6 +1469,125 @@
                 },
                 "orderState": {
                     "$ref": "#/definitions/models.OrderState"
+                }
+            }
+        },
+        "respond.ShovelInfo": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "chainName": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "contentBody": {
+                    "type": "string"
+                },
+                "contentLength": {
+                    "type": "integer"
+                },
+                "contentSummary": {
+                    "type": "string"
+                },
+                "contentType": {
+                    "type": "string"
+                },
+                "contentTypeDetect": {
+                    "type": "string"
+                },
+                "creator": {
+                    "type": "string"
+                },
+                "dataValue": {
+                    "type": "integer"
+                },
+                "encryption": {
+                    "type": "string"
+                },
+                "genesisFee": {
+                    "type": "integer"
+                },
+                "genesisHeight": {
+                    "type": "integer"
+                },
+                "genesisTransaction": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "initialOwner": {
+                    "type": "string"
+                },
+                "isTransfered": {
+                    "type": "boolean"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "metaid": {
+                    "type": "string"
+                },
+                "mrc20MintPin": {
+                    "type": "string"
+                },
+                "mrc20Minted": {
+                    "type": "boolean"
+                },
+                "number": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "operation": {
+                    "type": "string"
+                },
+                "originalId": {
+                    "type": "string"
+                },
+                "originalPath": {
+                    "type": "string"
+                },
+                "output": {
+                    "type": "string"
+                },
+                "outputValue": {
+                    "type": "integer"
+                },
+                "parentPath": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "pop": {
+                    "type": "string"
+                },
+                "popLv": {
+                    "type": "integer"
+                },
+                "preview": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "txInIndex": {
+                    "type": "integer"
+                },
+                "txIndex": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
                 }
             }
         },

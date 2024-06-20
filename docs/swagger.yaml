@@ -297,6 +297,41 @@ definitions:
       totalFee:
         type: integer
     type: object
+  respond.Mrc20ShovelResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.ShovelInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  respond.Mrc20TickInfo:
+    properties:
+      amtPerMint:
+        type: string
+      blockheight:
+        type: string
+      decimals:
+        type: string
+      metadata:
+        type: string
+      mintCount:
+        type: string
+      mrc20Id:
+        type: string
+      pinNumber:
+        type: integer
+      qual: {}
+      tick:
+        type: string
+      tokenName:
+        type: string
+      totalMinted:
+        type: integer
+      type:
+        type: string
+    type: object
   respond.Mrc20TransferCommitResp:
     properties:
       commitTxId:
@@ -324,6 +359,50 @@ definitions:
       serviceFee:
         type: integer
       totalFee:
+        type: integer
+    type: object
+  respond.Mrc20Utxo:
+    properties:
+      amtChange:
+        type: integer
+      blockHeight:
+        type: integer
+      chain:
+        type: string
+      errorMsg:
+        type: string
+      fromAddress:
+        type: string
+      index:
+        type: integer
+      mrc20Id:
+        type: string
+      mrcOption:
+        type: string
+      pinContent:
+        type: string
+      pinId:
+        type: string
+      status:
+        type: integer
+      tick:
+        type: string
+      timestamp:
+        type: integer
+      toAddress:
+        type: string
+      txPoint:
+        type: string
+      verify:
+        type: boolean
+    type: object
+  respond.Mrc20UtxoResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.Mrc20Utxo'
+        type: array
+      total:
         type: integer
     type: object
   respond.OrderInfo:
@@ -406,6 +485,85 @@ definitions:
       orderState:
         $ref: '#/definitions/models.OrderState'
     type: object
+  respond.ShovelInfo:
+    properties:
+      address:
+        type: string
+      chainName:
+        type: string
+      content:
+        type: string
+      contentBody:
+        type: string
+      contentLength:
+        type: integer
+      contentSummary:
+        type: string
+      contentType:
+        type: string
+      contentTypeDetect:
+        type: string
+      creator:
+        type: string
+      dataValue:
+        type: integer
+      encryption:
+        type: string
+      genesisFee:
+        type: integer
+      genesisHeight:
+        type: integer
+      genesisTransaction:
+        type: string
+      id:
+        type: string
+      initialOwner:
+        type: string
+      isTransfered:
+        type: boolean
+      location:
+        type: string
+      metaid:
+        type: string
+      mrc20MintPin:
+        type: string
+      mrc20Minted:
+        type: boolean
+      number:
+        type: integer
+      offset:
+        type: integer
+      operation:
+        type: string
+      originalId:
+        type: string
+      originalPath:
+        type: string
+      output:
+        type: string
+      outputValue:
+        type: integer
+      parentPath:
+        type: string
+      path:
+        type: string
+      pop:
+        type: string
+      popLv:
+        type: integer
+      preview:
+        type: string
+      status:
+        type: integer
+      timestamp:
+        type: integer
+      txInIndex:
+        type: integer
+      txIndex:
+        type: integer
+      version:
+        type: string
+    type: object
   respond.TakeOrderResp:
     properties:
       assetId:
@@ -473,6 +631,89 @@ paths:
       summary: Take Market order
       tags:
       - Market-Order
+  /api/v1/common/mrc20/address/shovel:
+    get:
+      description: Fetch address mrc20 shovels
+      parameters:
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: tickId
+        in: query
+        name: tickId
+        required: true
+        type: string
+      - description: cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: size：max=50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20ShovelResp'
+      summary: Fetch address mrc20 shovels
+      tags:
+      - Common
+  /api/v1/common/mrc20/address/utxo:
+    get:
+      description: Fetch address mrc20 utxo
+      parameters:
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: tickId
+        in: query
+        name: tickId
+        required: true
+        type: string
+      - description: cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: size：max=50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20UtxoResp'
+      summary: Fetch address mrc20 utxo
+      tags:
+      - Common
+  /api/v1/common/mrc20/tick/info:
+    get:
+      description: Fetch mrc20 tick info
+      parameters:
+      - description: tickId
+        in: query
+        name: tickId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20TickInfo'
+      summary: Fetch mrc20 tick info
+      tags:
+      - Common
   /api/v1/inscribe/mrc20/mint/commit:
     post:
       description: Inscribe Mrc20 Mint Commit

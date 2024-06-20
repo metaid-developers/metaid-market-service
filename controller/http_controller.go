@@ -50,6 +50,10 @@ func Run() {
 		v1.POST("/inscribe/mrc20/transfer/pre", auth.AuthSignMiddleware(), Mrc20TransferPre)
 		v1.POST("/inscribe/mrc20/transfer/commit", auth.AuthSignMiddleware(), Mrc20TransferCommit)
 
+		v1.GET("/common/mrc20/tick/info", FetchMrc20TickInfo)
+		v1.GET("/common/mrc20/address/utxo", FetchMrc20AddressUtxoList)
+		v1.GET("/common/mrc20/address/shovel", FetchMrc20TickAddressShovels)
+
 		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
 	}
 
