@@ -45,12 +45,22 @@ func Run() {
 		v1.GET("/market/address/assets", auth.AuthSignMiddleware(), FetchAddressAssetList)
 		v1.GET("/market/asset/detail", FetchAssetDetail)
 
+		v1.POST("/market/mrc20/order/push", auth.AuthSignMiddleware(), PushMarketMrc20Order)
+		v1.GET("/market/mrc20/order/psbt", auth.AuthSignMiddleware(), FetchMrc20OrderPsbt)
+		v1.POST("/market/mrc20/order/take", auth.AuthSignMiddleware(), TakeMarketMrc20Order)
+		v1.POST("/market/mrc20/order/cancel", auth.AuthSignMiddleware(), CancelMarketMrc20Order)
+
+		v1.GET("/market/mrc20/orders", FetchMarketMrc20Orders)
+		v1.GET("/market/mrc20/order/detail", FetchMarketMrc20OneOrder)
+
 		v1.POST("/inscribe/mrc20/mint/pre", auth.AuthSignMiddleware(), Mrc20MintPre)
 		v1.POST("/inscribe/mrc20/mint/commit", auth.AuthSignMiddleware(), Mrc20MintCommit)
 		v1.POST("/inscribe/mrc20/transfer/pre", auth.AuthSignMiddleware(), Mrc20TransferPre)
 		v1.POST("/inscribe/mrc20/transfer/commit", auth.AuthSignMiddleware(), Mrc20TransferCommit)
 
+		v1.GET("/common/mrc20/tick/info-list", FetchMrc20TickList)
 		v1.GET("/common/mrc20/tick/info", FetchMrc20TickInfo)
+		v1.GET("/common/mrc20/address/balance-list", FetchMrc20TickAddressBalances)
 		v1.GET("/common/mrc20/address/utxo", FetchMrc20AddressUtxoList)
 		v1.GET("/common/mrc20/address/shovel", FetchMrc20TickAddressShovels)
 

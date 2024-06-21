@@ -71,3 +71,41 @@ type FetchAddressAssetListReq struct {
 type TestAuthReq struct {
 	Address string `json:"address"`
 }
+
+// mrc20 orders
+type PushMrc20OrderReq struct {
+	AssetType models.AssetType `json:"assetType"` //pins/ordinals
+	TickId    string           `json:"tickId"`
+	Address   string           `json:"address"`
+	PsbtRaw   string           `json:"psbtRaw"`
+}
+
+type FetchMrc20OrderPsbtReq struct {
+	OrderId           string `json:"orderId"`
+	BuyerAddress      string `json:"buyerAddress"`
+	BuyerChangeAmount uint64 `json:"buyerChangeAmount"`
+}
+
+type TakeMrc20OrderReq struct {
+	OrderId        string `json:"orderId"`
+	TakerPsbtRaw   string `json:"takerPsbtRaw"`
+	NetworkFeeRate int64  `json:"networkFeeRate"`
+}
+
+type CancelMrc20OrderReq struct {
+	OrderId string `json:"orderId"`
+}
+
+type FetchMarketMrc20OrdersReq struct {
+	OrderState models.OrderState `json:"orderState"` //1-create,2-finish,3-cancel
+	AssetType  models.AssetType  `json:"assetType"`  //mrc20
+	Cursor     int64             `json:"cursor"`
+	Size       int64             `json:"size"`
+	Address    string            `json:"address"`
+	SortKey    string            `json:"sortKey"`  //priceAmount/timestamp/tokenPriceRate
+	SortType   int64             `json:"sortType"` //1/-1
+}
+
+type FetchMarketMrc20OneOrderReq struct {
+	OrderId string `json:"orderId"`
+}

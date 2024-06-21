@@ -345,7 +345,9 @@ func (s *PsbtBuilder) UpdateAndSignInput(signIns []*InputSign) error {
 		outPoint := txIn.PreviousOutPoint
 		txOut := s.PsbtUpdater.Upsbt.Inputs[i].WitnessUtxo
 		if txOut == nil {
-			txOut = s.PsbtUpdater.Upsbt.Inputs[i].NonWitnessUtxo.TxOut[outPoint.Index]
+			if s.PsbtUpdater.Upsbt.Inputs[i].NonWitnessUtxo != nil {
+				txOut = s.PsbtUpdater.Upsbt.Inputs[i].NonWitnessUtxo.TxOut[outPoint.Index]
+			}
 		}
 		multiPrevOutputFetcher.AddPrevOut(outPoint, txOut)
 	}

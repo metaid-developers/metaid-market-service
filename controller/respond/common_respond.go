@@ -1,18 +1,32 @@
 package respond
 
 type Mrc20TickInfo struct {
-	Tick        string      `json:"tick"`
-	TokenName   string      `json:"tokenName"`
-	Decimals    string      `json:"decimals"`
-	AmtPerMint  string      `json:"amtPerMint"`
-	MintCount   string      `json:"mintCount"`
-	BlockHeight string      `json:"blockHeight"`
-	MetaData    string      `json:"metaData"`
-	Type        string      `json:"type"`
-	Qual        interface{} `json:"qual"`
-	TotalMinted int64       `json:"totalMinted"`
-	Mrc20Id     string      `json:"mrc20Id"`
-	PinNumber   int64       `json:"pinNumber"`
+	Tick             string      `json:"tick"`
+	TokenName        string      `json:"tokenName"`
+	Decimals         string      `json:"decimals"`
+	AmtPerMint       string      `json:"amtPerMint"`
+	MintCount        string      `json:"mintCount"`
+	BlockHeight      string      `json:"blockHeight"`
+	MetaData         string      `json:"metaData"`
+	Type             string      `json:"type"`
+	Qual             interface{} `json:"qual"`
+	TotalMinted      int64       `json:"totalMinted"`
+	Mrc20Id          string      `json:"mrc20Id"`
+	PinNumber        int64       `json:"pinNumber"`
+	Holders          int64       `json:"holders"`
+	TxCount          int64       `json:"txCount"`
+	DeployerMetaId   string      `json:"deployerMetaId"`
+	DeployerAddress  string      `json:"deployerAddress"`
+	DeployerUserInfo *UserInfo   `json:"deployerUserInfo"`
+	DeployTime       int64       `json:"deployTime"`
+	Price            string      `json:"price"`
+	PriceUsd         string      `json:"priceUsd"`
+	Change24h        string      `json:"change24h"`
+	MarketCap        string      `json:"marketCap"`
+	TotalSupply      string      `json:"totalSupply"`
+	Supply           string      `json:"supply"`
+	Mintable         bool        `json:"mintable"`
+	Remaining        string      `json:"remaining"`
 }
 
 type Mrc20ShovelResp struct {
@@ -105,4 +119,22 @@ type Mrc20Info struct {
 	TxPoint  string `json:"txPoint"`
 	Amount   string `json:"amount"`
 	Decimals string `json:"decimals"`
+}
+
+type Mrc20BalanceInfoResp struct {
+	Total int64               `json:"total"`
+	List  []*Mrc20BalanceInfo `json:"list"`
+}
+
+type Mrc20BalanceInfo struct {
+	Tick      string `json:"tick"`
+	TokenName string `json:"tokenName"`
+	Mrc20Id   string `json:"mrc20Id"`
+	Balance   string `json:"balance"`
+	Decimals  string `json:"decimals"`
+}
+
+type Mrc20TickListResp struct {
+	Total int64            `json:"total"`
+	List  []*Mrc20TickInfo `json:"list"`
 }

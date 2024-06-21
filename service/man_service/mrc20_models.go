@@ -35,6 +35,10 @@ type Mrc20Utxo struct {
 	Timestamp   int64  `json:"timestamp"`
 }
 
+type Mrc20TickListResp struct {
+	Total int64            `json:"total"`
+	List  []*Mrc20TickInfo `json:"list"`
+}
 type Mrc20TickInfo struct {
 	Tick        string      `json:"tick"`
 	TokenName   string      `json:"tokenName"`

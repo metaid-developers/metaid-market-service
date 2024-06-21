@@ -2,6 +2,7 @@ package common_service
 
 import (
 	"errors"
+	"github.com/godaddy-x/freego/utils/decimal"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -20,19 +21,56 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 	if err != nil {
 		return nil, err
 	}
+	if mrc20Resp == nil {
+		return nil, errors.New("mrc20 not found")
+	}
+	totalSupply := "0"
+	mintable := false
+	remaining := "0"
+	supply := "0"
+	if mrc20Resp.AmtPerMint != "" && mrc20Resp.MintCount != "" {
+		totalMintedDe := decimal.New(mrc20Resp.TotalMinted, 0)
+		amtPerMintDe, _ := decimal.NewFromString(mrc20Resp.AmtPerMint)
+		mintCountDe, _ := decimal.NewFromString(mrc20Resp.MintCount)
+		supplyDe := totalMintedDe.Mul(amtPerMintDe)
+		supply = supplyDe.String()
+
+		totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
+		totalSupply = totalSupplyDe.String()
+
+		remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
+		remaining = remainingDe.String()
+		if remainingDe.GreaterThan(decimal.Zero) {
+			mintable = true
+		}
+	}
 	return &respond.Mrc20TickInfo{
-		Tick:        mrc20Resp.Tick,
-		TokenName:   mrc20Resp.TokenName,
-		Decimals:    mrc20Resp.Decimals,
-		AmtPerMint:  mrc20Resp.AmtPerMint,
-		MintCount:   mrc20Resp.MintCount,
-		BlockHeight: mrc20Resp.BlockHeight,
-		MetaData:    mrc20Resp.MetaData,
-		Type:        mrc20Resp.Type,
-		Qual:        mrc20Resp.Qual,
-		TotalMinted: mrc20Resp.TotalMinted,
-		Mrc20Id:     mrc20Resp.Mrc20Id,
-		PinNumber:   mrc20Resp.PinNumber,
+		Tick:             mrc20Resp.Tick,
+		TokenName:        mrc20Resp.TokenName,
+		Decimals:         mrc20Resp.Decimals,
+		AmtPerMint:       mrc20Resp.AmtPerMint,
+		MintCount:        mrc20Resp.MintCount,
+		BlockHeight:      mrc20Resp.BlockHeight,
+		MetaData:         mrc20Resp.MetaData,
+		Type:             mrc20Resp.Type,
+		Qual:             mrc20Resp.Qual,
+		TotalMinted:      mrc20Resp.TotalMinted,
+		Mrc20Id:          mrc20Resp.Mrc20Id,
+		PinNumber:        mrc20Resp.PinNumber,
+		Holders:          0,
+		TxCount:          0,
+		DeployerMetaId:   "",
+		DeployerAddress:  "",
+		DeployerUserInfo: nil,
+		DeployTime:       0,
+		Price:            "",
+		PriceUsd:         "",
+		Change24h:        "",
+		MarketCap:        "",
+		TotalSupply:      totalSupply,
+		Supply:           supply,
+		Mintable:         mintable,
+		Remaining:        remaining,
 	}, nil
 }
 
@@ -93,6 +131,44 @@ func FetchMrc20TickAddressShovels(req *request.Mrc20AddressShovelsReq) (*respond
 		total = mrc20Resp.Total
 	}
 	return &respond.Mrc20ShovelResp{
+		Total: total,
+		List:  list,
+	}, nil
+}
+
+func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respond.Mrc20BalanceInfoResp, error) {
+	var (
+		mrc20Resp *man_service.Mrc20BalanceResp
+		err       error
+		list      []*respond.Mrc20BalanceInfo = make([]*respond.Mrc20BalanceInfo, 0)
+		total     int64                       = 0
+	)
+	mrc20Resp, err = man_service.FetchMrc20AddressBalanceList(req.Address)
+	if err != nil {
+		return nil, err
+	}
+	if mrc20Resp != nil {
+		for _, v := range mrc20Resp.List {
+			tickInfo, err := man_service.FetchMrc20TickInfo(v.Id)
+			if err != nil {
+				return nil, err
+			}
+			if tickInfo == nil || tickInfo.Mrc20Id == "" {
+				return nil, errors.New("mrc20 not found")
+			}
+
+			item := &respond.Mrc20BalanceInfo{
+				Tick:      tickInfo.Tick,
+				TokenName: tickInfo.TokenName,
+				Mrc20Id:   v.Id,
+				Balance:   strconv.FormatInt(v.Balance, 10),
+				Decimals:  tickInfo.Decimals,
+			}
+			list = append(list, item)
+		}
+		total = mrc20Resp.Total
+	}
+	return &respond.Mrc20BalanceInfoResp{
 		Total: total,
 		List:  list,
 	}, nil
@@ -177,6 +253,79 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 		total = mrc20Resp.Total
 	}
 	return &respond.Mrc20UtxoResp{
+		Total: total,
+		List:  list,
+	}, nil
+}
+
+func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
+	var (
+		mrc20Resp *man_service.Mrc20TickListResp
+		err       error
+		list      []*respond.Mrc20TickInfo = make([]*respond.Mrc20TickInfo, 0)
+		total     int64                    = 0
+	)
+	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size)
+	if err != nil {
+		return nil, err
+	}
+	if mrc20Resp != nil {
+		for _, v := range mrc20Resp.List {
+			totalSupply := "0"
+			mintable := false
+			remaining := "0"
+			supply := "0"
+			if v.AmtPerMint != "" && v.MintCount != "" {
+				totalMintedDe := decimal.New(v.TotalMinted, 0)
+				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
+				mintCountDe, _ := decimal.NewFromString(v.MintCount)
+
+				supplyDe := totalMintedDe.Mul(amtPerMintDe)
+				supply = supplyDe.String()
+
+				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
+				totalSupply = totalSupplyDe.String()
+
+				remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
+				remaining = remainingDe.String()
+				if remainingDe.GreaterThan(decimal.Zero) {
+					mintable = true
+				}
+			}
+			item := &respond.Mrc20TickInfo{
+				Tick:             v.Tick,
+				TokenName:        v.TokenName,
+				Decimals:         v.Decimals,
+				AmtPerMint:       v.AmtPerMint,
+				MintCount:        v.MintCount,
+				BlockHeight:      v.BlockHeight,
+				MetaData:         v.MetaData,
+				Type:             v.Type,
+				Qual:             v.Qual,
+				TotalMinted:      v.TotalMinted,
+				Mrc20Id:          v.Mrc20Id,
+				PinNumber:        v.PinNumber,
+				Holders:          0,
+				TxCount:          0,
+				DeployerMetaId:   "",
+				DeployerAddress:  "",
+				DeployerUserInfo: nil,
+				DeployTime:       0,
+				Price:            "",
+				PriceUsd:         "",
+				Change24h:        "",
+				MarketCap:        "",
+				TotalSupply:      totalSupply,
+				Supply:           supply,
+				Mintable:         mintable,
+				Remaining:        remaining,
+			}
+
+			list = append(list, item)
+		}
+		total = mrc20Resp.Total
+	}
+	return &respond.Mrc20TickListResp{
 		Total: total,
 		List:  list,
 	}, nil

@@ -94,3 +94,62 @@ type TakeOrderInfo struct {
 	AssetId    string            `json:"assetId"`
 	OrderState models.OrderState `json:"orderState"`
 }
+
+// mrc20 orders
+type PushMrc20OrderResp struct {
+	OrderId    string            `json:"orderId"`
+	AssetType  models.AssetType  `json:"assetType"`
+	TickId     string            `json:"tickId"`
+	OrderState models.OrderState `json:"orderState"`
+}
+
+type Mrc20OrderListResp struct {
+	Total int64             `json:"total"`
+	List  []*Mrc20OrderInfo `json:"list"`
+}
+
+type Mrc20OrderInfo struct {
+	OrderId           string                   `json:"orderId"`
+	UtxoId            string                   `json:"utxoId"`
+	OutValue          int64                    `json:"outValue"`
+	AssetType         models.AssetType         `json:"assetType"`
+	OrderState        models.OrderState        `json:"orderState"`
+	SellerAddress     string                   `json:"sellerAddress"`
+	Seller            *UserInfo                `json:"seller"`
+	BuyerAddress      string                   `json:"buyerAddress"`
+	Buyer             *UserInfo                `json:"buyer"`
+	TickId            string                   `json:"tickId"`
+	Tick              string                   `json:"tick"`
+	TokenName         string                   `json:"tokenName"`
+	Decimals          int64                    `json:"decimals"`
+	Chain             string                   `json:"chain"`
+	Amount            int64                    `json:"amount"`
+	AmountStr         string                   `json:"amountStr"`
+	TokenPriceRate    float64                  `json:"tokenPriceRate"`
+	TokenPriceRateStr string                   `json:"tokenPriceRateStr"`
+	PriceAmount       int64                    `json:"priceAmount"`
+	PriceDecimal      int64                    `json:"priceDecimal"`
+	PriceCoin         string                   `json:"priceCoin"`
+	Fee               int64                    `json:"fee"`
+	FeeRate           int64                    `json:"feeRate"`
+	TakePsbt          string                   `json:"takePsbt,omitempty"`
+	BlockHeight       int64                    `json:"blockHeight"`
+	ConfirmationState models.ConfirmationState `json:"confirmationState"`
+	DealTime          int64                    `json:"dealTime"`
+	TxId              string                   `json:"txId"`
+}
+
+type TakeMrc20OrderResp struct {
+	OrderId    string            `json:"orderId"`
+	TxId       string            `json:"txId"`
+	AssetType  models.AssetType  `json:"assetType"`
+	TickId     string            `json:"tickId"`
+	OrderState models.OrderState `json:"orderState"`
+}
+
+type CancelMrc20OrderResp struct {
+	OrderId    string            `json:"orderId"`
+	AssetType  models.AssetType  `json:"assetType"`
+	TickId     string            `json:"tickId"`
+	OrderState models.OrderState `json:"orderState"`
+}

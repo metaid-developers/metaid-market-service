@@ -33,6 +33,35 @@ func FetchMrc20TickInfo(c *gin.Context) {
 	return
 }
 
+// @Summary Fetch address mrc20 balances
+// @Description Fetch address mrc20 balances
+// @Produce  json
+// @Tags Common
+// @Param address query string true "address"
+// @Param cursor query int false "cursor"
+// @Param size query int false "size：max=50"
+// @Success 200 {object} respond.Mrc20BalanceInfoResp ""
+// @Router /api/v1/common/mrc20/address/balance-list [get]
+func FetchMrc20TickAddressBalances(c *gin.Context) {
+	var (
+		t   int64                            = tool.MakeTimestamp()
+		req *request.Mrc20AddressBalancesReq = &request.Mrc20AddressBalancesReq{
+			Address: c.DefaultQuery("address", ""),
+			Cursor:  0,
+			Size:    0,
+		}
+	)
+	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)
+	responseModel, err := common_service.FetchMrc20TickAddressBalances(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}
+
 // @Summary Fetch address mrc20 utxo
 // @Description Fetch address mrc20 utxo
 // @Produce  json
@@ -87,6 +116,33 @@ func FetchMrc20TickAddressShovels(c *gin.Context) {
 	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
 	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)
 	responseModel, err := common_service.FetchMrc20TickAddressShovels(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}
+
+// @Summary Fetch mrc20 tick info list
+// @Description Fetch mrc20 tick info list
+// @Produce  json
+// @Tags Common
+// @Param cursor query int false "cursor"
+// @Param size query int false "size：max=50"
+// @Success 200 {object} respond.Mrc20TickListResp ""
+// @Router /api/v1/common/mrc20/tick/info-list [get]
+func FetchMrc20TickList(c *gin.Context) {
+	var (
+		t   int64                          = tool.MakeTimestamp()
+		req *request.FetchMrc20TickListReq = &request.FetchMrc20TickListReq{
+			Cursor: 0,
+			Size:   0,
+		}
+	)
+	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)
+	responseModel, err := common_service.FetchMrc20TickList(req)
 	if err != nil {
 		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
 		return

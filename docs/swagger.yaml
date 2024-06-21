@@ -71,6 +71,11 @@ definitions:
       takerPsbtRaw:
         type: string
     type: object
+  request.CancelMrc20OrderReq:
+    properties:
+      orderId:
+        type: string
+    type: object
   request.CancelOrderReq:
     properties:
       orderId:
@@ -185,6 +190,19 @@ definitions:
           $ref: '#/definitions/request.TransferMrc20Utxo'
         type: array
     type: object
+  request.PushMrc20OrderReq:
+    properties:
+      address:
+        type: string
+      assetType:
+        allOf:
+        - $ref: '#/definitions/models.AssetType'
+        description: pins/ordinals
+      psbtRaw:
+        type: string
+      tickId:
+        type: string
+    type: object
   request.PushOrderReq:
     properties:
       address:
@@ -196,6 +214,15 @@ definitions:
         - $ref: '#/definitions/models.AssetType'
         description: pins/ordinals
       psbtRaw:
+        type: string
+    type: object
+  request.TakeMrc20OrderReq:
+    properties:
+      networkFeeRate:
+        type: integer
+      orderId:
+        type: string
+      takerPsbtRaw:
         type: string
     type: object
   request.TakeOrderReq:
@@ -217,6 +244,8 @@ definitions:
       address:
         type: string
       amount:
+        type: string
+      outRaw:
         type: string
       pkScript:
         type: string
@@ -247,6 +276,17 @@ definitions:
       total:
         type: integer
     type: object
+  respond.CancelMrc20OrderResp:
+    properties:
+      assetType:
+        $ref: '#/definitions/models.AssetType'
+      orderId:
+        type: string
+      orderState:
+        $ref: '#/definitions/models.OrderState'
+      tickId:
+        type: string
+    type: object
   respond.CancelOrderResp:
     properties:
       assetId:
@@ -266,6 +306,28 @@ definitions:
       message:
         type: string
       processingTime:
+        type: integer
+    type: object
+  respond.Mrc20BalanceInfo:
+    properties:
+      balance:
+        type: string
+      decimals:
+        type: string
+      mrc20Id:
+        type: string
+      tick:
+        type: string
+      tokenName:
+        type: string
+    type: object
+  respond.Mrc20BalanceInfoResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.Mrc20BalanceInfo'
+        type: array
+      total:
         type: integer
     type: object
   respond.Mrc20Info:
@@ -310,6 +372,74 @@ definitions:
       totalFee:
         type: integer
     type: object
+  respond.Mrc20OrderInfo:
+    properties:
+      amount:
+        type: integer
+      amountStr:
+        type: string
+      assetType:
+        $ref: '#/definitions/models.AssetType'
+      blockHeight:
+        type: integer
+      buyer:
+        $ref: '#/definitions/respond.UserInfo'
+      buyerAddress:
+        type: string
+      chain:
+        type: string
+      confirmationState:
+        $ref: '#/definitions/models.ConfirmationState'
+      dealTime:
+        type: integer
+      decimals:
+        type: integer
+      fee:
+        type: integer
+      feeRate:
+        type: integer
+      orderId:
+        type: string
+      orderState:
+        $ref: '#/definitions/models.OrderState'
+      outValue:
+        type: integer
+      priceAmount:
+        type: integer
+      priceCoin:
+        type: string
+      priceDecimal:
+        type: integer
+      seller:
+        $ref: '#/definitions/respond.UserInfo'
+      sellerAddress:
+        type: string
+      takePsbt:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tokenName:
+        type: string
+      tokenPriceRate:
+        type: number
+      tokenPriceRateStr:
+        type: string
+      txId:
+        type: string
+      utxoId:
+        type: string
+    type: object
+  respond.Mrc20OrderListResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.Mrc20OrderInfo'
+        type: array
+      total:
+        type: integer
+    type: object
   respond.Mrc20ShovelResp:
     properties:
       list:
@@ -325,25 +455,62 @@ definitions:
         type: string
       blockHeight:
         type: string
+      change24h:
+        type: string
       decimals:
+        type: string
+      deployTime:
+        type: integer
+      deployerAddress:
+        type: string
+      deployerMetaId:
+        type: string
+      deployerUserInfo:
+        $ref: '#/definitions/respond.UserInfo'
+      holders:
+        type: integer
+      marketCap:
         type: string
       metaData:
         type: string
       mintCount:
         type: string
+      mintable:
+        type: boolean
       mrc20Id:
         type: string
       pinNumber:
         type: integer
+      price:
+        type: string
+      priceUsd:
+        type: string
       qual: {}
+      remaining:
+        type: string
+      supply:
+        type: string
       tick:
         type: string
       tokenName:
         type: string
       totalMinted:
         type: integer
+      totalSupply:
+        type: string
+      txCount:
+        type: integer
       type:
         type: string
+    type: object
+  respond.Mrc20TickListResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.Mrc20TickInfo'
+        type: array
+      total:
+        type: integer
     type: object
   respond.Mrc20TransferCommitResp:
     properties:
@@ -479,6 +646,17 @@ definitions:
       total:
         type: integer
     type: object
+  respond.PushMrc20OrderResp:
+    properties:
+      assetType:
+        $ref: '#/definitions/models.AssetType'
+      orderId:
+        type: string
+      orderState:
+        $ref: '#/definitions/models.OrderState'
+      tickId:
+        type: string
+    type: object
   respond.PushOrderResp:
     properties:
       assetId:
@@ -569,6 +747,19 @@ definitions:
       version:
         type: string
     type: object
+  respond.TakeMrc20OrderResp:
+    properties:
+      assetType:
+        $ref: '#/definitions/models.AssetType'
+      orderId:
+        type: string
+      orderState:
+        $ref: '#/definitions/models.OrderState'
+      tickId:
+        type: string
+      txId:
+        type: string
+    type: object
   respond.TakeOrderResp:
     properties:
       assetId:
@@ -636,6 +827,33 @@ paths:
       summary: Take Market order
       tags:
       - Market-Order
+  /api/v1/common/mrc20/address/balance-list:
+    get:
+      description: Fetch address mrc20 balances
+      parameters:
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: size：max=50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20BalanceInfoResp'
+      summary: Fetch address mrc20 balances
+      tags:
+      - Common
   /api/v1/common/mrc20/address/shovel:
     get:
       description: Fetch address mrc20 shovels
@@ -717,6 +935,28 @@ paths:
           schema:
             $ref: '#/definitions/respond.Mrc20TickInfo'
       summary: Fetch mrc20 tick info
+      tags:
+      - Common
+  /api/v1/common/mrc20/tick/info-list:
+    get:
+      description: Fetch mrc20 tick info list
+      parameters:
+      - description: cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: size：max=50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20TickListResp'
+      summary: Fetch mrc20 tick info list
       tags:
       - Common
   /api/v1/inscribe/mrc20/mint/commit:
@@ -855,6 +1095,157 @@ paths:
       summary: Fetch market asset detail
       tags:
       - Market-Asset
+  /api/v1/market/mrc20/order/cancel:
+    post:
+      description: Cancel Market mrc20 order
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CancelMrc20OrderReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.CancelMrc20OrderResp'
+      summary: Cancel Market mrc20 order
+      tags:
+      - Market-Order
+  /api/v1/market/mrc20/order/detail:
+    get:
+      description: Fetch market mrc20 order detail
+      parameters:
+      - description: orderId
+        in: query
+        name: orderId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20OrderInfo'
+      summary: Fetch market mrc20 order detail
+      tags:
+      - Market-Order
+  /api/v1/market/mrc20/order/psbt:
+    get:
+      description: Fetch market mrc20 order psbt
+      parameters:
+      - description: orderId
+        in: query
+        name: orderId
+        required: true
+        type: string
+      - description: buyerAddress
+        in: query
+        name: buyerAddress
+        required: true
+        type: string
+      - description: buyerChangeAmount
+        in: query
+        name: buyerChangeAmount
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20OrderInfo'
+      summary: Fetch market mrc20 order psbt
+      tags:
+      - Market-Order
+  /api/v1/market/mrc20/order/push:
+    post:
+      description: Push Market mrc20 order
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.PushMrc20OrderReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.PushMrc20OrderResp'
+      summary: Push Market mrc20 order
+      tags:
+      - Market-Order
+  /api/v1/market/mrc20/order/take:
+    post:
+      description: Take Market mrc20 order
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.TakeMrc20OrderReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.TakeMrc20OrderResp'
+      summary: Take Market mrc20 order
+      tags:
+      - Market-Order
+  /api/v1/market/mrc20/orders:
+    get:
+      description: Fetch market mrc20 orders
+      parameters:
+      - description: mrc20
+        in: query
+        name: assetType
+        required: true
+        type: string
+      - description: 1-create, 2-cancel, 3-finish
+        in: query
+        name: orderState
+        required: true
+        type: integer
+      - description: address
+        in: query
+        name: address
+        type: string
+      - description: priceAmount/timestamp/tokenPriceRate, default:timestamp
+        in: query
+        name: sortKey
+        type: string
+      - description: -1/1, default:-1
+        in: query
+        name: sortType
+        type: integer
+      - description: default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: default:10, max:50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20OrderListResp'
+      summary: Fetch market mrc20 orders
+      tags:
+      - Market-Order
   /api/v1/market/order/cancel:
     post:
       description: Cancel Market order

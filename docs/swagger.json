@@ -75,6 +75,47 @@
                 }
             }
         },
+        "/api/v1/common/mrc20/address/balance-list": {
+            "get": {
+                "description": "Fetch address mrc20 balances",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch address mrc20 balances",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size：max=50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20BalanceInfoResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/common/mrc20/address/shovel": {
             "get": {
                 "description": "Fetch address mrc20 shovels",
@@ -195,6 +236,40 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.Mrc20TickInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/common/mrc20/tick/info-list": {
+            "get": {
+                "description": "Fetch mrc20 tick info list",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch mrc20 tick info list",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size：max=50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20TickListResp"
                         }
                     }
                 }
@@ -403,6 +478,236 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.OrderInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/order/cancel": {
+            "post": {
+                "description": "Cancel Market mrc20 order",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Cancel Market mrc20 order",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.CancelMrc20OrderReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.CancelMrc20OrderResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/order/detail": {
+            "get": {
+                "description": "Fetch market mrc20 order detail",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Fetch market mrc20 order detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "orderId",
+                        "name": "orderId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20OrderInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/order/psbt": {
+            "get": {
+                "description": "Fetch market mrc20 order psbt",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Fetch market mrc20 order psbt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "orderId",
+                        "name": "orderId",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "buyerAddress",
+                        "name": "buyerAddress",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "buyerChangeAmount",
+                        "name": "buyerChangeAmount",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20OrderInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/order/push": {
+            "post": {
+                "description": "Push Market mrc20 order",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Push Market mrc20 order",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.PushMrc20OrderReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.PushMrc20OrderResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/order/take": {
+            "post": {
+                "description": "Take Market mrc20 order",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Take Market mrc20 order",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.TakeMrc20OrderReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.TakeMrc20OrderResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/orders": {
+            "get": {
+                "description": "Fetch market mrc20 orders",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Fetch market mrc20 orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "mrc20",
+                        "name": "assetType",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "1-create, 2-cancel, 3-finish",
+                        "name": "orderState",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "priceAmount/timestamp/tokenPriceRate, default:timestamp",
+                        "name": "sortKey",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "-1/1, default:-1",
+                        "name": "sortType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:10, max:50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20OrderListResp"
                         }
                     }
                 }
@@ -838,6 +1143,14 @@
                 }
             }
         },
+        "request.CancelMrc20OrderReq": {
+            "type": "object",
+            "properties": {
+                "orderId": {
+                    "type": "string"
+                }
+            }
+        },
         "request.CancelOrderReq": {
             "type": "object",
             "properties": {
@@ -1013,6 +1326,28 @@
                 }
             }
         },
+        "request.PushMrc20OrderReq": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "assetType": {
+                    "description": "pins/ordinals",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AssetType"
+                        }
+                    ]
+                },
+                "psbtRaw": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                }
+            }
+        },
         "request.PushOrderReq": {
             "type": "object",
             "properties": {
@@ -1031,6 +1366,20 @@
                     ]
                 },
                 "psbtRaw": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.TakeMrc20OrderReq": {
+            "type": "object",
+            "properties": {
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "takerPsbtRaw": {
                     "type": "string"
                 }
             }
@@ -1064,6 +1413,9 @@
                     "type": "string"
                 },
                 "amount": {
+                    "type": "string"
+                },
+                "outRaw": {
                     "type": "string"
                 },
                 "pkScript": {
@@ -1111,6 +1463,23 @@
                 }
             }
         },
+        "respond.CancelMrc20OrderResp": {
+            "type": "object",
+            "properties": {
+                "assetType": {
+                    "$ref": "#/definitions/models.AssetType"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "orderState": {
+                    "$ref": "#/definitions/models.OrderState"
+                },
+                "tickId": {
+                    "type": "string"
+                }
+            }
+        },
         "respond.CancelOrderResp": {
             "type": "object",
             "properties": {
@@ -1139,6 +1508,40 @@
                     "type": "string"
                 },
                 "processingTime": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20BalanceInfo": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "string"
+                },
+                "decimals": {
+                    "type": "string"
+                },
+                "mrc20Id": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tokenName": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.Mrc20BalanceInfoResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20BalanceInfo"
+                    }
+                },
+                "total": {
                     "type": "integer"
                 }
             }
@@ -1207,6 +1610,109 @@
                 }
             }
         },
+        "respond.Mrc20OrderInfo": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "amountStr": {
+                    "type": "string"
+                },
+                "assetType": {
+                    "$ref": "#/definitions/models.AssetType"
+                },
+                "blockHeight": {
+                    "type": "integer"
+                },
+                "buyer": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "buyerAddress": {
+                    "type": "string"
+                },
+                "chain": {
+                    "type": "string"
+                },
+                "confirmationState": {
+                    "$ref": "#/definitions/models.ConfirmationState"
+                },
+                "dealTime": {
+                    "type": "integer"
+                },
+                "decimals": {
+                    "type": "integer"
+                },
+                "fee": {
+                    "type": "integer"
+                },
+                "feeRate": {
+                    "type": "integer"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "orderState": {
+                    "$ref": "#/definitions/models.OrderState"
+                },
+                "outValue": {
+                    "type": "integer"
+                },
+                "priceAmount": {
+                    "type": "integer"
+                },
+                "priceCoin": {
+                    "type": "string"
+                },
+                "priceDecimal": {
+                    "type": "integer"
+                },
+                "seller": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "sellerAddress": {
+                    "type": "string"
+                },
+                "takePsbt": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "tokenName": {
+                    "type": "string"
+                },
+                "tokenPriceRate": {
+                    "type": "number"
+                },
+                "tokenPriceRateStr": {
+                    "type": "string"
+                },
+                "txId": {
+                    "type": "string"
+                },
+                "utxoId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.Mrc20OrderListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20OrderInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "respond.Mrc20ShovelResp": {
             "type": "object",
             "properties": {
@@ -1230,7 +1736,28 @@
                 "blockHeight": {
                     "type": "string"
                 },
+                "change24h": {
+                    "type": "string"
+                },
                 "decimals": {
+                    "type": "string"
+                },
+                "deployTime": {
+                    "type": "integer"
+                },
+                "deployerAddress": {
+                    "type": "string"
+                },
+                "deployerMetaId": {
+                    "type": "string"
+                },
+                "deployerUserInfo": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "holders": {
+                    "type": "integer"
+                },
+                "marketCap": {
                     "type": "string"
                 },
                 "metaData": {
@@ -1239,13 +1766,28 @@
                 "mintCount": {
                     "type": "string"
                 },
+                "mintable": {
+                    "type": "boolean"
+                },
                 "mrc20Id": {
                     "type": "string"
                 },
                 "pinNumber": {
                     "type": "integer"
                 },
+                "price": {
+                    "type": "string"
+                },
+                "priceUsd": {
+                    "type": "string"
+                },
                 "qual": {},
+                "remaining": {
+                    "type": "string"
+                },
+                "supply": {
+                    "type": "string"
+                },
                 "tick": {
                     "type": "string"
                 },
@@ -1255,8 +1797,28 @@
                 "totalMinted": {
                     "type": "integer"
                 },
+                "totalSupply": {
+                    "type": "string"
+                },
+                "txCount": {
+                    "type": "integer"
+                },
                 "type": {
                     "type": "string"
+                }
+            }
+        },
+        "respond.Mrc20TickListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20TickInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -1463,6 +2025,23 @@
                 }
             }
         },
+        "respond.PushMrc20OrderResp": {
+            "type": "object",
+            "properties": {
+                "assetType": {
+                    "$ref": "#/definitions/models.AssetType"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "orderState": {
+                    "$ref": "#/definitions/models.OrderState"
+                },
+                "tickId": {
+                    "type": "string"
+                }
+            }
+        },
         "respond.PushOrderResp": {
             "type": "object",
             "properties": {
@@ -1595,6 +2174,26 @@
                     "type": "integer"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.TakeMrc20OrderResp": {
+            "type": "object",
+            "properties": {
+                "assetType": {
+                    "$ref": "#/definitions/models.AssetType"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "orderState": {
+                    "$ref": "#/definitions/models.OrderState"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "txId": {
                     "type": "string"
                 }
             }

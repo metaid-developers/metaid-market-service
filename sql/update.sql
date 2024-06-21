@@ -136,3 +136,45 @@ create table tb_mrc20_transfer_order
     constraint tb_mrc20_transfer_order_orderId_uindex
         unique (orderId)
 );
+
+create table tb_market_mrc20_order
+(
+    id                bigint auto_increment primary key,
+    orderId           varchar(80)    default '' not null,
+    utxoId            varchar(80)    default '' not null,
+    assetType         varchar(50)    default '' not null comment 'mrc20',
+    outValue          bigint         default 0  not null,
+    tickId            varchar(80)    default '' not null,
+    tick              varchar(80)    default '' not null,
+    tokenName         varchar(80)    default '' not null,
+    decimals          int            default 0  not null,
+    chain             varchar(80)    default '' not null,
+    amount            bigint         default 0  not null,
+    amountStr         varchar(80)    default '' not null,
+    tokenPriceRate    double         default 0  not null,
+    tokenPriceRateStr varchar(80)    default '' not null,
+    priceAmount       bigint         default 0  not null,
+    priceDecimal      int            default 0  not null,
+    priceCoin         varchar(80)    default '' not null,
+    orderState        int            default 0  not null comment '1-create, 2-cancel, 3-finish',
+    sellerAddress     varchar(80)    default '' not null,
+    sellerIp          varchar(64)    default '' not null,
+    buyerAddress      varchar(80)    default '' not null,
+    buyerIp           varchar(64)    default '' not null,
+    feeAmount         bigint         default 0  not null,
+    feeRate           bigint         default 0  not null,
+    makerPsbt         TEXT  not null,
+    takerPsbt         TEXT  not null,
+    finalPsbt         TEXT  not null,
+    txId              varchar(128)   default '' not null,
+    dealTime          bigint         default 0  not null,
+    blockHeight       bigint         default 0  not null,
+    confirmationState int            default 0  not null comment '1-Unconfirmed, 2-Confirmed',
+    timestamp         bigint         default 0  not null,
+    version           int            default 0  not null,
+    createTime        bigint         default 0  not null,
+    updateTime        bigint         default 0  not null,
+    state             int            default 0  not null,
+    constraint tb_market_mrc20_order_orderId_uindex
+        unique (orderId)
+);
