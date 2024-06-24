@@ -126,6 +126,7 @@ func CancelMarketMrc20Order(c *gin.Context) {
 // @Tags Market-Order
 // @Param assetType query string true "mrc20"
 // @Param orderState query int true "1-create, 2-cancel, 3-finish"
+// @Param tickId query string false "tickId"
 // @Param address query string false "address"
 // @Param sortKey query string false "priceAmount/timestamp/tokenPriceRate, default:timestamp"
 // @Param sortType query int false "-1/1, default:-1"
@@ -143,6 +144,7 @@ func FetchMarketMrc20Orders(c *gin.Context) {
 		sortTypeStr   string                             = c.DefaultQuery("sortType", "-1")
 		req           *request.FetchMarketMrc20OrdersReq = &request.FetchMarketMrc20OrdersReq{
 			OrderState: 0,
+			TickId:     c.DefaultQuery("tickId", ""),
 			AssetType:  models.AssetType(c.DefaultQuery("assetType", "")),
 			Cursor:     0,
 			Size:       0,

@@ -44,7 +44,7 @@ type MintPin struct {
 	PinUtxoOutValue int64
 	PrivateKeyHex   string
 	Address         string
-	ReeemScript     string
+	RedeemScript    string
 	PkScript        string
 	OutRaw          string
 }
@@ -52,7 +52,7 @@ type MintPin struct {
 type TransferMrc20 struct {
 	PrivateKeyHex string
 	Address       string
-	ReeemScript   string
+	RedeemScript  string
 	PkScript      string
 	OutRaw        string
 	UtxoTxId      string
@@ -143,7 +143,7 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 				Index:        i,
 				OutRaw:       v.OutRaw,
 				PkScript:     v.PkScript,
-				RedeemScript: v.ReeemScript,
+				RedeemScript: v.RedeemScript,
 				Amount:       uint64(v.PinUtxoOutValue),
 				SighashType:  txscript.SigHashAll,
 				PriHex:       v.PrivateKeyHex,
@@ -187,7 +187,7 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 				Index:        i,
 				OutRaw:       v.OutRaw,
 				PkScript:     v.PkScript,
-				RedeemScript: v.ReeemScript,
+				RedeemScript: v.RedeemScript,
 				Amount:       uint64(v.UtxoOutValue),
 				SighashType:  txscript.SigHashAll,
 				PriHex:       v.PrivateKeyHex,

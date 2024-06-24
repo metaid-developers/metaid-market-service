@@ -28,45 +28,55 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 	mintable := false
 	remaining := "0"
 	supply := "0"
-	if mrc20Resp.AmtPerMint != "" && mrc20Resp.MintCount != "" {
+	if mrc20Resp.AmtPerMint != "" && mrc20Resp.MintCount != 0 {
 		totalMintedDe := decimal.New(mrc20Resp.TotalMinted, 0)
+		premineCountDe := decimal.New(mrc20Resp.PremineCount, 0)
 		amtPerMintDe, _ := decimal.NewFromString(mrc20Resp.AmtPerMint)
-		mintCountDe, _ := decimal.NewFromString(mrc20Resp.MintCount)
-		supplyDe := totalMintedDe.Mul(amtPerMintDe)
+		mintCountDe := decimal.New(mrc20Resp.MintCount, 0)
+		supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
 		supply = supplyDe.String()
 
 		totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 		totalSupply = totalSupplyDe.String()
 
-		remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
+		remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
 		remaining = remainingDe.String()
 		if remainingDe.GreaterThan(decimal.Zero) {
 			mintable = true
 		}
 	}
+
+	price := "0"
+	priceUsd := "0.00"
+	change24h := "+0.00%"
+	marketCap := "0"
+	marketCapUsd := "0.00"
+
 	return &respond.Mrc20TickInfo{
 		Tick:             mrc20Resp.Tick,
 		TokenName:        mrc20Resp.TokenName,
 		Decimals:         mrc20Resp.Decimals,
 		AmtPerMint:       mrc20Resp.AmtPerMint,
-		MintCount:        mrc20Resp.MintCount,
+		MintCount:        strconv.FormatInt(mrc20Resp.MintCount, 10),
+		PremineCount:     strconv.FormatInt(mrc20Resp.PremineCount, 10),
 		BlockHeight:      mrc20Resp.BlockHeight,
-		MetaData:         mrc20Resp.MetaData,
+		MetaData:         mrc20Resp.Metadata,
 		Type:             mrc20Resp.Type,
 		Qual:             mrc20Resp.Qual,
-		TotalMinted:      mrc20Resp.TotalMinted,
+		TotalMinted:      strconv.FormatInt(mrc20Resp.TotalMinted, 10),
 		Mrc20Id:          mrc20Resp.Mrc20Id,
 		PinNumber:        mrc20Resp.PinNumber,
-		Holders:          0,
-		TxCount:          0,
-		DeployerMetaId:   "",
-		DeployerAddress:  "",
-		DeployerUserInfo: nil,
-		DeployTime:       0,
-		Price:            "",
-		PriceUsd:         "",
-		Change24h:        "",
-		MarketCap:        "",
+		Holders:          mrc20Resp.Holders,
+		TxCount:          mrc20Resp.TxCount,
+		DeployerMetaId:   mrc20Resp.MetaId,
+		DeployerAddress:  mrc20Resp.Address,
+		DeployTime:       mrc20Resp.DeployTime,
+		DeployerUserInfo: common.FetchMetaIDUserInfo(mrc20Resp.Address),
+		Price:            price,
+		PriceUsd:         priceUsd,
+		Change24h:        change24h,
+		MarketCap:        marketCap,
+		MarketCapUsd:     marketCapUsd,
 		TotalSupply:      totalSupply,
 		Supply:           supply,
 		Mintable:         mintable,
@@ -143,7 +153,7 @@ func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respo
 		list      []*respond.Mrc20BalanceInfo = make([]*respond.Mrc20BalanceInfo, 0)
 		total     int64                       = 0
 	)
-	mrc20Resp, err = man_service.FetchMrc20AddressBalanceList(req.Address)
+	mrc20Resp, err = man_service.FetchMrc20AddressBalanceList(req.Address, req.Cursor, req.Size)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +275,7 @@ func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickL
 		list      []*respond.Mrc20TickInfo = make([]*respond.Mrc20TickInfo, 0)
 		total     int64                    = 0
 	)
-	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size)
+	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, req.OrderBy)
 	if err != nil {
 		return nil, err
 	}
@@ -275,46 +285,56 @@ func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickL
 			mintable := false
 			remaining := "0"
 			supply := "0"
-			if v.AmtPerMint != "" && v.MintCount != "" {
+			if v.AmtPerMint != "" && v.MintCount != 0 {
 				totalMintedDe := decimal.New(v.TotalMinted, 0)
+				premineCountDe := decimal.New(v.PremineCount, 0)
 				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
-				mintCountDe, _ := decimal.NewFromString(v.MintCount)
+				mintCountDe := decimal.New(v.MintCount, 0)
 
-				supplyDe := totalMintedDe.Mul(amtPerMintDe)
+				supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
 				supply = supplyDe.String()
 
 				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 				totalSupply = totalSupplyDe.String()
 
-				remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
+				remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
 				remaining = remainingDe.String()
 				if remainingDe.GreaterThan(decimal.Zero) {
 					mintable = true
 				}
 			}
+
+			price := "0"
+			priceUsd := "0.00"
+			change24h := "+0.00%"
+			marketCap := "0"
+			marketCapUsd := "0.00"
+
 			item := &respond.Mrc20TickInfo{
 				Tick:             v.Tick,
 				TokenName:        v.TokenName,
 				Decimals:         v.Decimals,
 				AmtPerMint:       v.AmtPerMint,
-				MintCount:        v.MintCount,
+				MintCount:        strconv.FormatInt(v.MintCount, 10),
+				PremineCount:     strconv.FormatInt(v.PremineCount, 10),
 				BlockHeight:      v.BlockHeight,
-				MetaData:         v.MetaData,
+				MetaData:         v.Metadata,
 				Type:             v.Type,
 				Qual:             v.Qual,
-				TotalMinted:      v.TotalMinted,
+				TotalMinted:      strconv.FormatInt(v.TotalMinted, 10),
 				Mrc20Id:          v.Mrc20Id,
 				PinNumber:        v.PinNumber,
-				Holders:          0,
-				TxCount:          0,
-				DeployerMetaId:   "",
-				DeployerAddress:  "",
-				DeployerUserInfo: nil,
-				DeployTime:       0,
-				Price:            "",
-				PriceUsd:         "",
-				Change24h:        "",
-				MarketCap:        "",
+				Holders:          v.Holders,
+				TxCount:          v.TxCount,
+				DeployerMetaId:   v.MetaId,
+				DeployerAddress:  v.Address,
+				DeployTime:       v.DeployTime,
+				DeployerUserInfo: common.FetchMetaIDUserInfo(v.Address),
+				Price:            price,
+				PriceUsd:         priceUsd,
+				Change24h:        change24h,
+				MarketCap:        marketCap,
+				MarketCapUsd:     marketCapUsd,
 				TotalSupply:      totalSupply,
 				Supply:           supply,
 				Mintable:         mintable,

@@ -471,6 +471,8 @@ definitions:
         type: integer
       marketCap:
         type: string
+      marketCapUsd:
+        type: string
       metaData:
         type: string
       mintCount:
@@ -481,6 +483,8 @@ definitions:
         type: string
       pinNumber:
         type: integer
+      premineCount:
+        type: string
       price:
         type: string
       priceUsd:
@@ -495,7 +499,7 @@ definitions:
       tokenName:
         type: string
       totalMinted:
-        type: integer
+        type: string
       totalSupply:
         type: string
       txCount:
@@ -941,6 +945,14 @@ paths:
     get:
       description: Fetch mrc20 tick info list
       parameters:
+      - description: pinnumber/totalminted/holders/txcount
+        in: query
+        name: orderBy
+        type: string
+      - description: true/false/null, default null
+        in: query
+        name: completed
+        type: boolean
       - description: cursor
         in: query
         name: cursor
@@ -1216,6 +1228,10 @@ paths:
         name: orderState
         required: true
         type: integer
+      - description: tickId
+        in: query
+        name: tickId
+        type: string
       - description: address
         in: query
         name: address

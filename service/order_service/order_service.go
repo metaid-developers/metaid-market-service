@@ -115,7 +115,8 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		witnessUtxo := psbtBuilder.PsbtUpdater.Upsbt.Inputs[i].WitnessUtxo
 		finalScriptSig := psbtBuilder.PsbtUpdater.Upsbt.Inputs[i].FinalScriptSig
 		sighashType := psbtBuilder.PsbtUpdater.Upsbt.Inputs[i].SighashType
-		err = itembuilder.AddSigIn(witnessUtxo, sighashType, finalScriptWitness, finalScriptSig, 0)
+		partialSigs := psbtBuilder.PsbtUpdater.Upsbt.Inputs[i].PartialSigs
+		err = itembuilder.AddSigIn(witnessUtxo, partialSigs, sighashType, finalScriptWitness, finalScriptSig, 0)
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("PSBT(Single): AddPartialSigIn err:%s", err.Error()))
 		}

@@ -40,18 +40,25 @@ type Mrc20TickListResp struct {
 	List  []*Mrc20TickInfo `json:"list"`
 }
 type Mrc20TickInfo struct {
-	Tick        string      `json:"tick"`
-	TokenName   string      `json:"tokenName"`
-	Decimals    string      `json:"decimals"`
-	AmtPerMint  string      `json:"amtPerMint"`
-	MintCount   string      `json:"mintCount"`
-	BlockHeight string      `json:"blockheight"`
-	MetaData    string      `json:"metadata"`
-	Type        string      `json:"type"`
-	Qual        interface{} `json:"qual"`
-	TotalMinted int64       `json:"totalMinted"`
-	Mrc20Id     string      `json:"mrc20Id"`
-	PinNumber   int64       `json:"pinNumber"`
+	Tick         string      `json:"tick"`
+	TokenName    string      `json:"tokenName"`
+	Decimals     string      `json:"decimals"`
+	AmtPerMint   string      `json:"amtPerMint"`
+	MintCount    int64       `json:"mintCount"`
+	BlockHeight  string      `json:"blockheight"`
+	Metadata     string      `json:"metadata"`
+	Type         string      `json:"type"`
+	PremineCount int64       `json:"premineCount"`
+	Qual         interface{} `json:"qual"`
+	TotalMinted  int64       `json:"totalMinted"`
+	Mrc20Id      string      `json:"mrc20Id"`
+	PinNumber    int64       `json:"pinNumber"`
+	Chain        string      `json:"chain"`
+	Holders      int64       `json:"holders"`
+	TxCount      int64       `json:"txCount"`
+	MetaId       string      `json:"metaId"`
+	Address      string      `json:"address"`
+	DeployTime   int64       `json:"deployTime"`
 }
 
 type Mrc20ShovelResp struct {

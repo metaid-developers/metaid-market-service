@@ -392,7 +392,6 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	txId := txAsk.TxHash().String()
 
 	entity.FinalPsbt = finalAskPsbtRaw
-	fmt.Printf("FinalPsbt: %s\n", finalAskPsbtRaw)
 	entity.TxId = txId
 
 	if len(takerAskPsbtBuilder.GetInputs()) < 3 {
@@ -563,6 +562,9 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 	}
 	if req.Size <= 0 || req.Size >= 50 {
 		req.Size = 50
+	}
+	if req.TickId != "" {
+		filter.TickId = req.TickId
 	}
 	total, _ = models.MarketMrc20OrderModelDao().CountByState(filter, req.Address)
 	entityList, _ = models.MarketMrc20OrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType)

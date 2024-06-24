@@ -258,6 +258,18 @@ const docTemplate = `{
                 "summary": "Fetch mrc20 tick info list",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "pinnumber/totalminted/holders/txcount",
+                        "name": "orderBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true/false/null, default null",
+                        "name": "completed",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "cursor",
                         "name": "cursor",
@@ -676,6 +688,12 @@ const docTemplate = `{
                         "name": "orderState",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -1765,6 +1783,9 @@ const docTemplate = `{
                 "marketCap": {
                     "type": "string"
                 },
+                "marketCapUsd": {
+                    "type": "string"
+                },
                 "metaData": {
                     "type": "string"
                 },
@@ -1779,6 +1800,9 @@ const docTemplate = `{
                 },
                 "pinNumber": {
                     "type": "integer"
+                },
+                "premineCount": {
+                    "type": "string"
                 },
                 "price": {
                     "type": "string"
@@ -1800,7 +1824,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "totalMinted": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "totalSupply": {
                     "type": "string"

@@ -1,8 +1,10 @@
 package request
 
 type FetchMrc20TickListReq struct {
-	Cursor int64 `json:"cursor"`
-	Size   int64 `json:"size"`
+	Cursor    int64  `json:"cursor"`
+	Size      int64  `json:"size"`
+	Completed bool   `json:"completed"`
+	OrderBy   string `json:"order"`
 }
 
 type FetchMrc20TickInfoReq struct {

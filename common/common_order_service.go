@@ -213,7 +213,8 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 			witnessUtxo := askBuilder.PsbtUpdater.Upsbt.Inputs[0].WitnessUtxo
 			finalScriptSig := askBuilder.PsbtUpdater.Upsbt.Inputs[0].FinalScriptSig
 			sighashType := askBuilder.PsbtUpdater.Upsbt.Inputs[0].SighashType
-			err = builder.AddSigIn(witnessUtxo, sighashType, finalScriptWitness, finalScriptSig, 2+i)
+			partialSigs := askBuilder.PsbtUpdater.Upsbt.Inputs[0].PartialSigs
+			err = builder.AddSigIn(witnessUtxo, partialSigs, sighashType, finalScriptWitness, finalScriptSig, 2+i)
 			if err != nil {
 				return "", feeAmountForPlatform, errors.New(fmt.Sprintf("PSBT(Ask): AddPartialSigIn err:%s", err.Error()))
 			}
@@ -465,7 +466,8 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 		witnessUtxo := askBuilder.PsbtUpdater.Upsbt.Inputs[0].WitnessUtxo
 		//redeemScript := askBuilder.PsbtUpdater.Upsbt.Inputs[0].RedeemScript
 		sighashType := askBuilder.PsbtUpdater.Upsbt.Inputs[0].SighashType
-		err = builder.AddSigIn(witnessUtxo, sighashType, finalScriptWitness, finalScriptSig, 2)
+		partialSigs := askBuilder.PsbtUpdater.Upsbt.Inputs[0].PartialSigs
+		err = builder.AddSigIn(witnessUtxo, partialSigs, sighashType, finalScriptWitness, finalScriptSig, 2)
 		if err != nil {
 			return "", feeAmountForPlatform, errors.New(fmt.Sprintf("PSBT(Ask): AddPartialSigIn err:%s", err.Error()))
 		}
@@ -876,7 +878,8 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 		witnessUtxo := askBuilder.PsbtUpdater.Upsbt.Inputs[0].WitnessUtxo
 		//redeemScript := askBuilder.PsbtUpdater.Upsbt.Inputs[0].RedeemScript
 		sighashType := askBuilder.PsbtUpdater.Upsbt.Inputs[0].SighashType
-		err = builder.AddSigIn(witnessUtxo, sighashType, finalScriptWitness, finalScriptSig, 1)
+		partialSigs := askBuilder.PsbtUpdater.Upsbt.Inputs[0].PartialSigs
+		err = builder.AddSigIn(witnessUtxo, partialSigs, sighashType, finalScriptWitness, finalScriptSig, 1)
 		if err != nil {
 			return "", feeAmountForPlatform, errors.New(fmt.Sprintf("PSBT(Ask): AddPartialSigIn err:%s", err.Error()))
 		}

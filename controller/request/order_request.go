@@ -99,6 +99,7 @@ type CancelMrc20OrderReq struct {
 type FetchMarketMrc20OrdersReq struct {
 	OrderState models.OrderState `json:"orderState"` //1-create,2-finish,3-cancel
 	AssetType  models.AssetType  `json:"assetType"`  //mrc20
+	TickId     string            `json:"tickId"`
 	Cursor     int64             `json:"cursor"`
 	Size       int64             `json:"size"`
 	Address    string            `json:"address"`

@@ -62,6 +62,7 @@ type SigIn struct {
 	FinalScriptWitness []byte               `json:"finalScriptWitness"`
 	FinalScriptSig     []byte               `json:"finalScriptSig"`
 	Index              int                  `json:"index"`
+	PartialSigs        []*psbt.PartialSig   `json:"partialSigs"`
 }
 
 type Output struct {
@@ -656,10 +657,11 @@ func (s *PsbtBuilder) UpdateAndMultiSignInput(signIns []*InputSign) error {
 }
 
 func (s *PsbtBuilder) AddSinInStruct(sigIn *SigIn) error {
-	return s.AddSigIn(sigIn.WitnessUtxo, sigIn.SighashType, sigIn.FinalScriptWitness, sigIn.FinalScriptSig, sigIn.Index)
+	return s.AddSigIn(sigIn.WitnessUtxo, sigIn.PartialSigs, sigIn.SighashType, sigIn.FinalScriptWitness, sigIn.FinalScriptSig, sigIn.Index)
 }
 
-func (s *PsbtBuilder) AddSigIn(witnessUtxo *wire.TxOut, sighashType txscript.SigHashType, finalScriptWitness, finalScriptSig []byte, index int) error {
+func (s *PsbtBuilder) AddSigIn(witnessUtxo *wire.TxOut, partialSigs []*psbt.PartialSig, sighashType txscript.SigHashType, finalScriptWitness, finalScriptSig []byte, index int) error {
+	s.PsbtUpdater.Upsbt.Inputs[index].PartialSigs = partialSigs
 	s.PsbtUpdater.Upsbt.Inputs[index].SighashType = sighashType
 	s.PsbtUpdater.Upsbt.Inputs[index].WitnessUtxo = witnessUtxo
 	s.PsbtUpdater.Upsbt.Inputs[index].FinalScriptSig = finalScriptSig

@@ -2,33 +2,56 @@ package common_service
 
 import (
 	"metaid-market-service/service/man_service"
+	"strconv"
 )
 
 func FetchTxPointInfo(txId string, index, cursor, size int64) ([]*man_service.Mrc20Utxo, int64, error) {
 	var (
 		txPointInfo *man_service.Mrc20UtxoResp
 		err         error
+		list        []*man_service.Mrc20Utxo = make([]*man_service.Mrc20Utxo, 0)
+		total       int64                    = 0
 	)
 	txPointInfo, err = man_service.FetchMrc20txPointList(txId, index, cursor, size)
 	if err != nil {
 		return nil, 0, err
 	}
-	return txPointInfo.List, txPointInfo.Total, nil
+	total = txPointInfo.Total
+	for _, v := range txPointInfo.List {
+		if !v.Verify {
+			total--
+			continue
+		}
+		if v.AmtChange == 0 {
+			total--
+			continue
+		}
+		list = append(list, v)
+	}
+
+	return list, total, nil
 }
 
 type TickInfo struct {
-	Tick        string      `json:"tick"`
-	TokenName   string      `json:"tokenName"`
-	Decimals    string      `json:"decimals"`
-	AmtPerMint  string      `json:"amtPerMint"`
-	MintCount   string      `json:"mintCount"`
-	BlockHeight string      `json:"blockheight"`
-	MetaData    string      `json:"metadata"`
-	Type        string      `json:"type"`
-	Qual        interface{} `json:"qual"`
-	TotalMinted int64       `json:"totalMinted"`
-	Mrc20Id     string      `json:"mrc20Id"`
-	PinNumber   int64       `json:"pinNumber"`
+	Tick         string      `json:"tick"`
+	TokenName    string      `json:"tokenName"`
+	Decimals     string      `json:"decimals"`
+	AmtPerMint   string      `json:"amtPerMint"`
+	MintCount    string      `json:"mintCount"`
+	PremineCount string      `json:"premineCount"`
+	BlockHeight  string      `json:"blockheight"`
+	MetaData     string      `json:"metadata"`
+	Type         string      `json:"type"`
+	Qual         interface{} `json:"qual"`
+	TotalMinted  string      `json:"totalMinted"`
+	Mrc20Id      string      `json:"mrc20Id"`
+	PinNumber    int64       `json:"pinNumber"`
+	Chain        string      `json:"chain"`
+	Holders      int64       `json:"holders"`
+	TxCount      int64       `json:"txCount"`
+	MetaId       string      `json:"metaId"`
+	Address      string      `json:"address"`
+	DeployTime   int64       `json:"deployTime"`
 }
 
 func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
@@ -41,17 +64,24 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 		return nil, err
 	}
 	return &TickInfo{
-		Tick:        mrc20Resp.Tick,
-		TokenName:   mrc20Resp.TokenName,
-		Decimals:    mrc20Resp.Decimals,
-		AmtPerMint:  mrc20Resp.AmtPerMint,
-		MintCount:   mrc20Resp.MintCount,
-		BlockHeight: mrc20Resp.BlockHeight,
-		MetaData:    mrc20Resp.MetaData,
-		Type:        mrc20Resp.Type,
-		Qual:        mrc20Resp.Qual,
-		TotalMinted: mrc20Resp.TotalMinted,
-		Mrc20Id:     mrc20Resp.Mrc20Id,
-		PinNumber:   mrc20Resp.PinNumber,
+		Tick:         mrc20Resp.Tick,
+		TokenName:    mrc20Resp.TokenName,
+		Decimals:     mrc20Resp.Decimals,
+		AmtPerMint:   mrc20Resp.AmtPerMint,
+		MintCount:    strconv.FormatInt(mrc20Resp.MintCount, 10),
+		PremineCount: strconv.FormatInt(mrc20Resp.PremineCount, 10),
+		BlockHeight:  mrc20Resp.BlockHeight,
+		MetaData:     mrc20Resp.Metadata,
+		Type:         mrc20Resp.Type,
+		Qual:         mrc20Resp.Qual,
+		TotalMinted:  strconv.FormatInt(mrc20Resp.TotalMinted, 10),
+		Mrc20Id:      mrc20Resp.Mrc20Id,
+		PinNumber:    mrc20Resp.PinNumber,
+		Chain:        mrc20Resp.Chain,
+		Holders:      mrc20Resp.Holders,
+		TxCount:      mrc20Resp.TxCount,
+		MetaId:       mrc20Resp.MetaId,
+		Address:      mrc20Resp.Address,
+		DeployTime:   mrc20Resp.DeployTime,
 	}, nil
 }

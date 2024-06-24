@@ -6,11 +6,12 @@ type Mrc20TickInfo struct {
 	Decimals         string      `json:"decimals"`
 	AmtPerMint       string      `json:"amtPerMint"`
 	MintCount        string      `json:"mintCount"`
+	PremineCount     string      `json:"premineCount"`
+	TotalMinted      string      `json:"totalMinted"`
 	BlockHeight      string      `json:"blockHeight"`
 	MetaData         string      `json:"metaData"`
 	Type             string      `json:"type"`
 	Qual             interface{} `json:"qual"`
-	TotalMinted      int64       `json:"totalMinted"`
 	Mrc20Id          string      `json:"mrc20Id"`
 	PinNumber        int64       `json:"pinNumber"`
 	Holders          int64       `json:"holders"`
@@ -23,6 +24,7 @@ type Mrc20TickInfo struct {
 	PriceUsd         string      `json:"priceUsd"`
 	Change24h        string      `json:"change24h"`
 	MarketCap        string      `json:"marketCap"`
+	MarketCapUsd     string      `json:"marketCapUsd"`
 	TotalSupply      string      `json:"totalSupply"`
 	Supply           string      `json:"supply"`
 	Mintable         bool        `json:"mintable"`
