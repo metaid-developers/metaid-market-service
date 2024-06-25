@@ -33,6 +33,7 @@ type Mrc20Utxo struct {
 	Chain       string `json:"chain"`
 	Index       int64  `json:"index"`
 	Timestamp   int64  `json:"timestamp"`
+	PointValue  int64  `json:"pointValue"`
 }
 
 type Mrc20TickListResp struct {

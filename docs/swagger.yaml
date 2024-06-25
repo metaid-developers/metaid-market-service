@@ -71,6 +71,11 @@ definitions:
       takerPsbtRaw:
         type: string
     type: object
+  request.BroadcastTxReq:
+    properties:
+      txHex:
+        type: string
+    type: object
   request.CancelMrc20OrderReq:
     properties:
       orderId:
@@ -276,6 +281,11 @@ definitions:
       total:
         type: integer
     type: object
+  respond.BroadcastTxResp:
+    properties:
+      txId:
+        type: string
+    type: object
   respond.CancelMrc20OrderResp:
     properties:
       assetType:
@@ -386,6 +396,8 @@ definitions:
         $ref: '#/definitions/respond.UserInfo'
       buyerAddress:
         type: string
+      buyerMetaId:
+        type: string
       chain:
         type: string
       confirmationState:
@@ -413,6 +425,8 @@ definitions:
       seller:
         $ref: '#/definitions/respond.UserInfo'
       sellerAddress:
+        type: string
+      sellerMetaId:
         type: string
       takePsbt:
         type: string
@@ -969,6 +983,26 @@ paths:
           schema:
             $ref: '#/definitions/respond.Mrc20TickListResp'
       summary: Fetch mrc20 tick info list
+      tags:
+      - Common
+  /api/v1/common/tx/broadcast:
+    post:
+      description: Broadcast Tx
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.BroadcastTxReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.BroadcastTxResp'
+      summary: Broadcast Tx
       tags:
       - Common
   /api/v1/inscribe/mrc20/mint/commit:

@@ -1,6 +1,8 @@
 package common
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/service/man_service"
@@ -47,4 +49,12 @@ func GenPopSummary(pop string) string {
 		popSummary = popSummary[:14]
 	}
 	return popSummary
+}
+
+func GetMetaIdByAddress(address string) (metaId string) {
+	hash := sha256.New()
+	hash.Write([]byte(address))
+	hashBytes := hash.Sum(nil)
+	metaId = hex.EncodeToString(hashBytes)
+	return
 }

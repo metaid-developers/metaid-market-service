@@ -112,7 +112,9 @@ func (_ *marketMrc20OrderModelDao) CountByState(qo *MarketMrc20OrderModel, addre
 	filter := ""
 	if qo.OrderState == OrderStateFinish {
 		qo.SellerAddress = ""
-		filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+		if address != "" {
+			filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+		}
 	}
 	tx := major.GetSqlDB().Model(&MarketMrc20OrderModel{}).Where(qo).Where(filter).Count(&count)
 	if tx.Error != nil {
@@ -126,7 +128,9 @@ func (_ *marketMrc20OrderModelDao) GetListByState(qo *MarketMrc20OrderModel, add
 	filter := ""
 	if qo.OrderState == OrderStateFinish {
 		qo.SellerAddress = ""
-		filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+		if address != "" {
+			filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+		}
 	}
 	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", sortKey, sortType)).Find(&models)
 	if tx.Error != nil {

@@ -206,6 +206,14 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 	}
 	if mrc20Resp != nil {
 		for _, v := range mrc20Resp.List {
+
+			if !v.Verify {
+				continue
+			}
+			if v.AmtChange == 0 {
+				continue
+			}
+
 			address := v.ToAddress
 			txPoint := v.TxPoint
 			txPointStrs := strings.Split(txPoint, ":")
@@ -217,6 +225,9 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 			}
 			pkScript, _ := common.AddressToPkScript(conf.Net, address)
 			satoshi := int64(546)
+			if v.PointValue > 0 {
+				satoshi = v.PointValue
+			}
 
 			mrc20s := make([]*respond.Mrc20Info, 0)
 			mrc20s = append(mrc20s, &respond.Mrc20Info{

@@ -114,8 +114,10 @@ type Mrc20OrderInfo struct {
 	OutValue          int64                    `json:"outValue"`
 	AssetType         models.AssetType         `json:"assetType"`
 	OrderState        models.OrderState        `json:"orderState"`
+	SellerMetaId      string                   `json:"sellerMetaId"`
 	SellerAddress     string                   `json:"sellerAddress"`
 	Seller            *UserInfo                `json:"seller"`
+	BuyerMetaId       string                   `json:"buyerMetaId"`
 	BuyerAddress      string                   `json:"buyerAddress"`
 	Buyer             *UserInfo                `json:"buyer"`
 	TickId            string                   `json:"tickId"`

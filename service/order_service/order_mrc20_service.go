@@ -125,7 +125,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 	}
 
 	for i, v := range outList {
-		if len(preOutList) == 3 && i != 2 {
+		if len(preOutList) == 2 && i != 1 {
 			continue
 		}
 		pkScript := hex.EncodeToString(v.PkScript)
@@ -575,8 +575,10 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 			OutValue:          v.OutValue,
 			AssetType:         v.AssetType,
 			OrderState:        v.OrderState,
+			SellerMetaId:      common.GetMetaIdByAddress(v.SellerAddress),
 			SellerAddress:     v.SellerAddress,
 			Seller:            common.FetchMetaIDUserInfo(v.SellerAddress),
+			BuyerMetaId:       common.GetMetaIdByAddress(v.BuyerAddress),
 			BuyerAddress:      v.BuyerAddress,
 			Buyer:             common.FetchMetaIDUserInfo(v.BuyerAddress),
 			TickId:            v.TickId,
@@ -626,8 +628,10 @@ func FetchMarketMrc20OneOrder(req *request.FetchMarketMrc20OneOrderReq, publicKe
 			OutValue:          entity.OutValue,
 			AssetType:         entity.AssetType,
 			OrderState:        entity.OrderState,
+			SellerMetaId:      common.GetMetaIdByAddress(entity.SellerAddress),
 			SellerAddress:     entity.SellerAddress,
 			Seller:            common.FetchMetaIDUserInfo(entity.SellerAddress),
+			BuyerMetaId:       common.GetMetaIdByAddress(entity.BuyerAddress),
 			BuyerAddress:      entity.BuyerAddress,
 			Buyer:             common.FetchMetaIDUserInfo(entity.BuyerAddress),
 			TickId:            entity.TickId,

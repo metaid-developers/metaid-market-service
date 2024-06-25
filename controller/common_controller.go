@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
@@ -154,4 +155,28 @@ func FetchMrc20TickList(c *gin.Context) {
 	}
 	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
 	return
+}
+
+// @Summary Broadcast Tx
+// @Description Broadcast Tx
+// @Produce  json
+// @Param Request body request.BroadcastTxReq true "Request"
+// @Tags Common
+// @Success 200 {object} respond.BroadcastTxResp ""
+// @Router /api/v1/common/tx/broadcast [post]
+func BroadcastTx(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.BroadcastTxReq
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		responseModel, err := common_service.BroadcastTx(requestModel)
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }

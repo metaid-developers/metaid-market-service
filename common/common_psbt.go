@@ -24,7 +24,8 @@ const (
 )
 
 const (
-	SpendSize = 1 + 73 + 1 + 33
+	SpendSize             = 1 + 73 + 1 + 33
+	NativeSegwitSpendSize = 149
 )
 
 type PsbtBuilder struct {
@@ -1059,10 +1060,11 @@ func (s *PsbtBuilder) CalculateFee(feeRate int64, extraSize int64) (int64, error
 
 func (s *PsbtBuilder) CalTxSize() (int64, error) {
 	var (
-		txSize int64 = 0
-		lenIn  int64 = int64(len(s.PsbtUpdater.Upsbt.UnsignedTx.TxIn))
+		txSize             int64 = 0
+		lenIn              int64 = int64(len(s.PsbtUpdater.Upsbt.UnsignedTx.TxIn))
+		emptySegwitWitenss       = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
 	)
-	txSize = int64(s.PsbtUpdater.Upsbt.UnsignedTx.SerializeSize()) + int64(SpendSize*lenIn)
+	txSize = int64(s.PsbtUpdater.Upsbt.UnsignedTx.SerializeSize()) + int64(emptySegwitWitenss.SerializeSize())*lenIn
 	return txSize, nil
 }
 

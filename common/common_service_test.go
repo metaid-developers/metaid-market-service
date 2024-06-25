@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/btcsuite/btcd/wire"
 	"testing"
 )
 
@@ -55,4 +56,13 @@ func TestCheckAddressClass(t *testing.T) {
 		t.Errorf("err:%s", err.Error())
 	}
 	t.Logf("AddressClass:%s", addressClass)
+}
+
+func TestLenByte(t *testing.T) {
+	var (
+		byteData           []byte = make([]byte, 32)
+		emptySegwitWitenss        = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+	)
+	t.Logf("Len:%d", len(byteData))
+	t.Logf("Len:%d", emptySegwitWitenss.SerializeSize())
 }

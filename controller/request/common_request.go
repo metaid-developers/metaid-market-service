@@ -30,3 +30,7 @@ type Mrc20AddressBalancesReq struct {
 	Cursor  int64  `json:"cursor"`
 	Size    int64  `json:"size"`
 }
+
+type BroadcastTxReq struct {
+	TxHex string `json:"txHex"`
+}

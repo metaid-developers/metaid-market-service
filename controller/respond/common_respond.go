@@ -140,3 +140,7 @@ type Mrc20TickListResp struct {
 	Total int64            `json:"total"`
 	List  []*Mrc20TickInfo `json:"list"`
 }
+
+type BroadcastTxResp struct {
+	TxId string `json:"txId"`
+}

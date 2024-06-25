@@ -64,6 +64,8 @@ func Run() {
 		v1.GET("/common/mrc20/address/utxo", FetchMrc20AddressUtxoList)
 		v1.GET("/common/mrc20/address/shovel", FetchMrc20TickAddressShovels)
 
+		v1.POST("/common/tx/broadcast", BroadcastTx)
+
 		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
 	}
 

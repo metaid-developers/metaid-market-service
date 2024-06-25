@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
@@ -80,6 +81,12 @@ type inscriptionTxCtxData struct {
 	recoveryPrivateKeyWIF   string
 	RecoveryPrivateKeyHex   string
 	revealTxPrevOutput      *wire.TxOut
+}
+
+type CalInput struct {
+	OutTxId    string
+	OutIndex   uint32
+	OutAddress string
 }
 
 func NewMrc20BuilderFromPsbtRaws(net *chaincfg.Params, revealPsbtRaw string) (*Mrc20Builder, error) {
@@ -277,17 +284,75 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 
 func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 	var (
-		tx     *wire.MsgTx = m.RevealPsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx
-		txSize int         = tx.SerializeSize()
-		txFee  int64       = 0
+		tx          *wire.MsgTx = m.RevealPsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx
+		txTotalSize int         = tx.SerializeSize()
+		txBaseSize  int         = tx.SerializeSizeStripped()
+		txFee       int64       = 0
+		weight      int64       = 0
+		vSize       int64       = 0
+
+		emptySegwitWitenss   = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+		emptyNestSignature   = make([]byte, 23)
+		emptylegacySignature = make([]byte, 107)
+		emptyTaprootWitness  = wire.TxWitness{make([]byte, 64)}
+		revealOutValues      = int64(0)
 	)
+
+	if m.op == "mint" {
+		for _, v := range m.MintPins {
+			addressClass, err := common.CheckAddressClass(m.Net, v.Address)
+			if err != nil {
+				fmt.Printf("CheckAddressClass err:%s\n", err.Error())
+				continue
+			}
+			if addressClass == txscript.WitnessV1TaprootTy {
+				txTotalSize += emptyTaprootWitness.SerializeSize()
+			} else if addressClass == txscript.PubKeyHashTy {
+				txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptylegacySignature))) + len(emptylegacySignature)
+			} else if addressClass == txscript.ScriptHashTy {
+				txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptyNestSignature))) + len(emptyNestSignature)
+				txTotalSize += emptySegwitWitenss.SerializeSize()
+			} else {
+				txTotalSize += emptySegwitWitenss.SerializeSize()
+			}
+		}
+		for _, v := range m.mrc20OutAddressList {
+			revealOutValues += m.mrc20OutValue
+			_ = v
+		}
+	} else if m.op == "transfer" {
+		for _, v := range m.TransferMrc20s {
+			addressClass, err := common.CheckAddressClass(m.Net, v.Address)
+			if err != nil {
+				fmt.Printf("CheckAddressClass err:%s\n", err.Error())
+				continue
+			}
+			if addressClass == txscript.WitnessV1TaprootTy {
+				txTotalSize += emptyTaprootWitness.SerializeSize()
+			} else if addressClass == txscript.PubKeyHashTy {
+				txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptylegacySignature))) + len(emptylegacySignature)
+			} else if addressClass == txscript.ScriptHashTy {
+				txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptyNestSignature))) + len(emptyNestSignature)
+				txTotalSize += emptySegwitWitenss.SerializeSize()
+			} else {
+				txTotalSize += emptySegwitWitenss.SerializeSize()
+			}
+		}
+		for _, v := range m.Mrc20Outs {
+			revealOutValues += v.OutValue
+		}
+	}
 
 	emptySignature := make([]byte, 64)
 	emptyControlBlockWitness := make([]byte, 33)
-	fee := (int64(wire.TxWitness{emptySignature, m.TxCtxData.InscriptionScript, emptyControlBlockWitness}.SerializeSize()+2+3) / 4) * feeRate
+	txTotalSize += wire.TxWitness{emptySignature, m.TxCtxData.InscriptionScript, emptyControlBlockWitness}.SerializeSize()
 
-	txFee = fee + int64(txSize)*feeRate
-	return txFee + m.revealOutValue
+	weight = int64(txBaseSize*3 + txTotalSize)
+	vSize = (weight + (blockchain.WitnessScaleFactor - 1)) / blockchain.WitnessScaleFactor
+	txFee = vSize * feeRate
+	fmt.Printf("weight:%d, vSize:%d, txFee:%d\n", weight, vSize, txFee)
+	fmt.Printf("revealOutValues:%d, totalMinerFee:%d\n", revealOutValues, txFee+revealOutValues)
+	return txFee + revealOutValues
 }
 
 func (m *Mrc20Builder) completeRevealPsbt(commitTxId string, commitTxOutIndex uint32) error {

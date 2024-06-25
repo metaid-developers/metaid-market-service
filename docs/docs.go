@@ -292,6 +292,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/common/tx/broadcast": {
+            "post": {
+                "description": "Broadcast Tx",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Broadcast Tx",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.BroadcastTxReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.BroadcastTxResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/inscribe/mrc20/mint/commit": {
             "post": {
                 "description": "Inscribe Mrc20 Mint Commit",
@@ -1166,6 +1197,14 @@ const docTemplate = `{
                 }
             }
         },
+        "request.BroadcastTxReq": {
+            "type": "object",
+            "properties": {
+                "txHex": {
+                    "type": "string"
+                }
+            }
+        },
         "request.CancelMrc20OrderReq": {
             "type": "object",
             "properties": {
@@ -1486,6 +1525,14 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.BroadcastTxResp": {
+            "type": "object",
+            "properties": {
+                "txId": {
+                    "type": "string"
+                }
+            }
+        },
         "respond.CancelMrc20OrderResp": {
             "type": "object",
             "properties": {
@@ -1654,6 +1701,9 @@ const docTemplate = `{
                 "buyerAddress": {
                     "type": "string"
                 },
+                "buyerMetaId": {
+                    "type": "string"
+                },
                 "chain": {
                     "type": "string"
                 },
@@ -1694,6 +1744,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/respond.UserInfo"
                 },
                 "sellerAddress": {
+                    "type": "string"
+                },
+                "sellerMetaId": {
                     "type": "string"
                 },
                 "takePsbt": {
