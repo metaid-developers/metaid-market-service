@@ -5,6 +5,7 @@ type FetchMrc20TickListReq struct {
 	Size      int64  `json:"size"`
 	Completed bool   `json:"completed"`
 	OrderBy   string `json:"order"`
+	SortType  int    `json:"sortType"`
 }
 
 type FetchMrc20TickInfoReq struct {

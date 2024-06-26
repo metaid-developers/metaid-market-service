@@ -129,7 +129,8 @@ func FetchMrc20TickAddressShovels(c *gin.Context) {
 // @Description Fetch mrc20 tick info list
 // @Produce  json
 // @Tags Common
-// @Param orderBy query string false "pinnumber/totalminted/holders/txcount"
+// @Param orderBy query string false "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap"
+// @Param sortType query int false "-1/1, if orderBy is 'change24H/lastPrice/marketCap', it works, default '-1'"
 // @Param completed query bool false "true/false/null, default null"
 // @Param cursor query int false "cursor"
 // @Param size query int false "size：max=50"
@@ -142,9 +143,10 @@ func FetchMrc20TickList(c *gin.Context) {
 			Cursor:    0,
 			Size:      0,
 			Completed: false,
-			OrderBy:   c.DefaultQuery("orderBy", "pinnumber"),
+			OrderBy:   c.DefaultQuery("orderBy", "txcount"),
 		}
 	)
+	req.SortType, _ = strconv.Atoi(c.DefaultQuery("sortType", "-1"))
 	req.Completed, _ = strconv.ParseBool(c.DefaultQuery("completed", ""))
 	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
 	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)

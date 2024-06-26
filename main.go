@@ -54,6 +54,7 @@ func run() {
 func main() {
 	InitEnv()
 	InitAll()
+	//fix.FixMarketInfo()
 	go task.RunJob()
 	controller.Run()
 }

@@ -508,6 +508,10 @@ definitions:
         type: string
       deployerUserInfo:
         $ref: '#/definitions/respond.UserInfo'
+      floorPrice:
+        type: string
+      floorPriceUsd:
+        type: string
       holders:
         type: integer
       marketCap:
@@ -543,6 +547,8 @@ definitions:
         type: string
       totalSupply:
         type: string
+      totalVolume:
+        type: integer
       txCount:
         type: integer
       type:
@@ -1009,10 +1015,15 @@ paths:
     get:
       description: Fetch mrc20 tick info list
       parameters:
-      - description: pinnumber/totalminted/holders/txcount
+      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap
         in: query
         name: orderBy
         type: string
+      - description: -1/1, if orderBy is 'change24H/lastPrice/marketCap', it works,
+          default '-1'
+        in: query
+        name: sortType
+        type: integer
       - description: true/false/null, default null
         in: query
         name: completed

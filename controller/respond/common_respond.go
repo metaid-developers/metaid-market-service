@@ -22,9 +22,12 @@ type Mrc20TickInfo struct {
 	DeployTime       int64       `json:"deployTime"`
 	Price            string      `json:"price"`
 	PriceUsd         string      `json:"priceUsd"`
+	FloorPrice       string      `json:"floorPrice"`
+	FloorPriceUsd    string      `json:"floorPriceUsd"`
 	Change24h        string      `json:"change24h"`
 	MarketCap        string      `json:"marketCap"`
 	MarketCapUsd     string      `json:"marketCapUsd"`
+	TotalVolume      int64       `json:"totalVolume"`
 	TotalSupply      string      `json:"totalSupply"`
 	Supply           string      `json:"supply"`
 	Mintable         bool        `json:"mintable"`

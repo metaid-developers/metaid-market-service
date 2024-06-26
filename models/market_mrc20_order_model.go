@@ -219,7 +219,15 @@ func (_ *marketMrc20OrderModelDao) GetMinTokenPriceRateByTickIdAndOrderId(qo *Ma
 		return nil, tx.Error
 	}
 	return model, nil
+}
 
+func (_ *marketMrc20OrderModelDao) SumPriceAmountByTickId(qo *MarketMrc20OrderModel) (int64, error) {
+	var total int64
+	tx := major.GetSqlDB().Model(&MarketMrc20OrderModel{}).Where(qo).Select("SUM(priceAmount) as total").Scan(&total)
+	if tx.Error != nil {
+		return 0, nil
+	}
+	return total, nil
 }
 
 func (_ *marketMrc20OrderModelDao) Count(qo *MarketMrc20OrderModel) (int64, error) {
@@ -333,16 +341,23 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 			marketCap = supplyDe.Mul(currentPriceDe).IntPart()
 		}
 
+		totalVolume, _ := MarketMrc20OrderModelDao().SumPriceAmountByTickId(&MarketMrc20OrderModel{TickId: q.TickId, OrderState: OrderStateFinish})
+
 		if marketTickInfo != nil {
 			lastPrice := marketTickInfo.LastPrice
 			if lastPrice != 0 {
 				lastPriceDe := decimal.NewFromFloat(lastPrice)
-				change24H = currentPriceDe.Sub(lastPriceDe).Div(lastPriceDe).Mul(decimal.New(100, 0)).IntPart()
+				change24HDe := currentPriceDe.Sub(lastPriceDe).Div(lastPriceDe).Mul(decimal.New(100, 0))
+				if currentPriceDe.Sub(lastPriceDe).GreaterThan(decimal.Zero) {
+					change24HDe = change24HDe.Neg()
+				}
+				change24H = change24HDe.IntPart()
 			} else {
 				change24H = 0
 			}
-
-			marketTickInfo.TotalVolume++
+			if totalVolume != 0 {
+				marketTickInfo.TotalVolume = totalVolume
+			}
 			marketTickInfo.LastPrice = currentPrice
 			marketTickInfo.FloorPrice = floorPrice
 			marketTickInfo.Supply = supply
@@ -362,7 +377,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 				Decimals:    q.Decimals,
 				Chain:       q.Chain,
 				Supply:      supply,
-				TotalVolume: 1,
+				TotalVolume: totalVolume,
 				MarketCap:   marketCap,
 				LastPrice:   currentPrice,
 				FloorPrice:  floorPrice,

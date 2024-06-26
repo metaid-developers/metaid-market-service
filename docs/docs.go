@@ -259,8 +259,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "pinnumber/totalminted/holders/txcount",
+                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap",
                         "name": "orderBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "-1/1, if orderBy is 'change24H/lastPrice/marketCap', it works, default '-1'",
+                        "name": "sortType",
                         "in": "query"
                     },
                     {
@@ -1957,6 +1963,12 @@ const docTemplate = `{
                 "deployerUserInfo": {
                     "$ref": "#/definitions/respond.UserInfo"
                 },
+                "floorPrice": {
+                    "type": "string"
+                },
+                "floorPriceUsd": {
+                    "type": "string"
+                },
                 "holders": {
                     "type": "integer"
                 },
@@ -2008,6 +2020,9 @@ const docTemplate = `{
                 },
                 "totalSupply": {
                     "type": "string"
+                },
+                "totalVolume": {
+                    "type": "integer"
                 },
                 "txCount": {
                     "type": "integer"
