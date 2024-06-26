@@ -221,3 +221,40 @@ create table tb_mrc20_deploy_order
     constraint tb_mrc20_deploy_order_orderId_uindex
         unique (orderId)
 );
+
+create table tb_market_mrc20_info
+(
+    id          bigint auto_increment primary key,
+    tickId      varchar(80)    default '' not null,
+    tick        varchar(80)    default '' not null,
+    tokenName   varchar(80)    default '' not null,
+    decimals    int            default 0  not null,
+    chain       varchar(80)    default '' not null,
+    supply      varchar(80)    default '' not null,
+    totalVolume bigint         default 0  not null,
+    marketCap   bigint         default 0  not null,
+    lastPrice   double         default 0  not null,
+    floorPrice  double         default 0  not null,
+    change24H   bigint         default 0  not null,
+    timestamp   bigint         default 0  not null,
+    version     int            default 0  not null,
+    createTime  bigint         default 0  not null,
+    updateTime  bigint         default 0  not null,
+    state       int            default 0  not null,
+    constraint tb_market_mrc20_info_tickId_uindex
+        unique (tickId)
+);
+
+create table tb_market_price
+(
+    id         bigint auto_increment primary key,
+    coin       varchar(80)    default '' not null,
+    usd        bigint         default 0  not null,
+    timestamp  bigint         default 0  not null,
+    version    int            default 0  not null,
+    createTime bigint         default 0  not null,
+    updateTime bigint         default 0  not null,
+    state      int            default 0  not null,
+    constraint tb_market_price_coin_uindex
+        unique (coin)
+);

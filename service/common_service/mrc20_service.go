@@ -13,6 +13,108 @@ import (
 	"strings"
 )
 
+func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
+	var (
+		mrc20Resp *man_service.Mrc20TickListResp
+		err       error
+		list      []*respond.Mrc20TickInfo = make([]*respond.Mrc20TickInfo, 0)
+		total     int64                    = 0
+	)
+	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, req.OrderBy)
+	if err != nil {
+		return nil, err
+	}
+	if mrc20Resp != nil {
+		for _, v := range mrc20Resp.List {
+			totalSupply := "0"
+			mintable := false
+			remaining := "0"
+			supply := "0"
+			if v.AmtPerMint != "" && v.MintCount != 0 {
+				totalMintedDe := decimal.New(v.TotalMinted, 0)
+				premineCountDe := decimal.New(v.PremineCount, 0)
+				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
+				mintCountDe := decimal.New(v.MintCount, 0)
+
+				supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
+				supply = supplyDe.String()
+
+				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
+				totalSupply = totalSupplyDe.String()
+
+				remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
+				remaining = remainingDe.String()
+				if remainingDe.GreaterThan(decimal.Zero) {
+					mintable = true
+				}
+			}
+
+			price := "0"
+			priceUsd := "0.00"
+			change24h := "+0.00%"
+			marketCap := "0"
+			marketCapUsd := "0.00"
+
+			marketInfo, _ := models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
+				TickId: v.Mrc20Id,
+			})
+			if marketInfo != nil {
+				price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
+				marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
+				change24HDe := decimal.New(marketInfo.Change24H, 0)
+				change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+
+				btcUsd := GetPriceForUsd("BTC")
+				btcUsdDe, _ := decimal.NewFromString(btcUsd)
+				satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+				priceDe, _ := decimal.NewFromString(price)
+				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+				marketCapDe, _ := decimal.NewFromString(marketCap)
+				marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+			}
+
+			item := &respond.Mrc20TickInfo{
+				Tick:             v.Tick,
+				TokenName:        v.TokenName,
+				Decimals:         v.Decimals,
+				AmtPerMint:       v.AmtPerMint,
+				MintCount:        strconv.FormatInt(v.MintCount, 10),
+				PremineCount:     strconv.FormatInt(v.PremineCount, 10),
+				BlockHeight:      v.BlockHeight,
+				MetaData:         v.Metadata,
+				Type:             v.Type,
+				Qual:             v.Qual,
+				TotalMinted:      strconv.FormatInt(v.TotalMinted, 10),
+				Mrc20Id:          v.Mrc20Id,
+				PinNumber:        v.PinNumber,
+				Holders:          v.Holders,
+				TxCount:          v.TxCount,
+				DeployerMetaId:   v.MetaId,
+				DeployerAddress:  v.Address,
+				DeployTime:       v.DeployTime,
+				DeployerUserInfo: common.FetchMetaIDUserInfo(v.Address),
+				Price:            price,
+				PriceUsd:         priceUsd,
+				Change24h:        change24h,
+				MarketCap:        marketCap,
+				MarketCapUsd:     marketCapUsd,
+				TotalSupply:      totalSupply,
+				Supply:           supply,
+				Mintable:         mintable,
+				Remaining:        remaining,
+			}
+
+			list = append(list, item)
+		}
+		total = mrc20Resp.Total
+	}
+	return &respond.Mrc20TickListResp{
+		Total: total,
+		List:  list,
+	}, nil
+}
+
 func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickInfo, error) {
 	var (
 		mrc20Resp *man_service.Mrc20TickInfo
@@ -52,6 +154,25 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 	change24h := "+0.00%"
 	marketCap := "0"
 	marketCapUsd := "0.00"
+
+	marketInfo, _ := models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
+		TickId: mrc20Resp.Mrc20Id,
+	})
+	if marketInfo != nil {
+		price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
+		marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
+		change24HDe := decimal.New(marketInfo.Change24H, 0)
+		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+
+		btcUsd := GetPriceForUsd("BTC")
+		btcUsdDe, _ := decimal.NewFromString(btcUsd)
+		satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+		priceDe, _ := decimal.NewFromString(price)
+		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		marketCapDe, _ := decimal.NewFromString(marketCap)
+		marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+	}
 
 	return &respond.Mrc20TickInfo{
 		Tick:             mrc20Resp.Tick,
@@ -294,89 +415,6 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 		total = mrc20Resp.Total
 	}
 	return &respond.Mrc20UtxoResp{
-		Total: total,
-		List:  list,
-	}, nil
-}
-
-func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
-	var (
-		mrc20Resp *man_service.Mrc20TickListResp
-		err       error
-		list      []*respond.Mrc20TickInfo = make([]*respond.Mrc20TickInfo, 0)
-		total     int64                    = 0
-	)
-	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, req.OrderBy)
-	if err != nil {
-		return nil, err
-	}
-	if mrc20Resp != nil {
-		for _, v := range mrc20Resp.List {
-			totalSupply := "0"
-			mintable := false
-			remaining := "0"
-			supply := "0"
-			if v.AmtPerMint != "" && v.MintCount != 0 {
-				totalMintedDe := decimal.New(v.TotalMinted, 0)
-				premineCountDe := decimal.New(v.PremineCount, 0)
-				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
-				mintCountDe := decimal.New(v.MintCount, 0)
-
-				supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
-				supply = supplyDe.String()
-
-				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
-				totalSupply = totalSupplyDe.String()
-
-				remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
-				remaining = remainingDe.String()
-				if remainingDe.GreaterThan(decimal.Zero) {
-					mintable = true
-				}
-			}
-
-			price := "0"
-			priceUsd := "0.00"
-			change24h := "+0.00%"
-			marketCap := "0"
-			marketCapUsd := "0.00"
-
-			item := &respond.Mrc20TickInfo{
-				Tick:             v.Tick,
-				TokenName:        v.TokenName,
-				Decimals:         v.Decimals,
-				AmtPerMint:       v.AmtPerMint,
-				MintCount:        strconv.FormatInt(v.MintCount, 10),
-				PremineCount:     strconv.FormatInt(v.PremineCount, 10),
-				BlockHeight:      v.BlockHeight,
-				MetaData:         v.Metadata,
-				Type:             v.Type,
-				Qual:             v.Qual,
-				TotalMinted:      strconv.FormatInt(v.TotalMinted, 10),
-				Mrc20Id:          v.Mrc20Id,
-				PinNumber:        v.PinNumber,
-				Holders:          v.Holders,
-				TxCount:          v.TxCount,
-				DeployerMetaId:   v.MetaId,
-				DeployerAddress:  v.Address,
-				DeployTime:       v.DeployTime,
-				DeployerUserInfo: common.FetchMetaIDUserInfo(v.Address),
-				Price:            price,
-				PriceUsd:         priceUsd,
-				Change24h:        change24h,
-				MarketCap:        marketCap,
-				MarketCapUsd:     marketCapUsd,
-				TotalSupply:      totalSupply,
-				Supply:           supply,
-				Mintable:         mintable,
-				Remaining:        remaining,
-			}
-
-			list = append(list, item)
-		}
-		total = mrc20Resp.Total
-	}
-	return &respond.Mrc20TickListResp{
 		Total: total,
 		List:  list,
 	}, nil

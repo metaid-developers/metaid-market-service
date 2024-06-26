@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"fmt"
+	"github.com/godaddy-x/freego/utils/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
@@ -118,11 +119,12 @@ func (_ *marketMrc20OrderModelDao) SetForPushOrder(model *MarketMrc20OrderModel)
 				TokenName:   model.TokenName,
 				Decimals:    model.Decimals,
 				Chain:       model.Chain,
+				Supply:      "0",
 				TotalVolume: 1,
 				MarketCap:   0,
-				Supply:      "0",
 				LastPrice:   0,
 				FloorPrice:  floorPrice,
+				Change24H:   0,
 				Timestamp:   updateTime,
 				//Version:     0,
 				CreateTime: updateTime,
@@ -208,6 +210,16 @@ func (_ *marketMrc20OrderModelDao) GetMinTokenPriceRateByTickId(qo *MarketMrc20O
 		return nil, tx.Error
 	}
 	return model, nil
+}
+
+func (_ *marketMrc20OrderModelDao) GetMinTokenPriceRateByTickIdAndOrderId(qo *MarketMrc20OrderModel, orderId string) (*MarketMrc20OrderModel, error) {
+	model := &MarketMrc20OrderModel{}
+	tx := major.GetSqlDB().Where(qo).Not("orderId", orderId).Order("tokenPriceRate asc").First(model)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return model, nil
+
 }
 
 func (_ *marketMrc20OrderModelDao) Count(qo *MarketMrc20OrderModel) (int64, error) {
@@ -299,63 +311,74 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 			}
 		}
 
-		//currentPrice := q.TokenPriceRate
-		//marketCap := int64(0)
-		//floorPrice := float64(0)
-		//floorEntity, err := MarketMrc20OrderModelDao().GetMinTokenPriceRateByTickId(&MarketMrc20OrderModel{TickId: q.TickId, OrderState: OrderStateCreate})
-		//if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		//	return err
-		//}
-		//if floorEntity != nil {
-		//	floorPrice = floorEntity.TokenPriceRate
-		//}
-		//
-		//marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: q.TickId})
-		//if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		//	return err
-		//}
-		//currentPriceDe := decimal.NewFromFloat(currentPrice)
-		//supplyDe, _ := decimal.NewFromString(supply)
-		//if supplyDe.GreaterThan(decimal.Zero) {
-		//	marketCap = supplyDe.Mul(currentPriceDe).IntPart()
-		//}
-		//
-		//if marketTickInfo != nil {
-		//	marketTickInfo.TotalVolume++
-		//	marketTickInfo.LastPrice = currentPrice
-		//	marketTickInfo.FloorPrice = floorPrice
-		//	marketTickInfo.Supply = supply
-		//	marketTickInfo.MarketCap = marketCap
-		//	sv := marketTickInfo.Version
-		//	marketTickInfo.Version += 1
-		//	marketTickInfo.UpdateTime = updateTime
-		//	if err := tx.Save(marketTickInfo).Where(map[string]interface{}{"version": sv, "id": marketTickInfo.Id}).Error; err != nil {
-		//		return err
-		//	}
-		//} else {
-		//	marketTickInfo = &MarketMrc20InfoModel{
-		//		TickId:      q.TickId,
-		//		Tick:        q.Tick,
-		//		TokenName:   q.TokenName,
-		//		Decimals:    q.Decimals,
-		//		Chain:       q.Chain,
-		//		TotalVolume: 1,
-		//		MarketCap:   marketCap,
-		//		Supply:      supply,
-		//		LastPrice:   currentPrice,
-		//		FloorPrice:  floorPrice,
-		//		Timestamp:   updateTime,
-		//		//Version:     0,
-		//		CreateTime: updateTime,
-		//		//UpdateTime:  0,
-		//		State: STATE_EXIST,
-		//	}
-		//	if err := tx.Create(marketTickInfo).Error; err != nil {
-		//		return err
-		//	}
-		//}
+		currentPrice := q.TokenPriceRate
+		change24H := int64(0)
+		marketCap := int64(0)
+		floorPrice := float64(0)
+		floorEntity, err := MarketMrc20OrderModelDao().GetMinTokenPriceRateByTickIdAndOrderId(&MarketMrc20OrderModel{TickId: q.TickId, OrderState: OrderStateCreate}, q.OrderId)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if floorEntity != nil {
+			floorPrice = floorEntity.TokenPriceRate
+		}
 
-		_, err := jobFunc(txRaw)
+		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: q.TickId})
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		currentPriceDe := decimal.NewFromFloat(currentPrice)
+		supplyDe, _ := decimal.NewFromString(supply)
+		if supplyDe.GreaterThan(decimal.Zero) {
+			marketCap = supplyDe.Mul(currentPriceDe).IntPart()
+		}
+
+		if marketTickInfo != nil {
+			lastPrice := marketTickInfo.LastPrice
+			if lastPrice != 0 {
+				lastPriceDe := decimal.NewFromFloat(lastPrice)
+				change24H = currentPriceDe.Sub(lastPriceDe).Div(lastPriceDe).Mul(decimal.New(100, 0)).IntPart()
+			} else {
+				change24H = 0
+			}
+
+			marketTickInfo.TotalVolume++
+			marketTickInfo.LastPrice = currentPrice
+			marketTickInfo.FloorPrice = floorPrice
+			marketTickInfo.Supply = supply
+			marketTickInfo.MarketCap = marketCap
+			marketTickInfo.Change24H = change24H
+			sv := marketTickInfo.Version
+			marketTickInfo.Version += 1
+			marketTickInfo.UpdateTime = updateTime
+			if err := tx.Save(marketTickInfo).Where(map[string]interface{}{"version": sv, "id": marketTickInfo.Id}).Error; err != nil {
+				return err
+			}
+		} else {
+			marketTickInfo = &MarketMrc20InfoModel{
+				TickId:      q.TickId,
+				Tick:        q.Tick,
+				TokenName:   q.TokenName,
+				Decimals:    q.Decimals,
+				Chain:       q.Chain,
+				Supply:      supply,
+				TotalVolume: 1,
+				MarketCap:   marketCap,
+				LastPrice:   currentPrice,
+				FloorPrice:  floorPrice,
+				Change24H:   0,
+				Timestamp:   updateTime,
+				//Version:     0,
+				CreateTime: updateTime,
+				//UpdateTime:  0,
+				State: STATE_EXIST,
+			}
+			if err := tx.Create(marketTickInfo).Error; err != nil {
+				return err
+			}
+		}
+
+		_, err = jobFunc(txRaw)
 		if err != nil {
 			return err
 		}

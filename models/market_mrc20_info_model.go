@@ -19,6 +19,7 @@ type MarketMrc20InfoModel struct {
 	MarketCap   int64   `gorm:"column:marketCap" json:"marketCap"`
 	LastPrice   float64 `gorm:"column:lastPrice" json:"lastPrice"`
 	FloorPrice  float64 `gorm:"column:floorPriceStr" json:"floorPriceStr"`
+	Change24H   int64   `gorm:"column:change24H" json:"change24H"`
 	Timestamp   int64   `gorm:"column:timestamp" json:"timestamp"`
 	Version     int64   `gorm:"column:version" json:"version"`
 	CreateTime  int64   `gorm:"column:createTime" json:"createTime"`
