@@ -12,14 +12,15 @@ type Mrc20DeployOrderModel struct {
 	Id                int64             `gorm:"column:id" json:"id"`
 	OrderId           string            `gorm:"column:orderId" json:"orderId"`
 	InscribeState     InscribeState     `gorm:"column:inscribeState" json:"inscribeState"`
-	TicketId          string            `gorm:"column:ticketId" json:"ticketId"`
+	Address           string            `gorm:"column:address" json:"address"`
+	TickId            string            `gorm:"column:tickId" json:"tickId"`
 	Tick              string            `gorm:"column:tick" json:"tick"`
 	TokenName         string            `gorm:"column:tokenName" json:"tokenName"`
-	Decimals          int64             `gorm:"column:decimals" json:"decimals"`
+	Decimals          string            `gorm:"column:decimals" json:"decimals"`
 	AmtPerMint        string            `gorm:"column:amtPerMint" json:"amtPerMint"`
 	MintCount         string            `gorm:"column:mintCount" json:"mintCount"`
 	PremineCount      string            `gorm:"column:premineCount" json:"premineCount"`
-	Blockheight       int64             `gorm:"column:blockheight" json:"blockheight"`
+	StartBlockHeight  string            `gorm:"column:startBlockHeight" json:"startBlockHeight"`
 	Qual              string            `gorm:"column:qual" json:"qual"`
 	Payload           string            `gorm:"column:payload" json:"payload"`
 	Chain             string            `gorm:"column:chain" json:"chain"`
@@ -126,18 +127,18 @@ func (_ *mrc20DeployOrderModelDao) Update(q *Mrc20DeployOrderModel) error {
 	return nil
 }
 
-func (_ *mrc20DeployOrderModelDao) UpdateEntityListForInscribing(q *Mrc20DeployOrderModel, txRawList []string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *mrc20DeployOrderModelDao) SaveEntityForInscribing(model *Mrc20DeployOrderModel, txRawList []string, jobFunc func(txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
-		nowTime := tool.MakeTimestamp()
+		if model == nil {
+			return errors.New("model is nil")
+		}
 
-		sv := q.Version
-		q.Version += 1
-		q.UpdateTime = nowTime
-		q.CommitTxRaw = ""
+		model.CommitTxRaw = ""
+		model.RevealTxRaw = ""
+		model.InscribeState = InscribeStateFinish
+		model.ConfirmationState = ConfirmationStateUnconfirmed
 
-		q.InscribeState = InscribeStateFinish
-		q.ConfirmationState = ConfirmationStateUnconfirmed
-		if err := tx.Save(q).Where(map[string]interface{}{"version": sv, "id": q.Id}).Error; err != nil {
+		if err := tx.Create(model).Error; err != nil {
 			return err
 		}
 

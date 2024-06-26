@@ -178,3 +178,46 @@ create table tb_market_mrc20_order
     constraint tb_market_mrc20_order_orderId_uindex
         unique (orderId)
 );
+
+
+alter table tb_mrc20_mint_order
+    change ticketId tickId varchar(80) default '' not null;
+alter table tb_mrc20_transfer_order
+    change ticketId tickId varchar(80) default '' not null;
+alter table tb_mrc20_mint_order
+    add address varchar(80) default '' not null AFTER `inscribeState`;
+alter table tb_mrc20_transfer_order
+    add address varchar(80) default '' not null AFTER `inscribeState`;
+
+create table tb_mrc20_deploy_order
+(
+    id                bigint auto_increment primary key,
+    orderId           varchar(80)    default '' not null,
+    inscribeState     int            default 0  not null comment '1-Pending,2-Paid,3-Finish',
+    address           varchar(80)    default '' not null,
+    tickId            varchar(80)    default '' not null,
+    tick              varchar(80)    default '' not null,
+    tokenName         varchar(80)    default '' not null,
+    decimals          int            default 0  not null,
+    amtPerMint        varchar(80)    default '' not null,
+    mintCount         varchar(80)    default '' not null,
+    premineCount      varchar(80)    default '' not null,
+    startBlockHeight  varchar(80)    default '' not null,
+    qual              varchar(512)    default '' not null,
+    payload           varchar(512)   default '' not null,
+    chain             varchar(80)    default '' not null,
+    commitTxRaw       TEXT  not null,
+    revealTxRaw       TEXT  not null,
+    commitTxId        varchar(128)   default '' not null,
+    revealTxId        varchar(128)   default '' not null,
+    txId              varchar(128)   default '' not null,
+    blockHeight       bigint         default 0  not null,
+    confirmationState int            default 0  not null comment '1-Unconfirmed, 2-Confirmed',
+    timestamp         bigint         default 0  not null,
+    version           int            default 0  not null,
+    createTime        bigint         default 0  not null,
+    updateTime        bigint         default 0  not null,
+    state             int            default 0  not null,
+    constraint tb_mrc20_deploy_order_orderId_uindex
+        unique (orderId)
+);

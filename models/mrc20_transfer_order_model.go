@@ -12,7 +12,8 @@ type Mrc20TransferOrderModel struct {
 	Id                  int64             `gorm:"column:id" json:"id"`
 	OrderId             string            `gorm:"column:orderId" json:"orderId"`
 	InscribeState       InscribeState     `gorm:"column:inscribeState" json:"inscribeState"`
-	TicketId            string            `gorm:"column:ticketId" json:"ticketId"`
+	Address             string            `gorm:"column:address" json:"address"`
+	TickId              string            `gorm:"column:tickId" json:"tickId"`
 	Payload             string            `gorm:"column:payload" json:"payload"`
 	TotalFee            int64             `gorm:"column:totalFee" json:"totalFee"`
 	MinerFee            int64             `gorm:"column:minerFee" json:"minerFee"`

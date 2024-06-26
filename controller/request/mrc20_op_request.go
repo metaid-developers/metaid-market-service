@@ -60,7 +60,14 @@ type Mrc20TransferCommitRequest struct {
 }
 
 type Mrc20DeployRequest struct {
-	Payload     string `json:"payload"`
 	CommitTxRaw string `json:"commitTxRaw"`
 	RevealTxRaw string `json:"revealTxRaw"`
+}
+
+type FetchMrc20OpOrdersRequest struct {
+	OpOrderType string `json:"opOrderType"`
+	Address     string `json:"address"`
+	TickId      string `json:"tickId"`
+	Cursor      int64  `json:"cursor"`
+	Size        int64  `json:"size"`
 }

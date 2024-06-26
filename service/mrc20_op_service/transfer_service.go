@@ -31,7 +31,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 
 		mrc20Builder      *mrc20_service.Mrc20Builder
 		mrc20OpRequest    *mrc20_service.Mrc20OpRequest
-		tickerId          string                         = req.TickerId
+		tickId            string                         = req.TickerId
 		payload           string                         = ""
 		mrc20UtxoIds      string                         = ""
 		mrc20OutAddresses string                         = ""
@@ -84,7 +84,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		})
 		mrc20OutAddresses += v.Address + "_"
 	}
-	payload, err = mrc20_service.MakeTransferPayload(tickerId, transferMrc20s, mrc20Outs)
+	payload, err = mrc20_service.MakeTransferPayload(tickId, transferMrc20s, mrc20Outs)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 			OrderId:             orderId,
 			Payload:             payload,
 			InscribeState:       models.InscribeStatePending,
-			TicketId:            tickerId,
+			TickId:              tickId,
 			TotalFee:            totalFee,
 			MinerFee:            minerFee,
 			ServiceFee:          serviceFee,
@@ -209,6 +209,8 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 		prePsbtRaw   string = req.RevealPrePsbtRaw
 		finalPsbtRaw string = ""
 
+		address string = ""
+
 		txId          string = ""
 		transferOrder *models.Mrc20TransferOrderModel
 		err           error
@@ -247,6 +249,13 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 	if len(commitTx.TxOut) <= int(commitTxOutIndex) {
 		return nil, errors.New("commitTxOutIndex error")
 	}
+
+	txIn := commitTx.TxIn[0]
+	utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	if utxoInfo == nil {
+		return nil, errors.New("commitTx utxoInfo not exists")
+	}
+	address = utxoInfo.Address
 
 	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), prePsbtRaw)
 	if err != nil {
@@ -287,6 +296,7 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 	}
 	txId = revealTx.TxHash().String()
 
+	transferOrder.Address = address
 	transferOrder.CommitTxRaw = commitTxRaw
 	transferOrder.RevealMidPsbtRaw = prePsbtRaw
 	transferOrder.RevealFinalPsbtRaw = finalPsbtRaw

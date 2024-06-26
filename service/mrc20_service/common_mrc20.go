@@ -11,7 +11,7 @@ type Mrc20DataItem struct {
 	Vout   int64  `json:"vout"`
 }
 
-func MakeTransferPayload(tickerId string, transferMrc20s []*TransferMrc20, mrc20Outs []*Mrc20OutInfo) (string, error) {
+func MakeTransferPayload(tickId string, transferMrc20s []*TransferMrc20, mrc20Outs []*Mrc20OutInfo) (string, error) {
 	var (
 		payload       string           = ""
 		totalAmountDe decimal.Decimal  = decimal.New(0, 0)
@@ -27,7 +27,7 @@ func MakeTransferPayload(tickerId string, transferMrc20s []*TransferMrc20, mrc20
 
 	for i, v := range mrc20Outs {
 		dataItem := &Mrc20DataItem{
-			Id:     tickerId,
+			Id:     tickId,
 			Amount: v.Amount,
 			Vout:   int64(i + 1),
 		}

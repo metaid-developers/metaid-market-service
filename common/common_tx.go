@@ -313,3 +313,16 @@ func ToRaw(tx *wire.MsgTx) (string, error) {
 	txHex := hex.EncodeToString(buf.Bytes())
 	return txHex, nil
 }
+
+func TxRawToTx(txRaw string) (*wire.MsgTx, error) {
+	txRawByte, err := hex.DecodeString(txRaw)
+	if err != nil {
+		return nil, err
+	}
+	tx := wire.NewMsgTx(2)
+	err = tx.Deserialize(bytes.NewReader(txRawByte))
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}

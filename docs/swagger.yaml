@@ -128,6 +128,13 @@ definitions:
       pkScript:
         type: string
     type: object
+  request.Mrc20DeployRequest:
+    properties:
+      commitTxRaw:
+        type: string
+      revealTxRaw:
+        type: string
+    type: object
   request.Mrc20MintCommitRequest:
     properties:
       commitTxOutIndex:
@@ -308,6 +315,15 @@ definitions:
       orderState:
         $ref: '#/definitions/models.OrderState'
     type: object
+  respond.FetchMrc20OpOrdersResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.OpOrderInfoResp'
+        type: array
+      total:
+        type: integer
+    type: object
   respond.Message:
     properties:
       code:
@@ -339,6 +355,17 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  respond.Mrc20DeployResp:
+    properties:
+      commitTxId:
+        type: string
+      orderId:
+        type: string
+      revealTxId:
+        type: string
+      tickId:
+        type: string
     type: object
   respond.Mrc20Info:
     properties:
@@ -571,6 +598,8 @@ definitions:
         items:
           $ref: '#/definitions/respond.Mrc20Info'
         type: array
+      orderId:
+        type: string
       outputIndex:
         type: integer
       satoshi:
@@ -594,6 +623,27 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  respond.OpOrderInfoResp:
+    properties:
+      blockHeight:
+        type: integer
+      confirmationState:
+        $ref: '#/definitions/models.ConfirmationState'
+      opOrderType:
+        type: string
+      orderId:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tickName:
+        type: string
+      timestamp:
+        type: integer
+      txId:
+        type: string
     type: object
   respond.OrderInfo:
     properties:
@@ -1005,6 +1055,26 @@ paths:
       summary: Broadcast Tx
       tags:
       - Common
+  /api/v1/inscribe/mrc20/deploy/commit:
+    post:
+      description: Inscribe Mrc20 deploy commit
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.Mrc20DeployRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20DeployResp'
+      summary: Inscribe Mrc20 deploy commit
+      tags:
+      - Inscribe-Mrc20
   /api/v1/inscribe/mrc20/mint/commit:
     post:
       description: Inscribe Mrc20 Mint Commit
@@ -1043,6 +1113,42 @@ paths:
           schema:
             $ref: '#/definitions/respond.Mrc20MintPreResp'
       summary: Inscribe Mrc20 Mint Pre
+      tags:
+      - Inscribe-Mrc20
+  /api/v1/inscribe/mrc20/orders:
+    get:
+      description: Fetch inscribe mrc20 orders
+      parameters:
+      - description: default:deploy, mint, transfer
+        in: query
+        name: opOrderType
+        required: true
+        type: string
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: tickId
+        in: query
+        name: tickId
+        type: string
+      - description: default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: default:10, max:50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FetchMrc20OpOrdersResp'
+      summary: Fetch inscribe mrc20 orders
       tags:
       - Inscribe-Mrc20
   /api/v1/inscribe/mrc20/transfer/commit:

@@ -1,5 +1,7 @@
 package respond
 
+import "metaid-market-service/models"
+
 type Mrc20MintPreResp struct {
 	OrderId          string      `json:"orderId"`
 	TotalFee         int64       `json:"totalFee"`
@@ -41,4 +43,21 @@ type Mrc20DeployResp struct {
 	TickId     string `json:"tickId"`
 	CommitTxId string `json:"commitTxId"`
 	RevealTxId string `json:"revealTxId"`
+}
+
+type FetchMrc20OpOrdersResp struct {
+	Total int64              `json:"total"`
+	List  []*OpOrderInfoResp `json:"list"`
+}
+
+type OpOrderInfoResp struct {
+	OpOrderType       string                   `json:"opOrderType"`
+	OrderId           string                   `json:"orderId"`
+	TickId            string                   `json:"tickId"`
+	Tick              string                   `json:"tick"`
+	TickName          string                   `json:"tickName"`
+	TxId              string                   `json:"txId"`
+	BlockHeight       int64                    `json:"blockHeight"`
+	ConfirmationState models.ConfirmationState `json:"confirmationState"`
+	Timestamp         int64                    `json:"timestamp"`
 }

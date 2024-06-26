@@ -31,8 +31,8 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 
 		mrc20Builder        *mrc20_service.Mrc20Builder
 		mrc20OpRequest      *mrc20_service.Mrc20OpRequest
-		tickerId            string                   = req.TickerId
-		payload             string                   = fmt.Sprintf(`{"id":"%s"}`, tickerId)
+		tickId              string                   = req.TickerId
+		payload             string                   = fmt.Sprintf(`{"id":"%s"}`, tickId)
 		pinUtxoIds          string                   = ""
 		mintPins            []*mrc20_service.MintPin = make([]*mrc20_service.MintPin, 0)
 		mrc20OutValue       int64                    = req.OutValue
@@ -115,7 +115,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		mintOrder = &models.Mrc20MintOrderModel{
 			OrderId:             orderId,
 			InscribeState:       models.InscribeStatePending,
-			TicketId:            tickerId,
+			TickId:              tickId,
 			TotalFee:            totalFee,
 			MinerFee:            minerFee,
 			ServiceFee:          serviceFee,
@@ -193,6 +193,8 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 		prePsbtRaw   string = req.RevealPrePsbtRaw
 		finalPsbtRaw string = ""
 
+		address string = ""
+
 		txId      string = ""
 		mintOrder *models.Mrc20MintOrderModel
 		err       error
@@ -231,6 +233,13 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 	if len(commitTx.TxOut) <= int(commitTxOutIndex) {
 		return nil, errors.New("commitTxOutIndex error")
 	}
+
+	txIn := commitTx.TxIn[0]
+	utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	if utxoInfo == nil {
+		return nil, errors.New("commitTx utxoInfo not exists")
+	}
+	address = utxoInfo.Address
 
 	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), prePsbtRaw)
 	if err != nil {
@@ -271,6 +280,7 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 	}
 	txId = revealTx.TxHash().String()
 
+	mintOrder.Address = address
 	mintOrder.CommitTxRaw = commitTxRaw
 	mintOrder.RevealMidPsbtRaw = prePsbtRaw
 	mintOrder.RevealFinalPsbtRaw = finalPsbtRaw

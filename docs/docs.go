@@ -323,6 +323,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/inscribe/mrc20/deploy/commit": {
+            "post": {
+                "description": "Inscribe Mrc20 deploy commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inscribe-Mrc20"
+                ],
+                "summary": "Inscribe Mrc20 deploy commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.Mrc20DeployRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20DeployResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/inscribe/mrc20/mint/commit": {
             "post": {
                 "description": "Inscribe Mrc20 Mint Commit",
@@ -380,6 +411,60 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.Mrc20MintPreResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/inscribe/mrc20/orders": {
+            "get": {
+                "description": "Fetch inscribe mrc20 orders",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inscribe-Mrc20"
+                ],
+                "summary": "Fetch inscribe mrc20 orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "default:deploy, mint, transfer",
+                        "name": "opOrderType",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:10, max:50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FetchMrc20OpOrdersResp"
                         }
                     }
                 }
@@ -1285,6 +1370,17 @@ const docTemplate = `{
                 }
             }
         },
+        "request.Mrc20DeployRequest": {
+            "type": "object",
+            "properties": {
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "revealTxRaw": {
+                    "type": "string"
+                }
+            }
+        },
         "request.Mrc20MintCommitRequest": {
             "type": "object",
             "properties": {
@@ -1567,6 +1663,20 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.FetchMrc20OpOrdersResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.OpOrderInfoResp"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "respond.Message": {
             "type": "object",
             "properties": {
@@ -1613,6 +1723,23 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20DeployResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealTxId": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
                 }
             }
         },
@@ -1966,6 +2093,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/respond.Mrc20Info"
                     }
                 },
+                "orderId": {
+                    "type": "string"
+                },
                 "outputIndex": {
                     "type": "integer"
                 },
@@ -2000,6 +2130,38 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "respond.OpOrderInfoResp": {
+            "type": "object",
+            "properties": {
+                "blockHeight": {
+                    "type": "integer"
+                },
+                "confirmationState": {
+                    "$ref": "#/definitions/models.ConfirmationState"
+                },
+                "opOrderType": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "tickName": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "txId": {
+                    "type": "string"
                 }
             }
         },
@@ -2324,8 +2486,8 @@ var SwaggerInfo = &swag.Spec{
 	Description:      "MetaID-Market API Service",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
-	//LeftDelim:        "{{",
-	//RightDelim:       "}}",
+	LeftDelim:        "{{",
+	RightDelim:       "}}",
 }
 
 func init() {

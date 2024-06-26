@@ -15,7 +15,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.8.12
+	github.com/swaggo/swag v1.16.2
 	golang.org/x/crypto v0.23.0
 	gorm.io/driver/mysql v1.5.6
 	gorm.io/gorm v1.25.10
