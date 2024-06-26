@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/btcec/v2"
-	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"gorm.io/gorm"
@@ -53,7 +51,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		if pin.PinUtxoTxId == "" || pin.PinUtxoOutValue <= 0 {
 			return nil, errors.New("mint pin parameter error")
 		}
-		mintPinsStr += mintPinsStr + "," + pin.PinId
+		mintPinsStr += "," + pin.PinId
 		pinUtxoIds += pinUtxoIds + "," + fmt.Sprintf("%s:%d", pin.PinUtxoTxId, pin.PinUtxoIndex)
 		mintPin := &mrc20_service.MintPin{
 			PinId:           pin.PinId,
@@ -166,16 +164,6 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			return nil, err
 		}
 	}
-
-	privateKeyBytes, err := hex.DecodeString(mintOrder.RevealTxPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	privateKey, _ := btcec.PrivKeyFromBytes(privateKeyBytes)
-	xOnlyPubKey := schnorr.SerializePubKey(privateKey.PubKey())
-	extra["redeemScript"] = mintOrder.RedeemScript
-	extra["controlBlockWitness"] = mintOrder.ControlBlockWitness
-	extra["xOnlyPubKey"] = hex.EncodeToString(xOnlyPubKey)
 
 	return &respond.Mrc20MintPreResp{
 		OrderId:          mintOrder.OrderId,

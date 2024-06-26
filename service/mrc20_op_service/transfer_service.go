@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/btcec/v2"
-	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"gorm.io/gorm"
@@ -176,16 +174,6 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 			return nil, err
 		}
 	}
-
-	privateKeyBytes, err := hex.DecodeString(transferOrder.RevealTxPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	privateKey, _ := btcec.PrivKeyFromBytes(privateKeyBytes)
-	xOnlyPubKey := schnorr.SerializePubKey(privateKey.PubKey())
-	extra["redeemScript"] = transferOrder.RedeemScript
-	extra["controlBlockWitness"] = transferOrder.ControlBlockWitness
-	extra["xOnlyPubKey"] = hex.EncodeToString(xOnlyPubKey)
 
 	return &respond.Mrc20TransferPreResp{
 		OrderId:          transferOrder.OrderId,
