@@ -1153,6 +1153,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "default:”",
+                        "name": "filter-path",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:0",
+                        "name": "filter-level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "default:”",
+                        "name": "filter-uncastTickId",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "-1/1, default:-1",
                         "name": "sortType",

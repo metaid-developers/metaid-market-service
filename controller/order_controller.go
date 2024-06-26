@@ -128,6 +128,9 @@ func CancelMarketOrder(c *gin.Context) {
 // @Param orderState query int true "1-create, 2-cancel, 3-finish"
 // @Param address query string false "address"
 // @Param sortKey query string false "sellPriceAmount/timestamp/assetLevel, default:timestamp"
+// @Param filter-path query string false "default:”"
+// @Param filter-level query int false "default:0"
+// @Param filter-uncastTickId query string false "default:”"
 // @Param sortType query int false "-1/1, default:-1"
 // @Param cursor query int false "default:0"
 // @Param size query int false "default:10, max:50"
@@ -151,6 +154,12 @@ func FetchMarketOrders(c *gin.Context) {
 			SortType:   0,
 		}
 	)
+	req.Filters = &request.Filter{
+		Path:         c.DefaultQuery("filter-path", ""),
+		Level:        0,
+		UncastTickId: c.DefaultQuery("filter-uncastTickId", ""),
+	}
+	req.Filters.Level, _ = strconv.ParseInt(c.DefaultQuery("filter-level", "0"), 10, 64)
 	orderStateInt, _ := strconv.ParseInt(orderStateStr, 10, 64)
 	req.OrderState = models.OrderState(orderStateInt)
 	req.Cursor, _ = strconv.ParseInt(cursorStr, 10, 64)

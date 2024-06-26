@@ -974,6 +974,7 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 		filter     *models.MarketOrderModel = &models.MarketOrderModel{}
 		sortKey    string                   = "timestamp"
 		sortType   string                   = "desc"
+		prefixPath string                   = ""
 	)
 	if req.OrderState != 0 {
 		filter.OrderState = req.OrderState
@@ -997,8 +998,22 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 	if req.Size <= 0 || req.Size >= 50 {
 		req.Size = 50
 	}
-	total, _ = models.MarketOrderModelDao().CountByState(filter, req.Address)
-	entityList, _ = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType)
+
+	if req.Filters != nil {
+		if req.Filters.Path != "" {
+			if strings.HasSuffix(req.Filters.Path, "*") {
+				prefixPath = strings.TrimSuffix(req.Filters.Path, "*")
+			} else {
+				filter.AssetPath = req.Filters.Path
+			}
+		}
+		if req.Filters.Level > 0 {
+			filter.AssetLevel = req.Filters.Level
+		}
+	}
+
+	total, _ = models.MarketOrderModelDao().CountByState(filter, req.Address, prefixPath)
+	entityList, _ = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType, prefixPath)
 	for _, v := range entityList {
 		item := &respond.OrderInfo{
 			OrderId:           v.OrderId,

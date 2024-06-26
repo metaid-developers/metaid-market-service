@@ -1602,6 +1602,18 @@ paths:
         in: query
         name: sortKey
         type: string
+      - description: default:”
+        in: query
+        name: filter-path
+        type: string
+      - description: default:0
+        in: query
+        name: filter-level
+        type: integer
+      - description: default:”
+        in: query
+        name: filter-uncastTickId
+        type: string
       - description: -1/1, default:-1
         in: query
         name: sortType

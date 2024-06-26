@@ -258,3 +258,6 @@ create table tb_market_price
     constraint tb_market_price_coin_uindex
         unique (coin)
 );
+
+alter table tb_market_order
+    add assetPath varchar(80) default '' not null AFTER `assetLevel`;

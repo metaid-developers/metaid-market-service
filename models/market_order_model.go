@@ -40,6 +40,7 @@ type MarketOrderModel struct {
 	AssetType         AssetType         `gorm:"column:assetType" json:"assetType"`
 	AssetNumber       int64             `gorm:"column:assetNumber" json:"assetNumber"`
 	AssetLevel        int64             `gorm:"column:assetLevel" json:"assetLevel"`
+	AssetPath         string            `gorm:"column:assetPath" json:"assetPath"`
 	AssetPop          string            `gorm:"column:assetPop" json:"assetPop"`
 	OrderState        OrderState        `gorm:"column:orderState" json:"orderState"`
 	SellerAddress     string            `gorm:"column:sellerAddress" json:"sellerAddress"`
@@ -123,12 +124,19 @@ func (_ *marketOrderModelDao) GetList(qo *MarketOrderModel, offset, limit int64)
 	return models, nil
 }
 
-func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address string) (int64, error) {
+func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefixPath string) (int64, error) {
 	var count int64
 	filter := ""
 	if qo.OrderState == OrderStateFinish {
 		qo.SellerAddress = ""
 		filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+	}
+	if prefixPath != "" {
+		if filter != "" {
+			filter += fmt.Sprintf(" and assetPath like '%s%%'", prefixPath)
+		} else {
+			filter = fmt.Sprintf("assetPath like '%s%%'", prefixPath)
+		}
 	}
 	tx := major.GetSqlDB().Model(&MarketOrderModel{}).Where(qo).Where(filter).Count(&count)
 	if tx.Error != nil {
@@ -137,12 +145,19 @@ func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address string)
 	return count, nil
 }
 
-func (_ *marketOrderModelDao) GetListByState(qo *MarketOrderModel, address string, offset, limit int64, sortKey, sortType string) ([]*MarketOrderModel, error) {
+func (_ *marketOrderModelDao) GetListByState(qo *MarketOrderModel, address string, offset, limit int64, sortKey, sortType, prefixPath string) ([]*MarketOrderModel, error) {
 	var models []*MarketOrderModel
 	filter := ""
 	if qo.OrderState == OrderStateFinish {
 		qo.SellerAddress = ""
 		filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+	}
+	if prefixPath != "" {
+		if filter != "" {
+			filter += fmt.Sprintf(" and assetPath like '%s%%'", prefixPath)
+		} else {
+			filter = fmt.Sprintf("assetPath like '%s%%'", prefixPath)
+		}
 	}
 	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", sortKey, sortType)).Find(&models)
 	if tx.Error != nil {

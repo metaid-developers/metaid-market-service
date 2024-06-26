@@ -45,11 +45,17 @@ type CancelOrderReq struct {
 type FetchMarketOrdersReq struct {
 	OrderState models.OrderState `json:"orderState"` //1-create,2-finish,3-cancel
 	AssetType  models.AssetType  `json:"assetType"`  //pins/ordinals
+	Filters    *Filter           `json:"filters"`
 	Cursor     int64             `json:"cursor"`
 	Size       int64             `json:"size"`
 	Address    string            `json:"address"`
 	SortKey    string            `json:"sortKey"`  //sellPriceAmount/timestamp/assetLevel
 	SortType   int64             `json:"sortType"` //1/-1
+}
+type Filter struct {
+	Path         string `json:"path"`
+	Level        int64  `json:"level"`
+	UncastTickId string `json:"uncastTickId"`
 }
 
 type FetchMarketOneOrderReq struct {
