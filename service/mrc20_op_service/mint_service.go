@@ -17,6 +17,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/tool"
+	"strings"
 )
 
 func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*respond.Mrc20MintPreResp, error) {
@@ -34,6 +35,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		tickId              string                   = req.TickerId
 		payload             string                   = fmt.Sprintf(`{"id":"%s"}`, tickId)
 		pinUtxoIds          string                   = ""
+		mintPinsStr         string                   = ""
 		mintPins            []*mrc20_service.MintPin = make([]*mrc20_service.MintPin, 0)
 		mrc20OutValue       int64                    = req.OutValue
 		mrc20OutAddressList []string                 = []string{req.OutAddress}
@@ -51,6 +53,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		if pin.PinUtxoTxId == "" || pin.PinUtxoOutValue <= 0 {
 			return nil, errors.New("mint pin parameter error")
 		}
+		mintPinsStr += mintPinsStr + "," + pin.PinId
 		pinUtxoIds += pinUtxoIds + "," + fmt.Sprintf("%s:%d", pin.PinUtxoTxId, pin.PinUtxoIndex)
 		mintPin := &mrc20_service.MintPin{
 			PinId:           pin.PinId,
@@ -75,6 +78,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		mintPins = append(mintPins, mintPin)
 		revealInputIndex++
 	}
+	mintPinsStr = strings.Trim(mintPinsStr, ",")
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
 		Net:                 common.GetNetParams(conf.Net),
 		MetaIdFlag:          common.GetMetaIdFlag(),
@@ -116,6 +120,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			OrderId:             orderId,
 			InscribeState:       models.InscribeStatePending,
 			TickId:              tickId,
+			MintPins:            mintPinsStr,
 			TotalFee:            totalFee,
 			MinerFee:            minerFee,
 			ServiceFee:          serviceFee,
@@ -144,6 +149,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			return nil, err
 		}
 	} else {
+		mintOrder.MintPins = mintPinsStr
 		mintOrder.TotalFee = totalFee
 		mintOrder.MinerFee = minerFee
 		mintOrder.ServiceFee = serviceFee

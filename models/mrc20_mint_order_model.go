@@ -25,6 +25,7 @@ type Mrc20MintOrderModel struct {
 	InscribeState       InscribeState     `gorm:"column:inscribeState" json:"inscribeState"`
 	Address             string            `gorm:"column:address" json:"address"`
 	TickId              string            `gorm:"column:tickId" json:"tickId"`
+	MintPins            string            `gorm:"column:mintPins" json:"mintPins"`
 	TotalFee            int64             `gorm:"column:totalFee" json:"totalFee"`
 	MinerFee            int64             `gorm:"column:minerFee" json:"minerFee"`
 	ServiceFee          int64             `gorm:"column:serviceFee" json:"serviceFee"`

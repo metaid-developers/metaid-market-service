@@ -51,11 +51,22 @@ type FetchMrc20OpOrdersResp struct {
 }
 
 type OpOrderInfoResp struct {
-	OpOrderType       string                   `json:"opOrderType"`
-	OrderId           string                   `json:"orderId"`
-	TickId            string                   `json:"tickId"`
-	Tick              string                   `json:"tick"`
-	TickName          string                   `json:"tickName"`
+	OpOrderType      string `json:"opOrderType"`
+	OrderId          string `json:"orderId"`
+	TickId           string `json:"tickId"`
+	Tick             string `json:"tick"`
+	TickName         string `json:"tickName"`
+	Decimals         string `json:"decimals"`
+	AmtPerMint       string `json:"amtPerMint"`
+	MintCount        string `json:"mintCount"`
+	PremineCount     string `json:"premineCount"`
+	TotalMinted      string `json:"totalMinted"`
+	StartBlockHeight string `json:"startBlockHeight"`
+	Qual             string `json:"qual"`
+	//QualPath          string                   `json:"qualPath"`
+	//QualLevel         int64                    `json:"qualLevel"`
+	//QualCount         int64                    `json:"qualCount"`
+	UsedPins          []string                 `json:"usedPins"`
 	TxId              string                   `json:"txId"`
 	BlockHeight       int64                    `json:"blockHeight"`
 	ConfirmationState models.ConfirmationState `json:"confirmationState"`

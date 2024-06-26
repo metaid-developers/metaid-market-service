@@ -2169,16 +2169,34 @@ const docTemplate = `{
         "respond.OpOrderInfoResp": {
             "type": "object",
             "properties": {
+                "amtPerMint": {
+                    "type": "string"
+                },
                 "blockHeight": {
                     "type": "integer"
                 },
                 "confirmationState": {
                     "$ref": "#/definitions/models.ConfirmationState"
                 },
+                "decimals": {
+                    "type": "string"
+                },
+                "mintCount": {
+                    "type": "string"
+                },
                 "opOrderType": {
                     "type": "string"
                 },
                 "orderId": {
+                    "type": "string"
+                },
+                "premineCount": {
+                    "type": "string"
+                },
+                "qual": {
+                    "type": "string"
+                },
+                "startBlockHeight": {
                     "type": "string"
                 },
                 "tick": {
@@ -2193,8 +2211,18 @@ const docTemplate = `{
                 "timestamp": {
                     "type": "integer"
                 },
+                "totalMinted": {
+                    "type": "string"
+                },
                 "txId": {
                     "type": "string"
+                },
+                "usedPins": {
+                    "description": "QualPath          string                   ` + "`" + `json:\"qualPath\"` + "`" + `\nQualLevel         int64                    ` + "`" + `json:\"qualLevel\"` + "`" + `\nQualCount         int64                    ` + "`" + `json:\"qualCount\"` + "`" + `",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

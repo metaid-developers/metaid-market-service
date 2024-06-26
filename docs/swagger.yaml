@@ -632,13 +632,25 @@ definitions:
     type: object
   respond.OpOrderInfoResp:
     properties:
+      amtPerMint:
+        type: string
       blockHeight:
         type: integer
       confirmationState:
         $ref: '#/definitions/models.ConfirmationState'
+      decimals:
+        type: string
+      mintCount:
+        type: string
       opOrderType:
         type: string
       orderId:
+        type: string
+      premineCount:
+        type: string
+      qual:
+        type: string
+      startBlockHeight:
         type: string
       tick:
         type: string
@@ -648,8 +660,18 @@ definitions:
         type: string
       timestamp:
         type: integer
+      totalMinted:
+        type: string
       txId:
         type: string
+      usedPins:
+        description: |-
+          QualPath          string                   `json:"qualPath"`
+          QualLevel         int64                    `json:"qualLevel"`
+          QualCount         int64                    `json:"qualCount"`
+        items:
+          type: string
+        type: array
     type: object
   respond.OrderInfo:
     properties:

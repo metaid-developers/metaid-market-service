@@ -6,6 +6,9 @@ import (
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/man_service"
+	"metaid-market-service/tool"
+	"strconv"
+	"strings"
 )
 
 func FetchMrc20OpOrders(req *request.FetchMrc20OpOrdersRequest, publicKey, ip string) (*respond.FetchMrc20OpOrdersResp, error) {
@@ -45,6 +48,14 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			TickId:            v.TickId,
 			Tick:              v.Tick,
 			TickName:          v.TokenName,
+			Decimals:          v.Decimals,
+			AmtPerMint:        v.AmtPerMint,
+			MintCount:         v.MintCount,
+			PremineCount:      v.PremineCount,
+			TotalMinted:       v.MintCount,
+			StartBlockHeight:  v.StartBlockHeight,
+			Qual:              v.Qual,
+			UsedPins:          nil,
 			TxId:              v.Address,
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
@@ -78,8 +89,20 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 	entityList, _ = models.Mrc20MintOrderModelDao().GetList(filter, req.Cursor, req.Size)
 	for _, v := range entityList {
 
+		mintPins := make([]string, 0)
+		if v.MintPins != "" {
+			mintPins = strings.Split(v.MintPins, ",")
+		}
+
 		tick := ""
 		tokenName := ""
+		decimals := ""
+		amtPerMint := ""
+		mintCount := ""
+		premineCount := ""
+		totalMinted := ""
+		startBlockHeight := ""
+		var qual interface{}
 		if _, ok := tickInfoMap[v.TickId]; !ok {
 			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
 			if tickInfo == nil {
@@ -90,6 +113,13 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		if tickInfoMap[v.TickId] != nil {
 			tick = tickInfoMap[v.TickId].Tick
 			tokenName = tickInfoMap[v.TickId].TokenName
+			decimals = tickInfoMap[v.TickId].Decimals
+			amtPerMint = tickInfoMap[v.TickId].AmtPerMint
+			mintCount = strconv.FormatInt(tickInfoMap[v.TickId].MintCount, 10)
+			premineCount = strconv.FormatInt(tickInfoMap[v.TickId].PremineCount, 10)
+			totalMinted = strconv.FormatInt(tickInfoMap[v.TickId].TotalMinted, 10)
+			startBlockHeight = tickInfoMap[v.TickId].BlockHeight
+			qual = tickInfoMap[v.TickId].Qual
 		}
 
 		list = append(list, &respond.OpOrderInfoResp{
@@ -98,6 +128,14 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			TickId:            v.TickId,
 			Tick:              tick,
 			TickName:          tokenName,
+			Decimals:          decimals,
+			AmtPerMint:        amtPerMint,
+			MintCount:         mintCount,
+			PremineCount:      premineCount,
+			TotalMinted:       totalMinted,
+			StartBlockHeight:  startBlockHeight,
+			Qual:              tool.AnyToStr(qual),
+			UsedPins:          mintPins,
 			TxId:              v.Address,
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
