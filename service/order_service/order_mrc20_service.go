@@ -14,6 +14,7 @@ import (
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
+	"metaid-market-service/service/man_service"
 	"metaid-market-service/tool"
 	"strconv"
 )
@@ -352,6 +353,8 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		usedUtxoList        []*models.MarketUtxoModel = make([]*models.MarketUtxoModel, 0)
 		newUtxoList         []*models.MarketUtxoModel = make([]*models.MarketUtxoModel, 0)
 		nowTime             int64                     = tool.MakeTimestamp()
+		tickInfo            *man_service.Mrc20TickInfo
+		supply              = "0"
 	)
 	entity, err = models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
 		OrderId: req.OrderId,
@@ -364,6 +367,21 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	}
 	if entity.OrderState != models.OrderStateCreate {
 		return nil, errors.New("Order is closed. ")
+	}
+
+	tickInfo, err = man_service.FetchMrc20TickInfo(entity.TickId)
+	if err != nil {
+		return nil, err
+	}
+	if tickInfo == nil || tickInfo.Mrc20Id == "" {
+		return nil, errors.New("mrc20 not found")
+	}
+	if tickInfo.AmtPerMint != "" && tickInfo.MintCount != 0 {
+		totalMintedDe := decimal.New(tickInfo.TotalMinted, 0)
+		premineCountDe := decimal.New(tickInfo.PremineCount, 0)
+		amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
+		supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
+		supply = supplyDe.String()
 	}
 
 	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), req.TakerPsbtRaw)
@@ -479,6 +497,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	err = models.MarketMrc20OrderModelDao().UpdateOrderEntityListForJobFunc(
 		entity,
 		usedUtxoList, newUtxoList,
+		supply,
 		txRaw,
 		common.BroadcastTx)
 	if err != nil {

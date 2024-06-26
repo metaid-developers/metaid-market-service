@@ -35,3 +35,10 @@ type Mrc20TransferCommitResp struct {
 	CommitTxId string `json:"commitTxId"`
 	RevealTxId string `json:"revealTxId"`
 }
+
+type Mrc20DeployResp struct {
+	OrderId    string `json:"orderId"`
+	TickId     string `json:"tickId"`
+	CommitTxId string `json:"commitTxId"`
+	RevealTxId string `json:"revealTxId"`
+}

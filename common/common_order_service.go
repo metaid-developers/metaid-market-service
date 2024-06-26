@@ -598,8 +598,18 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 		askPreOutList[i].PreviousOutPoint = *wire.NewOutPoint(dummyTxHash, uint32(dummy.Index))
 		dummyOutValue = dummyOutValue + dummy.Amount
 
-		askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), askUpsbtList[i].WitnessUtxo.PkScript)
+		dummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+		if err != nil {
+			return "", 0, err
+		}
+		dummyPkScriptBytes, err := hex.DecodeString(dummyPkScript)
+		if err != nil {
+			return "", 0, err
+		}
+
+		askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
 		//signAll
+		askUpsbtList[i].SighashType = txscript.SigHashAll
 	}
 	askBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxIn = askPreOutList
 	askBuilder.PsbtUpdater.Upsbt.Inputs = askUpsbtList
@@ -983,9 +993,18 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 
 		askPreOutList[i].PreviousOutPoint = *wire.NewOutPoint(dummyTxHash, uint32(dummy.Index))
 		dummyOutValue = dummyOutValue + dummy.Amount
+		dummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+		if err != nil {
+			return "", 0, err
+		}
+		dummyPkScriptBytes, err := hex.DecodeString(dummyPkScript)
+		if err != nil {
+			return "", 0, err
+		}
 
-		askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), askUpsbtList[i].WitnessUtxo.PkScript)
+		askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
 		//signAll
+		askUpsbtList[i].SighashType = txscript.SigHashAll
 	}
 	askBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxIn = askPreOutList
 	askBuilder.PsbtUpdater.Upsbt.Inputs = askUpsbtList

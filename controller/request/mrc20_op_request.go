@@ -58,3 +58,9 @@ type Mrc20TransferCommitRequest struct {
 	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
 	RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
 }
+
+type Mrc20DeployRequest struct {
+	Payload     string `json:"payload"`
+	CommitTxRaw string `json:"commitTxRaw"`
+	RevealTxRaw string `json:"revealTxRaw"`
+}

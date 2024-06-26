@@ -7,6 +7,7 @@ import (
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
+	"metaid-market-service/models"
 	"metaid-market-service/service/man_service"
 	"strconv"
 	"strings"
@@ -213,6 +214,15 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 			if v.AmtChange == 0 {
 				continue
 			}
+			utxoId := strings.Replace(v.TxPoint, ":", "_", -1)
+			orderEntityFinish, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
+				UtxoId:        utxoId,
+				SellerAddress: req.Address,
+				OrderState:    models.OrderStateFinish,
+			})
+			if orderEntityFinish != nil {
+				continue
+			}
 
 			address := v.ToAddress
 			txPoint := v.TxPoint
@@ -257,7 +267,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				}
 			}
 
-			list = append(list, &respond.Mrc20Utxo{
+			item := &respond.Mrc20Utxo{
 				Chain:       v.Chain,
 				BlockHeight: v.BlockHeight,
 				Address:     address,
@@ -269,7 +279,17 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				OutputIndex: vout,
 				Mrc20s:      mrc20s,
 				Timestamp:   v.Timestamp,
+				OrderId:     "",
+			}
+			orderEntity, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
+				UtxoId:        utxoId,
+				SellerAddress: req.Address,
+				OrderState:    models.OrderStateCreate,
 			})
+			if orderEntity != nil {
+				item.OrderId = orderEntity.OrderId
+			}
+			list = append(list, item)
 		}
 		total = mrc20Resp.Total
 	}
