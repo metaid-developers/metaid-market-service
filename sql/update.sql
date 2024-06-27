@@ -264,3 +264,5 @@ alter table tb_market_order
 
 alter table tb_mrc20_mint_order
     add mintPins TEXT AFTER `tickId`;
+
+ALTER table tb_mrc20_deploy_order CONVERT to CHARACTER set utf8mb4;

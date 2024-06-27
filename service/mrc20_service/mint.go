@@ -54,7 +54,6 @@ func Mrc20MintBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int6
 
 		mrc20OutValue:       opRep.Mrc20OutValue,
 		mrc20OutAddressList: opRep.Mrc20OutAddressList,
-		revealOutValue:      546,
 	}
 
 	txCtxData, err := createMetaIdTxCtxData(opRep.Net, mrc20Builder.MetaIdData)

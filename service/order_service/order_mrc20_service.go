@@ -119,8 +119,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		tokenName = tickInfo.TokenName
 		decimals, _ = strconv.ParseInt(tickInfo.Decimals, 10, 64)
 		chain = mrc20Info.Chain
-		amount = mrc20Info.AmtChange
-		amountStr = strconv.FormatInt(amount, 10)
+
+		amountStr = mrc20Info.AmtChange
+		amount, _ = strconv.ParseInt(amountStr, 10, 64)
 		//todo mrc20Info.OutValue
 		outValue = 546
 	}

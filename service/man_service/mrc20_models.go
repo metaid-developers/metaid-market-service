@@ -8,7 +8,7 @@ type Mrc20BalanceResp struct {
 type Mrc20BalanceInfo struct {
 	Id      string `json:"id"`
 	Name    string `json:"name"`
-	Balance int64  `json:"balance"`
+	Balance string `json:"balance"`
 }
 
 type Mrc20UtxoResp struct {
@@ -28,7 +28,7 @@ type Mrc20Utxo struct {
 	FromAddress string `json:"fromAddress"`
 	ToAddress   string `json:"toAddress"`
 	ErrorMsg    string `json:"errorMsg"`
-	AmtChange   int64  `json:"amtChange"`
+	AmtChange   string `json:"amtChange"`
 	Status      int64  `json:"status"`
 	Chain       string `json:"chain"`
 	Index       int64  `json:"index"`

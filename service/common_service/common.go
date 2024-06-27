@@ -22,7 +22,7 @@ func FetchTxPointInfo(txId string, index, cursor, size int64) ([]*man_service.Mr
 			total--
 			continue
 		}
-		if v.AmtChange == 0 {
+		if v.AmtChange == "0" || v.AmtChange == "" {
 			total--
 			continue
 		}

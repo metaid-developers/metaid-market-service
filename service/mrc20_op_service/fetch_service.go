@@ -139,7 +139,7 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			TxId:              v.TxId,
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
-			Timestamp:         v.Timestamp,
+			Timestamp:         v.CreateTime,
 		})
 	}
 	return &respond.FetchMrc20OpOrdersResp{

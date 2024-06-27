@@ -535,7 +535,7 @@ func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respo
 				Tick:      tickInfo.Tick,
 				TokenName: tickInfo.TokenName,
 				Mrc20Id:   v.Id,
-				Balance:   strconv.FormatInt(v.Balance, 10),
+				Balance:   v.Balance,
 				Decimals:  tickInfo.Decimals,
 			}
 			list = append(list, item)
@@ -574,7 +574,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 			if !v.Verify {
 				continue
 			}
-			if v.AmtChange == 0 {
+			if v.AmtChange == "0" || v.AmtChange == "" {
 				continue
 			}
 			utxoId := strings.Replace(v.TxPoint, ":", "_", -1)
@@ -607,7 +607,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				Tick:     v.Tick,
 				Mrc20Id:  v.Mrc20Id,
 				TxPoint:  v.TxPoint,
-				Amount:   strconv.FormatInt(v.AmtChange, 10),
+				Amount:   v.AmtChange,
 				Decimals: tickInfo.Decimals,
 			})
 
@@ -624,7 +624,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 						Tick:     p.Tick,
 						Mrc20Id:  p.Mrc20Id,
 						TxPoint:  p.TxPoint,
-						Amount:   strconv.FormatInt(p.AmtChange, 10),
+						Amount:   v.AmtChange,
 						Decimals: tickInfo.Decimals,
 					})
 				}

@@ -29,7 +29,6 @@ type Mrc20Builder struct {
 	RevealAddress       string
 
 	revealTaprootDataInputIndex uint32
-	revealOutValue              int64
 	TxCtxData                   *inscriptionTxCtxData
 	RevealPsbtBuilder           *common.PsbtBuilder
 	revealTx                    *wire.MsgTx
@@ -260,7 +259,7 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 		PkScript:            hex.EncodeToString(m.TxCtxData.CommitTxAddressPkScript),
 		RedeemScript:        hex.EncodeToString(m.TxCtxData.InscriptionScript),
 		ControlBlockWitness: hex.EncodeToString(m.TxCtxData.ControlBlockWitness),
-		Amount:              uint64(m.revealOutValue + m.CalRevealPsbtFee(m.FeeRate)),
+		Amount:              uint64(m.CalRevealPsbtFee(m.FeeRate)),
 		SighashType:         txscript.SigHashAll,
 		PriHex:              "",
 		//MultiSigScript: "",
@@ -277,7 +276,7 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 	m.revealTaprootDataInputIndex = taprootDataInputIndex
 	m.TxCtxData.revealTxPrevOutput = &wire.TxOut{
 		PkScript: m.TxCtxData.CommitTxAddressPkScript,
-		Value:    m.revealOutValue + m.CalRevealPsbtFee(m.FeeRate),
+		Value:    m.CalRevealPsbtFee(m.FeeRate),
 	}
 	return nil
 }
@@ -440,7 +439,7 @@ func (m *Mrc20Builder) signRevealPsbt(mintPins []*MintPin, transferMrc20s []*Tra
 			PkScript:            hex.EncodeToString(m.TxCtxData.CommitTxAddressPkScript),
 			RedeemScript:        hex.EncodeToString(m.TxCtxData.InscriptionScript),
 			ControlBlockWitness: hex.EncodeToString(m.TxCtxData.ControlBlockWitness),
-			Amount:              uint64(m.revealOutValue + m.CalRevealPsbtFee(m.FeeRate)),
+			Amount:              uint64(m.CalRevealPsbtFee(m.FeeRate)),
 			SighashType:         txscript.SigHashAll,
 			PriHex:              m.TxCtxData.RecoveryPrivateKeyHex,
 			//MultiSigScript: "",
