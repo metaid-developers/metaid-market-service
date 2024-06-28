@@ -104,7 +104,7 @@ func jobForCheckMrc20DeployRecordConfirm() {
 		offset     int64 = 0
 		limit      int64 = 100
 	)
-	entityList, _ = models.Mrc20DeployOrderModelDao().GetList(
+	entityList, _ = models.Mrc20DeployOrderModelDao().GetListAsc(
 		&models.Mrc20DeployOrderModel{InscribeState: models.InscribeStateFinish, ConfirmationState: models.ConfirmationStateUnconfirmed},
 		offset, limit)
 	fmt.Printf("[JOB][%s] check finsih and confirmed Mrc20 Deploy start. entityList: %d\n", jobName, len(entityList))
@@ -145,7 +145,7 @@ func jobForCheckMrc20MintRecordConfirm() {
 		offset     int64 = 0
 		limit      int64 = 100
 	)
-	entityList, _ = models.Mrc20MintOrderModelDao().GetList(
+	entityList, _ = models.Mrc20MintOrderModelDao().GetListAsc(
 		&models.Mrc20MintOrderModel{InscribeState: models.InscribeStateFinish, ConfirmationState: models.ConfirmationStateUnconfirmed},
 		offset, limit)
 	fmt.Printf("[JOB][%s] check finsih and confirmed Mrc20 Mint start. entityList: %d\n", jobName, len(entityList))
@@ -186,7 +186,7 @@ func jobForCheckMrc20TransferRecordConfirm() {
 		offset     int64 = 0
 		limit      int64 = 100
 	)
-	entityList, _ = models.Mrc20TransferOrderModelDao().GetList(
+	entityList, _ = models.Mrc20TransferOrderModelDao().GetListAsc(
 		&models.Mrc20TransferOrderModel{InscribeState: models.InscribeStateFinish, ConfirmationState: models.ConfirmationStateUnconfirmed},
 		offset, limit)
 	fmt.Printf("[JOB][%s] check finsih and confirmed Mrc20 Transfer start. entityList: %d\n", jobName, len(entityList))

@@ -205,7 +205,7 @@ func FetchMrc20txPointList(txId string, index, cursor, size int64) (*Mrc20UtxoRe
 	return data, nil
 }
 
-func FetchMrc20TickList(cursor, size int64, completed bool, order string) (*Mrc20TickListResp, error) {
+func FetchMrc20TickList(cursor, size int64, completed bool, order, sortType string) (*Mrc20TickListResp, error) {
 	var (
 		url    string
 		result string
@@ -218,8 +218,48 @@ func FetchMrc20TickList(cursor, size int64, completed bool, order string) (*Mrc2
 		"size":      fmt.Sprintf("%d", size),
 		"completed": fmt.Sprintf("%t", completed),
 		"order":     order,
+		"orderType": sortType,
 	}
 	url = fmt.Sprintf("%s/api/mrc20/tick/all", conf.ManDomain)
+	//if net == "testnet" {
+	//	url = fmt.Sprintf("%s/api/mrc20/tick/address", conf.ManTestDomain)
+	//} else if net == "regtest" {
+	//	url = fmt.Sprintf("%s/api/mrc20/tick/address", conf.ManRegTestDomain)
+	//}
+
+	//fmt.Printf("url:%s\n", url)
+	result, err = tool.GetUrl(url, query, nil)
+	if err != nil {
+		return nil, reqErr
+	}
+	//fmt.Printf("result:%s\n", result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	if resp.Code != ManCodeSuccess {
+		return nil, fmt.Errorf("msg:%s", resp.Message)
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	return data, nil
+}
+
+func FetchMrc20TickUsedShovelList(tickId string, cursor, size int64) (*Mrc20TickUsedShovelResp, error) {
+	var (
+		url    string
+		result string
+		resp   *ManResp
+		data   *Mrc20TickUsedShovelResp
+		err    error
+	)
+	query := map[string]string{
+		"cursor": fmt.Sprintf("%d", cursor),
+		"size":   fmt.Sprintf("%d", size),
+		"tickId": tickId,
+	}
+	url = fmt.Sprintf("%s/api/mrc20/shovel/used", conf.ManDomain)
 	//if net == "testnet" {
 	//	url = fmt.Sprintf("%s/api/mrc20/tick/address", conf.ManTestDomain)
 	//} else if net == "regtest" {

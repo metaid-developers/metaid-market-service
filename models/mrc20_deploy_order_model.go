@@ -86,6 +86,15 @@ func (_ *mrc20DeployOrderModelDao) GetLastOne(qo *Mrc20DeployOrderModel) (*Mrc20
 
 func (_ *mrc20DeployOrderModelDao) GetList(qo *Mrc20DeployOrderModel, offset, limit int64) ([]*Mrc20DeployOrderModel, error) {
 	var models []*Mrc20DeployOrderModel
+	tx := major.GetSqlDB().Where(qo).Limit(int(limit)).Offset(int(offset)).Order("timestamp desc").Find(&models)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return models, nil
+}
+
+func (_ *mrc20DeployOrderModelDao) GetListAsc(qo *Mrc20DeployOrderModel, offset, limit int64) ([]*Mrc20DeployOrderModel, error) {
+	var models []*Mrc20DeployOrderModel
 	tx := major.GetSqlDB().Where(qo).Limit(int(limit)).Offset(int(offset)).Order("timestamp asc").Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error

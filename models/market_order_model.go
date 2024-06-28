@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
+	"strings"
 	"sync"
 )
 
@@ -124,7 +125,7 @@ func (_ *marketOrderModelDao) GetList(qo *MarketOrderModel, offset, limit int64)
 	return models, nil
 }
 
-func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefixPath string) (int64, error) {
+func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefixPath string, notInAssetIds []string) (int64, error) {
 	var count int64
 	filter := ""
 	if qo.OrderState == OrderStateFinish {
@@ -138,6 +139,13 @@ func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefix
 			filter = fmt.Sprintf("assetPath like '%s%%'", prefixPath)
 		}
 	}
+	if len(notInAssetIds) > 0 {
+		if filter != "" {
+			filter += fmt.Sprintf(" and assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
+		} else {
+			filter = fmt.Sprintf("assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
+		}
+	}
 	tx := major.GetSqlDB().Model(&MarketOrderModel{}).Where(qo).Where(filter).Count(&count)
 	if tx.Error != nil {
 		return 0, tx.Error
@@ -145,7 +153,7 @@ func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefix
 	return count, nil
 }
 
-func (_ *marketOrderModelDao) GetListByState(qo *MarketOrderModel, address string, offset, limit int64, sortKey, sortType, prefixPath string) ([]*MarketOrderModel, error) {
+func (_ *marketOrderModelDao) GetListByState(qo *MarketOrderModel, address string, offset, limit int64, sortKey, sortType, prefixPath string, notInAssetIds []string) ([]*MarketOrderModel, error) {
 	var models []*MarketOrderModel
 	filter := ""
 	if qo.OrderState == OrderStateFinish {
@@ -157,6 +165,13 @@ func (_ *marketOrderModelDao) GetListByState(qo *MarketOrderModel, address strin
 			filter += fmt.Sprintf(" and assetPath like '%s%%'", prefixPath)
 		} else {
 			filter = fmt.Sprintf("assetPath like '%s%%'", prefixPath)
+		}
+	}
+	if len(notInAssetIds) > 0 {
+		if filter != "" {
+			filter += fmt.Sprintf(" and assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
+		} else {
+			filter = fmt.Sprintf("assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
 		}
 	}
 	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", sortKey, sortType)).Find(&models)

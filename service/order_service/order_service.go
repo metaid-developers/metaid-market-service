@@ -13,6 +13,7 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
+	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/man_service"
 	"metaid-market-service/tool"
 	"strings"
@@ -968,13 +969,14 @@ func CancelMarketOrder(req *request.CancelOrderReq, publicKey, ip string) (*resp
 
 func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) (*respond.OrderListResp, error) {
 	var (
-		total      int64 = 0
-		entityList []*models.MarketOrderModel
-		list       []*respond.OrderInfo     = make([]*respond.OrderInfo, 0)
-		filter     *models.MarketOrderModel = &models.MarketOrderModel{}
-		sortKey    string                   = "timestamp"
-		sortType   string                   = "desc"
-		prefixPath string                   = ""
+		total        int64 = 0
+		entityList   []*models.MarketOrderModel
+		list         []*respond.OrderInfo     = make([]*respond.OrderInfo, 0)
+		filter       *models.MarketOrderModel = &models.MarketOrderModel{}
+		sortKey      string                   = "timestamp"
+		sortType     string                   = "desc"
+		prefixPath   string                   = ""
+		filterPinIds []string                 = make([]string, 0)
 	)
 	if req.OrderState != 0 {
 		filter.OrderState = req.OrderState
@@ -1010,10 +1012,15 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 		if req.Filters.Level > 0 {
 			filter.AssetLevel = req.Filters.Level
 		}
+
+		if req.Filters.UncastTickId != "" {
+			filterPinIds = common_service.FetchTickUsedShove(req.Filters.UncastTickId)
+			//fmt.Printf("filterPinIds: %v\n", filterPinIds)
+		}
 	}
 
-	total, _ = models.MarketOrderModelDao().CountByState(filter, req.Address, prefixPath)
-	entityList, _ = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType, prefixPath)
+	total, _ = models.MarketOrderModelDao().CountByState(filter, req.Address, prefixPath, filterPinIds)
+	entityList, _ = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType, prefixPath, filterPinIds)
 	for _, v := range entityList {
 		item := &respond.OrderInfo{
 			OrderId:           v.OrderId,

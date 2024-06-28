@@ -27,8 +27,12 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 		err       error
 		list      []*respond.Mrc20TickInfo = make([]*respond.Mrc20TickInfo, 0)
 		total     int64                    = 0
+		sortType                           = "desc"
 	)
-	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, req.OrderBy)
+	if req.SortType > 0 {
+		sortType = "asc"
+	}
+	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, req.OrderBy, sortType)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +239,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 		list = append(list, item)
 	}
 
-	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, "txcount")
+	mrc20Resp, err = man_service.FetchMrc20TickList(req.Cursor, req.Size, req.Completed, "txcount", sortType)
 	if err != nil {
 		return nil, err
 	}

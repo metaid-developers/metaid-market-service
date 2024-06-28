@@ -85,3 +85,24 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 		DeployTime:   mrc20Resp.DeployTime,
 	}, nil
 }
+
+func FetchTickUsedShove(tickId string) []string {
+	var (
+		shovelList []string
+		mrc20Info  *man_service.Mrc20TickUsedShovelResp
+	)
+	mrc20Info, _ = man_service.FetchMrc20TickUsedShovelList(tickId, 0, 1000)
+	if mrc20Info == nil {
+		return nil
+	}
+	shovelList = mrc20Info.List
+	if mrc20Info.Total > 1000 {
+		mrc20Info, _ = man_service.FetchMrc20TickUsedShovelList(tickId, 0, mrc20Info.Total)
+		if mrc20Info == nil {
+			return nil
+		}
+		shovelList = mrc20Info.List
+	}
+
+	return shovelList
+}

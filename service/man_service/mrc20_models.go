@@ -107,3 +107,8 @@ type ShovelInfo struct {
 	Mrc20Minted        bool   `json:"mrc20Minted"`
 	Mrc20MintPin       string `json:"mrc20MintPin"`
 }
+
+type Mrc20TickUsedShovelResp struct {
+	Total int64    `json:"total"`
+	List  []string `json:"list"`
+}
