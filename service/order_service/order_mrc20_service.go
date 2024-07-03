@@ -396,11 +396,16 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New("mrc20 not found")
 	}
 	if tickInfo.AmtPerMint != "" && tickInfo.MintCount != 0 {
+		mintCountDe := decimal.New(tickInfo.MintCount, 0)
 		totalMintedDe := decimal.New(tickInfo.TotalMinted, 0)
-		premineCountDe := decimal.New(tickInfo.PremineCount, 0)
 		amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
-		supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
-		supply = supplyDe.String()
+		if mintCountDe.GreaterThan(totalMintedDe) {
+			supplyDe := totalMintedDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		} else {
+			supplyDe := mintCountDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		}
 	}
 
 	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), req.TakerPsbtRaw)

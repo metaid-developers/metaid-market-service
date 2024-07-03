@@ -55,7 +55,7 @@ func main() {
 	InitEnv()
 	InitAll()
 	//fix.FixMarketInfo()
-	task.JobForCheckValidOrders()
+	//task.JobForCheckValidOrders()
 	go task.RunJob()
 	controller.Run()
 }

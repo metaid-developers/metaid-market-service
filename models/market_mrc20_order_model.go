@@ -343,6 +343,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 
 		totalVolume, _ := MarketMrc20OrderModelDao().SumPriceAmountByTickId(&MarketMrc20OrderModel{TickId: q.TickId, OrderState: OrderStateFinish})
 
+		totalVolume += q.PriceAmount
 		if marketTickInfo != nil {
 			lastPrice := marketTickInfo.LastPrice
 			if lastPrice != 0 {
@@ -381,7 +382,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 				MarketCap:   marketCap,
 				LastPrice:   currentPrice,
 				FloorPrice:  floorPrice,
-				Change24H:   0,
+				Change24H:   10000,
 				Timestamp:   updateTime,
 				//Version:     0,
 				CreateTime: updateTime,
