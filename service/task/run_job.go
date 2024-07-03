@@ -22,12 +22,17 @@ func executeCronJob() {
 		newCronJobForCheckAssetConfirm *cronJob
 		exprForCheckAssetConfirm       = cronexpr.MustParse("0 */10 * * * * *") //per 10m
 
+		newCronJobForCheckValidOrder *cronJob
+		exprForCheckValidOrder       = cronexpr.MustParse("0 */10 * * * * *") //per 10m
 	)
 	newCronJobForCheckRecordConfirm = &cronJob{exprForCheckRecordConfirm, exprForCheckRecordConfirm.Next(now), JobForCheckRecordConfirm}
 	newSchedule["[Job-Record-Confirm]"] = newCronJobForCheckRecordConfirm
 
 	newCronJobForCheckAssetConfirm = &cronJob{exprForCheckAssetConfirm, exprForCheckAssetConfirm.Next(now), JobForCheckAssetConfirm}
 	newSchedule["[Job-Asset-Confirm]"] = newCronJobForCheckAssetConfirm
+
+	newCronJobForCheckValidOrder = &cronJob{exprForCheckValidOrder, exprForCheckValidOrder.Next(now), JobForCheckValidOrders}
+	newSchedule["[Job-Order-Valid]"] = newCronJobForCheckValidOrder
 
 	SetCronJobList(newSchedule)
 

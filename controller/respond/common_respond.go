@@ -148,3 +148,20 @@ type Mrc20TickListResp struct {
 type BroadcastTxResp struct {
 	TxId string `json:"txId"`
 }
+
+type Mrc20TickMarketPriceResp struct {
+	TickId        string `json:"tickId"`
+	Tick          string `json:"tick"`
+	TokenName     string `json:"tokenName"`
+	Decimals      int64  `json:"decimals"`
+	Supply        string `json:"supply"`
+	TotalVolume   int64  `json:"totalVolume"`
+	MarketCap     string `json:"marketCap"`
+	MarketCapUsd  string `json:"marketCapUsd"`
+	LastPrice     string `json:"lastPrice"`
+	LastPriceUsd  string `json:"lastPriceUsd"`
+	Price         string `json:"price"`
+	PriceUsd      string `json:"priceUsd"`
+	FloorPrice    string `json:"floorPrice"`
+	FloorPriceUsd string `json:"floorPriceUsd"`
+}

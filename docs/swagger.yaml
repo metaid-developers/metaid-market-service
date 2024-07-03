@@ -563,6 +563,33 @@ definitions:
       total:
         type: integer
     type: object
+  respond.Mrc20TickMarketPriceResp:
+    properties:
+      decimals:
+        type: integer
+      floorPrice:
+        type: string
+      floorPriceUsd:
+        type: string
+      lastPrice:
+        type: string
+      lastPriceUsd:
+        type: string
+      marketCap:
+        type: string
+      marketCapUsd:
+        type: string
+      supply:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tokenName:
+        type: string
+      totalVolume:
+        type: integer
+    type: object
   respond.Mrc20TransferCommitResp:
     properties:
       commitTxId:
@@ -1012,6 +1039,25 @@ paths:
           schema:
             $ref: '#/definitions/respond.Mrc20UtxoResp'
       summary: Fetch address mrc20 utxo
+      tags:
+      - Common
+  /api/v1/common/mrc20/market/price/info:
+    get:
+      description: Fetch mrc20 market price info
+      parameters:
+      - description: tickId
+        in: query
+        name: tickId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20TickMarketPriceResp'
+      summary: Fetch mrc20 market price info
       tags:
       - Common
   /api/v1/common/mrc20/tick/info:

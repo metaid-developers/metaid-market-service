@@ -212,6 +212,35 @@
                 }
             }
         },
+        "/api/v1/common/mrc20/market/price/info": {
+            "get": {
+                "description": "Fetch mrc20 market price info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch mrc20 market price info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20TickMarketPriceResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/common/mrc20/tick/info": {
             "get": {
                 "description": "Fetch mrc20 tick info",
@@ -2055,6 +2084,47 @@
                     }
                 },
                 "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20TickMarketPriceResp": {
+            "type": "object",
+            "properties": {
+                "decimals": {
+                    "type": "integer"
+                },
+                "floorPrice": {
+                    "type": "string"
+                },
+                "floorPriceUsd": {
+                    "type": "string"
+                },
+                "lastPrice": {
+                    "type": "string"
+                },
+                "lastPriceUsd": {
+                    "type": "string"
+                },
+                "marketCap": {
+                    "type": "string"
+                },
+                "marketCapUsd": {
+                    "type": "string"
+                },
+                "supply": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "tokenName": {
+                    "type": "string"
+                },
+                "totalVolume": {
                     "type": "integer"
                 }
             }

@@ -16,6 +16,7 @@ import (
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/man_service"
 	"metaid-market-service/tool"
+	"strconv"
 	"strings"
 )
 
@@ -723,6 +724,23 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 
 	if entity.SellerAddress == req.BuyerAddress {
 		return nil, errors.New("Buyer address is same as seller. ")
+	}
+
+	sellUtxoIdStrs := strings.Split(entity.UtxoId, "_")
+	sellUtxoTxId := sellUtxoIdStrs[0]
+	sellUtxoIndex, _ := strconv.ParseInt(sellUtxoIdStrs[1], 10, 64)
+	utxoInfo := common.GetUtxoInfo(conf.Net, sellUtxoTxId, sellUtxoIndex)
+	if utxoInfo == nil {
+		return nil, errors.New(fmt.Sprintf("sell Utxo not found. [%s]", entity.UtxoId))
+	}
+	if !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+		entity.OrderState = models.OrderStateCancel
+		err := models.MarketOrderModelDao().Update(entity)
+		if err != nil {
+			fmt.Printf("[%s] UpdateEntityForConfirm error: %v\n", entity.OrderId, err)
+			return nil, err
+		}
+		return nil, errors.New(fmt.Sprintf("sell Utxo is spend. Please select a different order. [%s]", entity.UtxoId))
 	}
 
 	isLegacy, err := common.CheckLegacyAddressType(conf.Net, entity.SellerAddress)

@@ -35,3 +35,7 @@ type Mrc20AddressBalancesReq struct {
 type BroadcastTxReq struct {
 	TxHex string `json:"txHex"`
 }
+
+type FetchMrc20TickMarketPriceResp struct {
+	TickId string `json:"tickId"`
+}

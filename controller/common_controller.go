@@ -182,3 +182,26 @@ func BroadcastTx(c *gin.Context) {
 	}
 	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }
+
+// @Summary Fetch mrc20 market price info
+// @Description Fetch mrc20 market price info
+// @Produce  json
+// @Tags Common
+// @Param tickId query string true "tickId"
+// @Success 200 {object} respond.Mrc20TickMarketPriceResp ""
+// @Router /api/v1/common/mrc20/market/price/info [get]
+func FetchMrc20TickMarketPrice(c *gin.Context) {
+	var (
+		t   int64                                  = tool.MakeTimestamp()
+		req *request.FetchMrc20TickMarketPriceResp = &request.FetchMrc20TickMarketPriceResp{
+			TickId: c.DefaultQuery("tickId", ""),
+		}
+	)
+	responseModel, err := common_service.FetchMrc20TickMarketPrice(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}

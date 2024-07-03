@@ -3,6 +3,7 @@ package common_service
 import (
 	"errors"
 	"github.com/godaddy-x/freego/utils/decimal"
+	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -44,17 +45,17 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 			supply := "0"
 			if v.AmtPerMint != "" && v.MintCount != 0 {
 				totalMintedDe := decimal.New(v.TotalMinted, 0)
-				premineCountDe := decimal.New(v.PremineCount, 0)
+				//premineCountDe := decimal.New(v.PremineCount, 0)
 				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
 				mintCountDe := decimal.New(v.MintCount, 0)
 
-				supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
+				supplyDe := totalMintedDe.Mul(amtPerMintDe)
 				supply = supplyDe.String()
 
 				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 				totalSupply = totalSupplyDe.String()
 
-				remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
+				remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
 				remaining = remainingDe.String()
 				if remainingDe.GreaterThan(decimal.Zero) {
 					mintable = true
@@ -187,16 +188,16 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 
 		if tickInfo.AmtPerMint != "" && tickInfo.MintCount != "0" {
 			totalMintedDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
-			premineCountDe, _ := decimal.NewFromString(tickInfo.PremineCount)
+			//premineCountDe, _ := decimal.NewFromString(tickInfo.PremineCount)
 			amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
 			mintCountDe, _ := decimal.NewFromString(tickInfo.MintCount)
-			supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
+			supplyDe := totalMintedDe.Mul(amtPerMintDe)
 			supply = supplyDe.String()
 
 			totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 			totalSupply = totalSupplyDe.String()
 
-			remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
+			remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
 			remaining = remainingDe.String()
 			if remainingDe.GreaterThan(decimal.Zero) {
 				mintable = true
@@ -263,17 +264,17 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			supply := "0"
 			if v.AmtPerMint != "" && v.MintCount != 0 {
 				totalMintedDe := decimal.New(v.TotalMinted, 0)
-				premineCountDe := decimal.New(v.PremineCount, 0)
+				//premineCountDe := decimal.New(v.PremineCount, 0)
 				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
 				mintCountDe := decimal.New(v.MintCount, 0)
 
-				supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
+				supplyDe := totalMintedDe.Mul(amtPerMintDe)
 				supply = supplyDe.String()
 
 				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 				totalSupply = totalSupplyDe.String()
 
-				remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
+				remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
 				remaining = remainingDe.String()
 				if remainingDe.GreaterThan(decimal.Zero) {
 					mintable = true
@@ -369,16 +370,16 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 	supply := "0"
 	if mrc20Resp.AmtPerMint != "" && mrc20Resp.MintCount != 0 {
 		totalMintedDe := decimal.New(mrc20Resp.TotalMinted, 0)
-		premineCountDe := decimal.New(mrc20Resp.PremineCount, 0)
+		//premineCountDe := decimal.New(mrc20Resp.PremineCount, 0)
 		amtPerMintDe, _ := decimal.NewFromString(mrc20Resp.AmtPerMint)
 		mintCountDe := decimal.New(mrc20Resp.MintCount, 0)
-		supplyDe := totalMintedDe.Add(premineCountDe).Mul(amtPerMintDe)
+		supplyDe := totalMintedDe.Mul(amtPerMintDe)
 		supply = supplyDe.String()
 
 		totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 		totalSupply = totalSupplyDe.String()
 
-		remainingDe := mintCountDe.Sub(totalMintedDe.Add(premineCountDe)).Mul(amtPerMintDe)
+		remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
 		remaining = remainingDe.String()
 		if remainingDe.GreaterThan(decimal.Zero) {
 			mintable = true
@@ -663,5 +664,60 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 	return &respond.Mrc20UtxoResp{
 		Total: total,
 		List:  list,
+	}, nil
+}
+
+func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*respond.Mrc20TickMarketPriceResp, error) {
+	var (
+		marketInfo    *models.MarketMrc20InfoModel
+		err           error
+		price         string = "0"
+		priceUsd      string = "0.00"
+		floorPrice    string = "0"
+		floorPriceUsd string = "0.00"
+		marketCap     string = "0"
+		marketCapUsd  string = "0.00"
+		totalVolume   int64  = 0
+	)
+	marketInfo, err = models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
+		TickId: req.TickId,
+	})
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if marketInfo == nil {
+		return nil, errors.New("mrc20 market info not found")
+	}
+	price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
+	floorPrice = strconv.FormatFloat(marketInfo.FloorPrice, 'f', -1, 64)
+	marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
+
+	btcUsd := GetPriceForUsd("BTC")
+	btcUsdDe, _ := decimal.NewFromString(btcUsd)
+	satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+	priceDe, _ := decimal.NewFromString(price)
+	priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+	floorPriceDe, _ := decimal.NewFromString(floorPrice)
+	floorPriceUsd = floorPriceDe.Mul(satUsdDe).StringFixed(3)
+	marketCapDe, _ := decimal.NewFromString(marketCap)
+	marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+
+	totalVolume = marketInfo.TotalVolume
+	return &respond.Mrc20TickMarketPriceResp{
+		TickId:        marketInfo.TickId,
+		Tick:          marketInfo.Tick,
+		TokenName:     marketInfo.TokenName,
+		Decimals:      marketInfo.Decimals,
+		Supply:        marketInfo.Supply,
+		TotalVolume:   totalVolume,
+		MarketCap:     marketCap,
+		MarketCapUsd:  marketCapUsd,
+		LastPrice:     price,
+		LastPriceUsd:  priceUsd,
+		Price:         price,
+		PriceUsd:      priceUsd,
+		FloorPrice:    floorPrice,
+		FloorPriceUsd: floorPriceUsd,
 	}, nil
 }
