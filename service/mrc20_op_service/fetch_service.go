@@ -30,7 +30,8 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 		total      int64                         = 0
 		list       []*respond.OpOrderInfoResp    = make([]*respond.OpOrderInfoResp, 0)
 		filter     *models.Mrc20DeployOrderModel = &models.Mrc20DeployOrderModel{
-			Address: req.Address,
+			Address:       req.Address,
+			InscribeState: models.InscribeStateFinish,
 		}
 	)
 	if req.Address == "" {
@@ -74,7 +75,8 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		total      int64                       = 0
 		list       []*respond.OpOrderInfoResp  = make([]*respond.OpOrderInfoResp, 0)
 		filter     *models.Mrc20MintOrderModel = &models.Mrc20MintOrderModel{
-			Address: req.Address,
+			Address:       req.Address,
+			InscribeState: models.InscribeStateFinish,
 		}
 		tickInfoMap map[string]*man_service.Mrc20TickInfo = make(map[string]*man_service.Mrc20TickInfo)
 	)
@@ -123,7 +125,7 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		}
 
 		list = append(list, &respond.OpOrderInfoResp{
-			OpOrderType:       "deploy",
+			OpOrderType:       "mint",
 			OrderId:           v.OrderId,
 			TickId:            v.TickId,
 			Tick:              tick,
@@ -154,7 +156,8 @@ func fetchMrc20TransferOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.
 		total      int64                           = 0
 		list       []*respond.OpOrderInfoResp      = make([]*respond.OpOrderInfoResp, 0)
 		filter     *models.Mrc20TransferOrderModel = &models.Mrc20TransferOrderModel{
-			Address: req.Address,
+			Address:       req.Address,
+			InscribeState: models.InscribeStateFinish,
 		}
 		tickInfoMap map[string]*man_service.Mrc20TickInfo = make(map[string]*man_service.Mrc20TickInfo)
 	)
@@ -184,7 +187,7 @@ func fetchMrc20TransferOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.
 		}
 
 		list = append(list, &respond.OpOrderInfoResp{
-			OpOrderType:       "deploy",
+			OpOrderType:       "transfer",
 			OrderId:           v.OrderId,
 			TickId:            v.TickId,
 			Tick:              tick,
