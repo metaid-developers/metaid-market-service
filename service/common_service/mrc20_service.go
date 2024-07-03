@@ -2,6 +2,7 @@ package common_service
 
 import (
 	"errors"
+	"fmt"
 	"github.com/godaddy-x/freego/utils/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/common"
@@ -184,7 +185,6 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 		if tickInfo == nil {
 			continue
 		}
-		marketTickIdList = append(marketTickIdList, v.TickId)
 
 		if tickInfo.AmtPerMint != "" && tickInfo.MintCount != "0" {
 			totalMintedDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
@@ -203,6 +203,12 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				mintable = true
 			}
 		}
+		fmt.Printf("Completed:%t, mintable:%t\n", req.Completed, mintable)
+		if req.Completed && mintable {
+			continue
+		}
+
+		marketTickIdList = append(marketTickIdList, v.TickId)
 
 		item := &respond.Mrc20TickInfo{
 			Tick:             tickInfo.Tick,
