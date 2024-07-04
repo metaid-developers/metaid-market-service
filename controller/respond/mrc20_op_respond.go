@@ -71,4 +71,8 @@ type OpOrderInfoResp struct {
 	BlockHeight       int64                    `json:"blockHeight"`
 	ConfirmationState models.ConfirmationState `json:"confirmationState"`
 	Timestamp         int64                    `json:"timestamp"`
+	DeployerAddress   string                   `json:"deployerAddress"`
+	DeployerMetaId    string                   `json:"deployerMetaId"`
+	DeployerUserInfo  *UserInfo                `json:"deployerUserInfo"`
+	MetaData          string                   `json:"metaData"`
 }

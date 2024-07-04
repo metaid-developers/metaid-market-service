@@ -50,8 +50,13 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
 				mintCountDe := decimal.New(v.MintCount, 0)
 
-				supplyDe := totalMintedDe.Mul(amtPerMintDe)
-				supply = supplyDe.String()
+				if totalMintedDe.GreaterThan(mintCountDe) {
+					supplyDe := mintCountDe.Mul(amtPerMintDe)
+					supply = supplyDe.String()
+				} else {
+					supplyDe := totalMintedDe.Mul(amtPerMintDe)
+					supply = supplyDe.String()
+				}
 
 				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 				totalSupply = totalSupplyDe.String()
@@ -191,8 +196,13 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			//premineCountDe, _ := decimal.NewFromString(tickInfo.PremineCount)
 			amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
 			mintCountDe, _ := decimal.NewFromString(tickInfo.MintCount)
-			supplyDe := totalMintedDe.Mul(amtPerMintDe)
-			supply = supplyDe.String()
+			if totalMintedDe.GreaterThan(mintCountDe) {
+				supplyDe := mintCountDe.Mul(amtPerMintDe)
+				supply = supplyDe.String()
+			} else {
+				supplyDe := totalMintedDe.Mul(amtPerMintDe)
+				supply = supplyDe.String()
+			}
 
 			totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 			totalSupply = totalSupplyDe.String()
@@ -274,8 +284,13 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
 				mintCountDe := decimal.New(v.MintCount, 0)
 
-				supplyDe := totalMintedDe.Mul(amtPerMintDe)
-				supply = supplyDe.String()
+				if totalMintedDe.GreaterThan(mintCountDe) {
+					supplyDe := mintCountDe.Mul(amtPerMintDe)
+					supply = supplyDe.String()
+				} else {
+					supplyDe := totalMintedDe.Mul(amtPerMintDe)
+					supply = supplyDe.String()
+				}
 
 				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 				totalSupply = totalSupplyDe.String()
@@ -379,8 +394,13 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		//premineCountDe := decimal.New(mrc20Resp.PremineCount, 0)
 		amtPerMintDe, _ := decimal.NewFromString(mrc20Resp.AmtPerMint)
 		mintCountDe := decimal.New(mrc20Resp.MintCount, 0)
-		supplyDe := totalMintedDe.Mul(amtPerMintDe)
-		supply = supplyDe.String()
+		if totalMintedDe.GreaterThan(mintCountDe) {
+			supplyDe := mintCountDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		} else {
+			supplyDe := totalMintedDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		}
 
 		totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
 		totalSupply = totalSupplyDe.String()

@@ -2,6 +2,7 @@ package mrc20_op_service
 
 import (
 	"errors"
+	"metaid-market-service/common"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
@@ -33,6 +34,7 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			Address:       req.Address,
 			InscribeState: models.InscribeStateFinish,
 		}
+		tickInfoMap map[string]*man_service.Mrc20TickInfo = make(map[string]*man_service.Mrc20TickInfo)
 	)
 	if req.Address == "" {
 		return nil, errors.New("address is empty")
@@ -43,6 +45,17 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 	total, _ = models.Mrc20DeployOrderModelDao().Count(filter)
 	entityList, _ = models.Mrc20DeployOrderModelDao().GetList(filter, req.Cursor, req.Size)
 	for _, v := range entityList {
+		if _, ok := tickInfoMap[v.TickId]; !ok {
+			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
+			if tickInfo == nil {
+				continue
+			}
+			tickInfoMap[v.TickId] = tickInfo
+		}
+		metaData := ""
+		if tickInfoMap[v.TickId] != nil {
+			metaData = tickInfoMap[v.TickId].Metadata
+		}
 		list = append(list, &respond.OpOrderInfoResp{
 			OpOrderType:       "deploy",
 			OrderId:           v.OrderId,
@@ -61,6 +74,10 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
 			Timestamp:         v.Timestamp,
+			DeployerAddress:   v.Address,
+			DeployerMetaId:    common.GetMetaIdByAddress(v.Address),
+			DeployerUserInfo:  common.FetchMetaIDUserInfo(v.Address),
+			MetaData:          metaData,
 		})
 	}
 	return &respond.FetchMrc20OpOrdersResp{
@@ -104,6 +121,8 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		premineCount := ""
 		totalMinted := ""
 		startBlockHeight := ""
+		deployerAddress := ""
+		metaData := ""
 		var qual interface{}
 		if _, ok := tickInfoMap[v.TickId]; !ok {
 			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
@@ -122,6 +141,8 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			totalMinted = strconv.FormatInt(tickInfoMap[v.TickId].TotalMinted, 10)
 			startBlockHeight = tickInfoMap[v.TickId].BlockHeight
 			qual = tickInfoMap[v.TickId].Qual
+			deployerAddress = tickInfoMap[v.TickId].Address
+			metaData = tickInfoMap[v.TickId].Metadata
 		}
 
 		list = append(list, &respond.OpOrderInfoResp{
@@ -142,6 +163,10 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
 			Timestamp:         v.CreateTime,
+			DeployerAddress:   deployerAddress,
+			DeployerMetaId:    common.GetMetaIdByAddress(deployerAddress),
+			DeployerUserInfo:  common.FetchMetaIDUserInfo(deployerAddress),
+			MetaData:          metaData,
 		})
 	}
 	return &respond.FetchMrc20OpOrdersResp{
@@ -174,6 +199,8 @@ func fetchMrc20TransferOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.
 
 		tick := ""
 		tokenName := ""
+		deployerAddress := ""
+		metaData := ""
 		if _, ok := tickInfoMap[v.TickId]; !ok {
 			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
 			if tickInfo == nil {
@@ -184,6 +211,8 @@ func fetchMrc20TransferOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.
 		if tickInfoMap[v.TickId] != nil {
 			tick = tickInfoMap[v.TickId].Tick
 			tokenName = tickInfoMap[v.TickId].TokenName
+			deployerAddress = tickInfoMap[v.TickId].Address
+			metaData = tickInfoMap[v.TickId].Metadata
 		}
 
 		list = append(list, &respond.OpOrderInfoResp{
@@ -196,6 +225,10 @@ func fetchMrc20TransferOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
 			Timestamp:         v.Timestamp,
+			DeployerAddress:   deployerAddress,
+			DeployerMetaId:    common.GetMetaIdByAddress(deployerAddress),
+			DeployerUserInfo:  common.FetchMetaIDUserInfo(deployerAddress),
+			MetaData:          metaData,
 		})
 	}
 	return &respond.FetchMrc20OpOrdersResp{

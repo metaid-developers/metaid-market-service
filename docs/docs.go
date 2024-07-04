@@ -2117,6 +2117,12 @@ const docTemplate = `{
                 "marketCapUsd": {
                     "type": "string"
                 },
+                "price": {
+                    "type": "string"
+                },
+                "priceUsd": {
+                    "type": "string"
+                },
                 "supply": {
                     "type": "string"
                 },
@@ -2249,6 +2255,18 @@ const docTemplate = `{
                     "$ref": "#/definitions/models.ConfirmationState"
                 },
                 "decimals": {
+                    "type": "string"
+                },
+                "deployerAddress": {
+                    "type": "string"
+                },
+                "deployerMetaId": {
+                    "type": "string"
+                },
+                "deployerUserInfo": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "metaData": {
                     "type": "string"
                 },
                 "mintCount": {
