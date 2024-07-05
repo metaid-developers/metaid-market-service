@@ -256,8 +256,13 @@
                         "type": "string",
                         "description": "tickId",
                         "name": "tickId",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "tick",
+                        "name": "tick",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2252,6 +2257,10 @@
                 "decimals": {
                     "type": "string"
                 },
+                "deployState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
+                },
                 "deployerAddress": {
                     "type": "string"
                 },
@@ -2266,6 +2275,10 @@
                 },
                 "mintCount": {
                     "type": "string"
+                },
+                "mintState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
                 },
                 "opOrderType": {
                     "type": "string"

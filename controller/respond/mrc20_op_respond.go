@@ -57,6 +57,8 @@ type OpOrderInfoResp struct {
 	Tick             string `json:"tick"`
 	TickName         string `json:"tickName"`
 	Decimals         string `json:"decimals"`
+	DeployState      int    `json:"deployState"` //0-pending, 1-success, 2-fail
+	MintState        int    `json:"mintState"`   //0-pending, 1-success, 2-fail
 	AmtPerMint       string `json:"amtPerMint"`
 	MintCount        string `json:"mintCount"`
 	PremineCount     string `json:"premineCount"`

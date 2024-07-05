@@ -261,8 +261,13 @@ const docTemplate = `{
                         "type": "string",
                         "description": "tickId",
                         "name": "tickId",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "tick",
+                        "name": "tick",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2257,6 +2262,10 @@ const docTemplate = `{
                 "decimals": {
                     "type": "string"
                 },
+                "deployState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
+                },
                 "deployerAddress": {
                     "type": "string"
                 },
@@ -2271,6 +2280,10 @@ const docTemplate = `{
                 },
                 "mintCount": {
                     "type": "string"
+                },
+                "mintState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
                 },
                 "opOrderType": {
                     "type": "string"

@@ -388,7 +388,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New("Order is closed. ")
 	}
 
-	tickInfo, err = man_service.FetchMrc20TickInfo(entity.TickId)
+	tickInfo, err = man_service.FetchMrc20TickInfo(entity.TickId, "")
 	if err != nil {
 		return nil, err
 	}

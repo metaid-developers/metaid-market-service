@@ -671,6 +671,9 @@ definitions:
         $ref: '#/definitions/models.ConfirmationState'
       decimals:
         type: string
+      deployState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
       deployerAddress:
         type: string
       deployerMetaId:
@@ -681,6 +684,9 @@ definitions:
         type: string
       mintCount:
         type: string
+      mintState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
       opOrderType:
         type: string
       orderId:
@@ -1079,7 +1085,10 @@ paths:
       - description: tickId
         in: query
         name: tickId
-        required: true
+        type: string
+      - description: tick
+        in: query
+        name: tick
         type: string
       produces:
       - application/json

@@ -10,6 +10,7 @@ type FetchMrc20TickListReq struct {
 
 type FetchMrc20TickInfoReq struct {
 	TickId string `json:"tickId"`
+	Tick   string `json:"tick"`
 }
 
 type Mrc20AddressShovelsReq struct {

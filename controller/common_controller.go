@@ -15,7 +15,8 @@ import (
 // @Description Fetch mrc20 tick info
 // @Produce  json
 // @Tags Common
-// @Param tickId query string true "tickId"
+// @Param tickId query string false "tickId"
+// @Param tick query string false "tick"
 // @Success 200 {object} respond.Mrc20TickInfo ""
 // @Router /api/v1/common/mrc20/tick/info [get]
 func FetchMrc20TickInfo(c *gin.Context) {
@@ -23,6 +24,7 @@ func FetchMrc20TickInfo(c *gin.Context) {
 		t   int64                          = tool.MakeTimestamp()
 		req *request.FetchMrc20TickInfoReq = &request.FetchMrc20TickInfoReq{
 			TickId: c.DefaultQuery("tickId", ""),
+			Tick:   c.DefaultQuery("tick", ""),
 		}
 	)
 	responseModel, err := common_service.FetchMrc20TickInfo(req)

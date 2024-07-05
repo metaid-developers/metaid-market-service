@@ -59,7 +59,7 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 		mrc20Resp *man_service.Mrc20TickInfo
 		err       error
 	)
-	mrc20Resp, err = man_service.FetchMrc20TickInfo(tickId)
+	mrc20Resp, err = man_service.FetchMrc20TickInfo(tickId, "")
 	if err != nil {
 		return nil, err
 	}

@@ -89,7 +89,7 @@ func FetchMrc20AddressUtxoList(address, tickId string, cursor, size int64) (*Mrc
 	return data, nil
 }
 
-func FetchMrc20TickInfo(tickId string) (*Mrc20TickInfo, error) {
+func FetchMrc20TickInfo(tickId, tick string) (*Mrc20TickInfo, error) {
 	var (
 		url    string
 		result string
@@ -97,8 +97,11 @@ func FetchMrc20TickInfo(tickId string) (*Mrc20TickInfo, error) {
 		data   *Mrc20TickInfo
 		err    error
 	)
-	query := map[string]string{}
-	url = fmt.Sprintf("%s/api/mrc20/tick/info/%s", conf.ManDomain, tickId)
+	query := map[string]string{
+		"tick": tick,
+		"id":   tickId,
+	}
+	url = fmt.Sprintf("%s/api/mrc20/tick/info", conf.ManDomain)
 	//if net == "testnet" {
 	//	url = fmt.Sprintf("%s/api/mrc20/tick/info/%s", conf.ManTestDomain, tickId)
 	//} else if net == "regtest" {

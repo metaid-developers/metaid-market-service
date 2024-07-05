@@ -378,7 +378,10 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		mrc20Resp *man_service.Mrc20TickInfo
 		err       error
 	)
-	mrc20Resp, err = man_service.FetchMrc20TickInfo(req.TickId)
+	if req.TickId == "" && req.Tick == "" {
+		return nil, errors.New("tickId or tick is required")
+	}
+	mrc20Resp, err = man_service.FetchMrc20TickInfo(req.TickId, req.Tick)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +557,7 @@ func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respo
 	}
 	if mrc20Resp != nil {
 		for _, v := range mrc20Resp.List {
-			tickInfo, err := man_service.FetchMrc20TickInfo(v.Id)
+			tickInfo, err := man_service.FetchMrc20TickInfo(v.Id, "")
 			if err != nil {
 				return nil, err
 			}
@@ -587,7 +590,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 		list      []*respond.Mrc20Utxo = make([]*respond.Mrc20Utxo, 0)
 		total     int64                = 0
 	)
-	tickInfo, err = man_service.FetchMrc20TickInfo(req.TickId)
+	tickInfo, err = man_service.FetchMrc20TickInfo(req.TickId, "")
 	if err != nil {
 		return nil, err
 	}

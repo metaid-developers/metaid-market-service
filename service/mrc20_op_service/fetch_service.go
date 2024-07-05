@@ -2,10 +2,13 @@ package mrc20_op_service
 
 import (
 	"errors"
+	"fmt"
 	"metaid-market-service/common"
+	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
+	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/man_service"
 	"metaid-market-service/tool"
 	"strconv"
@@ -46,15 +49,23 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 	entityList, _ = models.Mrc20DeployOrderModelDao().GetList(filter, req.Cursor, req.Size)
 	for _, v := range entityList {
 		if _, ok := tickInfoMap[v.TickId]; !ok {
-			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
+			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId, "")
 			if tickInfo == nil {
 				continue
 			}
 			tickInfoMap[v.TickId] = tickInfo
 		}
 		metaData := ""
+		deployState := 0
 		if tickInfoMap[v.TickId] != nil {
 			metaData = tickInfoMap[v.TickId].Metadata
+		}
+		if v.ConfirmationState == models.ConfirmationStateConfirmed {
+			if tickInfoMap[v.TickId] != nil {
+				deployState = 1
+			} else {
+				deployState = 2
+			}
 		}
 		list = append(list, &respond.OpOrderInfoResp{
 			OpOrderType:       "deploy",
@@ -64,6 +75,7 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			TickName:          v.TokenName,
 			Decimals:          v.Decimals,
 			AmtPerMint:        v.AmtPerMint,
+			DeployState:       deployState,
 			MintCount:         v.MintCount,
 			PremineCount:      v.PremineCount,
 			TotalMinted:       v.MintCount,
@@ -112,6 +124,28 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		if v.MintPins != "" {
 			mintPins = strings.Split(v.MintPins, ",")
 		}
+		mintIndex := 0
+		newMintPins := make([]string, 0)
+		for _, pinId := range mintPins {
+			pinInfo, _ := man_service.FetchPinInfo(conf.Net, pinId)
+			if pinInfo != nil {
+				pinId = fmt.Sprintf("%s-%d", pinId, pinInfo.PopLv)
+			} else {
+				pinId = fmt.Sprintf("%s-%d", pinId, 0)
+			}
+			has := false
+			for _, pin := range newMintPins {
+				if strings.Contains(pin, pinId) {
+					has = true
+					break
+				}
+			}
+			if has {
+				continue
+			}
+			newMintPins = append(newMintPins, pinId)
+			mintIndex++
+		}
 
 		tick := ""
 		tokenName := ""
@@ -125,7 +159,7 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		metaData := ""
 		var qual interface{}
 		if _, ok := tickInfoMap[v.TickId]; !ok {
-			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
+			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId, "")
 			if tickInfo == nil {
 				continue
 			}
@@ -144,6 +178,15 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			deployerAddress = tickInfoMap[v.TickId].Address
 			metaData = tickInfoMap[v.TickId].Metadata
 		}
+		mintState := 0
+		if v.ConfirmationState == models.ConfirmationStateConfirmed {
+			txPointInfo, _, _ := common_service.FetchTxPointInfo(v.TxId, int64(mintIndex), 0, 100)
+			if txPointInfo != nil && len(txPointInfo) > 0 && txPointInfo[0].Verify {
+				mintState = 1
+			} else {
+				mintState = 2
+			}
+		}
 
 		list = append(list, &respond.OpOrderInfoResp{
 			OpOrderType:       "mint",
@@ -156,9 +199,10 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			MintCount:         mintCount,
 			PremineCount:      premineCount,
 			TotalMinted:       totalMinted,
+			MintState:         mintState,
 			StartBlockHeight:  startBlockHeight,
 			Qual:              tool.AnyToStr(qual),
-			UsedPins:          mintPins,
+			UsedPins:          newMintPins,
 			TxId:              v.TxId,
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
@@ -202,7 +246,7 @@ func fetchMrc20TransferOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.
 		deployerAddress := ""
 		metaData := ""
 		if _, ok := tickInfoMap[v.TickId]; !ok {
-			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId)
+			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId, "")
 			if tickInfo == nil {
 				continue
 			}
