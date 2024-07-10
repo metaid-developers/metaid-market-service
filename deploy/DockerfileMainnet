@@ -6,7 +6,7 @@ WORKDIR ${GO_FILE_PATH}/goWork/src/metaid-market-service
 ADD . ${GO_FILE_PATH}/goWork/src/metaid-market-service
 RUN go env -w GOPROXY=https://goproxy.cn,direct
 RUN go mod tidy
-#RUN apt-get update && apt-get install -y libzmq3-dev
+RUN apt-get update && apt-get install -y libzmq3-dev
 RUN go build
 EXPOSE 7381
 CMD ["go", "run", "main.go", "-env", "mainnet", "metaid-market-service"]

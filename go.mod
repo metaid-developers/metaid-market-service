@@ -12,6 +12,7 @@ require (
 	github.com/godaddy-x/freego v1.0.156
 	github.com/gomodule/redigo v1.9.2
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
+	github.com/pebbe/zmq4 v1.2.11
 	github.com/spf13/viper v1.18.2
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0

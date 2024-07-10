@@ -141,6 +141,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		preview := pinInfo.Preview
 		assetNumber := pinInfo.Number
 		assetLevel := pinInfo.PopLv
+		assetPath := pinInfo.Path
 		assetPop := common.GenPopSummary(pinInfo.Pop)
 		detailMap := map[string]interface{}{
 			"pinId":              pinInfo.Id,
@@ -185,6 +186,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 				OutValue:      outValue,
 				AssetId:       assetId,
 				AssetType:     assetType,
+				AssetPath:     assetPath,
 				AssetNumber:   assetNumber,
 				AssetLevel:    int64(assetLevel),
 				AssetPop:      assetPop,
@@ -486,6 +488,7 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 		assetLocalUtxoId   string                 = ""
 		assetType          models.AssetType       = req.AssetType
 		sellerAddress      string                 = req.Address
+		assetPath          string                 = ""
 		sellerPriceAmount  int64                  = 0
 		sellerPriceDecimal int64                  = 8
 		sellerPriceCoin    string                 = "BTC"
@@ -560,6 +563,7 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 		preview = pinInfo.Preview
 		assetNumber = pinInfo.Number
 		assetLevel = pinInfo.PopLv
+		assetPath = pinInfo.Path
 		assetPop = common.GenPopSummary(pinInfo.Pop)
 		detailMap = map[string]interface{}{
 			"pinId":              pinInfo.Id,
@@ -626,6 +630,7 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 			AssetType:     assetType,
 			AssetNumber:   assetNumber,
 			AssetLevel:    int64(assetLevel),
+			AssetPath:     assetPath,
 			AssetPop:      assetPop,
 			OrderState:    models.OrderStateCreate,
 			SellerAddress: sellerAddress,

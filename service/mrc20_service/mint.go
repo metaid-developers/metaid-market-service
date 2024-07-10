@@ -35,8 +35,9 @@ func Mrc20MintBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int6
 		content                = opRep.OpPayload
 		path                   = "/ft/mrc20/mint"
 		metaIdData *MetaIdData = &MetaIdData{
-			MetaIDFlag:  opRep.MetaIdFlag,
-			Operation:   "hide",
+			MetaIDFlag: opRep.MetaIdFlag,
+			//Operation:   "hide",
+			Operation:   "create",
 			Path:        path,
 			Content:     []byte(content),
 			Encryption:  "",

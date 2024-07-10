@@ -36,7 +36,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		mintPinsStr         string                   = ""
 		mintPins            []*mrc20_service.MintPin = make([]*mrc20_service.MintPin, 0)
 		mrc20OutValue       int64                    = req.OutValue
-		mrc20OutAddressList []string                 = []string{req.OutAddress}
+		mrc20OutAddressList []string                 = []string{req.OutAddress, req.OutAddress}
 		changeAddress       string                   = req.OutAddress
 		feeRate             int64                    = req.NetworkFeeRate
 		revealPrePsbtRaw    string                   = ""
@@ -76,6 +76,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		mintPins = append(mintPins, mintPin)
 		revealInputIndex++
 	}
+	payload = fmt.Sprintf(`{"id":"%s", "vout":"%d"}`, tickId, revealInputIndex+1)
 	mintPinsStr = strings.Trim(mintPinsStr, ",")
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
 		Net:                 common.GetNetParams(conf.Net),
