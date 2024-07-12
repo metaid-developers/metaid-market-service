@@ -43,6 +43,8 @@ type TickInfo struct {
 	MetaData     string      `json:"metadata"`
 	Type         string      `json:"type"`
 	Qual         interface{} `json:"qual"`
+	PinCheck     interface{} `json:"pinCheck"`
+	PayCheck     interface{} `json:"payCheck"`
 	TotalMinted  string      `json:"totalMinted"`
 	Mrc20Id      string      `json:"mrc20Id"`
 	PinNumber    int64       `json:"pinNumber"`
@@ -73,7 +75,9 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 		BlockHeight:  mrc20Resp.BlockHeight,
 		MetaData:     mrc20Resp.Metadata,
 		Type:         mrc20Resp.Type,
-		Qual:         mrc20Resp.Qual,
+		Qual:         mrc20Resp.PinCheck,
+		PinCheck:     mrc20Resp.PinCheck,
+		PayCheck:     mrc20Resp.PayCheck,
 		TotalMinted:  strconv.FormatInt(mrc20Resp.TotalMinted, 10),
 		Mrc20Id:      mrc20Resp.Mrc20Id,
 		PinNumber:    mrc20Resp.PinNumber,

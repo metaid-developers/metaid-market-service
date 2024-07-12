@@ -13,6 +13,7 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"metaid-market-service/common"
+	"metaid-market-service/conf"
 )
 
 type Mrc20Builder struct {
@@ -21,6 +22,9 @@ type Mrc20Builder struct {
 	MintPins           []*MintPin
 	TransferMrc20s     []*TransferMrc20
 	Mrc20Outs          []*Mrc20OutInfo
+	OtherOuts          []*OtherOut
+	OtherIns           []*OtherIn
+	PayTos             []*PayTo
 	FeeRate            int64
 	op                 string
 	mrc20ChangeAddress string
@@ -33,8 +37,14 @@ type Mrc20Builder struct {
 	RevealPsbtBuilder           *common.PsbtBuilder
 	revealTx                    *wire.MsgTx
 
+	transferAddress     string
+	TransferPsbtBuilder *common.PsbtBuilder
+
 	mrc20OutValue       int64
 	mrc20OutAddressList []string
+
+	mrc20PremineOutAddress string
+	mrc20PinOutAddress     string
 }
 
 type MintPin struct {
@@ -88,23 +98,9 @@ type CalInput struct {
 	OutAddress string
 }
 
-func NewMrc20BuilderFromPsbtRaws(net *chaincfg.Params, revealPsbtRaw string) (*Mrc20Builder, error) {
-	var (
-		revealPsbtBuilder *common.PsbtBuilder
-		revealTx          *wire.MsgTx
-		err               error
-	)
-
-	revealPsbtBuilder, err = common.NewPsbtBuilder(net, revealPsbtRaw)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Mrc20Builder{
-		Net:               net,
-		RevealPsbtBuilder: revealPsbtBuilder,
-		revealTx:          revealTx,
-	}, nil
+type PayTo struct {
+	Amount  int64
+	Address string
 }
 
 func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
@@ -114,6 +110,7 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 		inSigners             []*common.InputSign = make([]*common.InputSign, 0)
 		outputs               []common.Output     = make([]common.Output, 0)
 		taprootDataInputIndex uint32              = 0
+		transferFee           int64               = 0
 		err                   error
 	)
 	if m.MintPins != nil && len(m.MintPins) != 0 {
@@ -221,6 +218,14 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 			}
 			outputs = append(outputs, mrc20Out)
 		}
+		for _, v := range m.PayTos {
+			out := common.Output{
+				Address: v.Address,
+				Amount:  uint64(v.Amount),
+				//Script:  "",
+			}
+			outputs = append(outputs, out)
+		}
 	} else if m.op == "transfer" {
 		out := common.Output{
 			Address: m.mrc20ChangeAddress,
@@ -233,6 +238,40 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 				Address: v.Address,
 				Amount:  uint64(v.OutValue),
 				//Script:  "",
+			}
+			outputs = append(outputs, out)
+		}
+	} else if m.op == "deploy" {
+		if m.transferAddress != "" {
+			err = m.buildEmptyTransferRevealPsbt()
+			if err != nil {
+				return err
+			}
+			transferFee, err = m.CalTransferRevealPsbtFee(m.FeeRate)
+			if err != nil {
+				return err
+			}
+			transferFee += 546
+		}
+
+		outPin := common.Output{
+			Address: m.mrc20PinOutAddress,
+			Amount:  uint64(m.mrc20OutValue),
+		}
+		outMrc20Premine := common.Output{
+			Address: m.mrc20PremineOutAddress,
+			Amount:  uint64(m.mrc20OutValue + transferFee),
+		}
+		outputs = append(outputs, outPin)
+		outputs = append(outputs, outMrc20Premine)
+	}
+
+	if m.OtherOuts != nil && len(m.OtherOuts) != 0 {
+		for _, v := range m.OtherOuts {
+			out := common.Output{
+				Address: v.Address,
+				Amount:  uint64(v.Amount),
+				Script:  v.Script,
 			}
 			outputs = append(outputs, out)
 		}
@@ -281,6 +320,125 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 	return nil
 }
 
+func (m *Mrc20Builder) buildEmptyTransferRevealPsbt() error {
+	var (
+		transferPsbtBuilder *common.PsbtBuilder
+		inputs              []common.Input      = make([]common.Input, 0)
+		inSigners           []*common.InputSign = make([]*common.InputSign, 0)
+		outputs             []common.Output     = make([]common.Output, 0)
+		err                 error
+	)
+	if m.transferAddress == "" {
+		return errors.New("transfer address is empty")
+	}
+	if m.op != "deploy" {
+		return errors.New("op is not deploy")
+	}
+	if m.mrc20PremineOutAddress == "" {
+		return errors.New("mrc20PremineOutAddress is empty")
+	}
+
+	emptyTxId := "0000000000000000000000000000000000000000000000000000000000000000"
+	transferIn := common.Input{
+		OutTxId:  emptyTxId,
+		OutIndex: 1,
+	}
+	inputs = append(inputs, transferIn)
+
+	transferOut := common.Output{
+		Address: m.transferAddress,
+		Amount:  uint64(m.mrc20OutValue),
+	}
+	outputs = append(outputs, transferOut)
+
+	transferPsbtBuilder, err = common.CreatePsbtBuilder(m.Net, inputs, outputs)
+	if err != nil {
+		return err
+	}
+
+	utxoType := common.Witness
+	addressClass, err := common.CheckAddressClass(m.Net, m.mrc20PremineOutAddress)
+	if err != nil {
+		return err
+	}
+	if addressClass == txscript.WitnessV1TaprootTy {
+		utxoType = common.Taproot
+	} else if addressClass == txscript.PubKeyHashTy {
+		utxoType = common.NonWitness
+	} else if addressClass == txscript.ScriptHashTy {
+		//if v.ReeemScript == "" {
+		//	return errors.New("redeemScript is empty")
+		//}
+	}
+	pkScript, err := common.AddressToPkScript(conf.Net, m.mrc20PremineOutAddress)
+	if err != nil {
+		return err
+	}
+
+	transferInSigner := &common.InputSign{
+		UtxoType: utxoType,
+		Index:    0,
+		//OutRaw:       "",
+		PkScript: pkScript,
+		//RedeemScript: "",
+		Amount:      uint64(0),
+		SighashType: txscript.SigHashAll,
+		PriHex:      "",
+	}
+	inSigners = append(inSigners, transferInSigner)
+
+	err = transferPsbtBuilder.UpdateAndAddInputWitness(inSigners)
+	if err != nil {
+		return err
+	}
+	m.TransferPsbtBuilder = transferPsbtBuilder
+	return nil
+}
+
+func (m *Mrc20Builder) CalTransferRevealPsbtFee(feeRate int64) (int64, error) {
+	var (
+		tx          *wire.MsgTx = m.TransferPsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx
+		txTotalSize int         = tx.SerializeSize()
+		txBaseSize  int         = tx.SerializeSizeStripped()
+		txFee       int64       = 0
+		weight      int64       = 0
+		vSize       int64       = 0
+
+		emptySegwitWitenss   = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+		emptyNestSignature   = make([]byte, 23)
+		emptylegacySignature = make([]byte, 107)
+		emptyTaprootWitness  = wire.TxWitness{make([]byte, 64)}
+	)
+	if m.transferAddress == "" {
+		return 0, errors.New("transfer address is empty")
+	}
+	if m.op != "deploy" {
+		return 0, errors.New("op is not deploy")
+	}
+	if m.mrc20PremineOutAddress == "" {
+		return 0, errors.New("mrc20PremineOutAddress is empty")
+	}
+	addressClass, err := common.CheckAddressClass(m.Net, m.mrc20PremineOutAddress)
+	if err != nil {
+		return 0, err
+	}
+	if addressClass == txscript.WitnessV1TaprootTy {
+		txTotalSize += emptyTaprootWitness.SerializeSize()
+	} else if addressClass == txscript.PubKeyHashTy {
+		txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptylegacySignature))) + len(emptylegacySignature)
+	} else if addressClass == txscript.ScriptHashTy {
+		txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptyNestSignature))) + len(emptyNestSignature)
+		txTotalSize += emptySegwitWitenss.SerializeSize()
+	} else {
+		txTotalSize += emptySegwitWitenss.SerializeSize()
+	}
+
+	weight = int64(txBaseSize*3 + txTotalSize)
+	vSize = (weight + (blockchain.WitnessScaleFactor - 1)) / blockchain.WitnessScaleFactor
+	txFee = vSize * feeRate
+	return txFee, nil
+}
+
 func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 	var (
 		tx          *wire.MsgTx = m.RevealPsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx
@@ -319,6 +477,9 @@ func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 			revealOutValues += m.mrc20OutValue
 			_ = v
 		}
+		for _, v := range m.PayTos {
+			revealOutValues += v.Amount
+		}
 	} else if m.op == "transfer" {
 		for _, v := range m.TransferMrc20s {
 			addressClass, err := common.CheckAddressClass(m.Net, v.Address)
@@ -339,6 +500,13 @@ func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 		}
 		for _, v := range m.Mrc20Outs {
 			revealOutValues += v.OutValue
+		}
+	} else if m.op == "deploy" {
+		if m.mrc20PremineOutAddress != "" {
+			revealOutValues += m.mrc20OutValue
+		}
+		if m.mrc20PinOutAddress != "" {
+			revealOutValues += m.mrc20OutValue
 		}
 	}
 

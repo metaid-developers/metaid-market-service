@@ -12,6 +12,8 @@ type Mrc20TickInfo struct {
 	MetaData         string      `json:"metaData"`
 	Type             string      `json:"type"`
 	Qual             interface{} `json:"qual"`
+	PinCheck         interface{} `json:"pinCheck"`
+	PayCheck         interface{} `json:"payCheck"`
 	Mrc20Id          string      `json:"mrc20Id"`
 	PinNumber        int64       `json:"pinNumber"`
 	Holders          int64       `json:"holders"`

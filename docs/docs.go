@@ -363,6 +363,130 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/id-coins/deploy/commit": {
+            "post": {
+                "description": "Deploy id coins commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Deploy id coins commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.BuildIdCoinsCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.BuildIdCoinsCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/deploy/pre": {
+            "post": {
+                "description": "Deploy id coins pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Deploy id coins pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.BuildIdCoinsPreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.BuildIdCoinsPreResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/mint/commit": {
+            "post": {
+                "description": "Mint id coins commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Mint id coins commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.IdCoinsMintCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.IdCoinsMintCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/mint/pre": {
+            "post": {
+                "description": "Mint id coins pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Mint id coins pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.IdCoinsMintPreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.IdCoinsMintPreResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/inscribe/mrc20/deploy/commit": {
             "post": {
                 "description": "Inscribe Mrc20 deploy commit",
@@ -1348,6 +1472,55 @@ const docTemplate = `{
                 }
             }
         },
+        "request.BuildIdCoinsCommitRequest": {
+            "type": "object",
+            "properties": {
+                "commitTxOutIndex": {
+                    "type": "integer"
+                },
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.BuildIdCoinsPreRequest": {
+            "type": "object",
+            "properties": {
+                "amountPerMint": {
+                    "type": "integer"
+                },
+                "followersNum": {
+                    "type": "integer"
+                },
+                "issuerAddress": {
+                    "type": "string"
+                },
+                "issuerMetaId": {
+                    "type": "string"
+                },
+                "issuerSign": {
+                    "type": "string"
+                },
+                "liquidityPerMint": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "ticker": {
+                    "type": "string"
+                }
+            }
+        },
         "request.CancelMrc20OrderReq": {
             "type": "object",
             "properties": {
@@ -1399,6 +1572,37 @@ const docTemplate = `{
                 },
                 "utxoType": {
                     "$ref": "#/definitions/models.UtxoType"
+                }
+            }
+        },
+        "request.IdCoinsMintCommitRequest": {
+            "type": "object",
+            "properties": {
+                "commitTxOutIndex": {
+                    "type": "integer"
+                },
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.IdCoinsMintPreRequest": {
+            "type": "object",
+            "properties": {
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "outAddress": {
+                    "type": "string"
+                },
+                "outValue": {
+                    "type": "integer"
+                },
+                "tickId": {
+                    "type": "string"
                 }
             }
         },
@@ -1687,6 +1891,49 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.BuildIdCoinsCommitResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "pinId": {
+                    "type": "string"
+                },
+                "revealTxId": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "txId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.BuildIdCoinsPreResp": {
+            "type": "object",
+            "properties": {
+                "minerFee": {
+                    "type": "integer"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "receiveAddress": {
+                    "type": "string"
+                },
+                "serviceFee": {
+                    "type": "integer"
+                },
+                "totalFee": {
+                    "type": "integer"
+                }
+            }
+        },
         "respond.CancelMrc20OrderResp": {
             "type": "object",
             "properties": {
@@ -1731,6 +1978,50 @@ const docTemplate = `{
                     }
                 },
                 "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.IdCoinsMintCommitResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealInscribeTxId": {
+                    "type": "string"
+                },
+                "revealMintTxId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.IdCoinsMintPreResp": {
+            "type": "object",
+            "properties": {
+                "extra": {},
+                "orderId": {
+                    "type": "string"
+                },
+                "revealAddress": {
+                    "type": "string"
+                },
+                "revealInscribeFee": {
+                    "type": "integer"
+                },
+                "revealMintFee": {
+                    "type": "integer"
+                },
+                "serviceAddress": {
+                    "type": "string"
+                },
+                "serviceFee": {
+                    "type": "integer"
+                },
+                "totalFee": {
                     "type": "integer"
                 }
             }
@@ -2042,6 +2333,8 @@ const docTemplate = `{
                 "mrc20Id": {
                     "type": "string"
                 },
+                "payCheck": {},
+                "pinCheck": {},
                 "pinNumber": {
                     "type": "integer"
                 },
@@ -2289,6 +2582,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "orderId": {
+                    "type": "string"
+                },
+                "payCheck": {
+                    "type": "string"
+                },
+                "pinCheck": {
                     "type": "string"
                 },
                 "premineCount": {

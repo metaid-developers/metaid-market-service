@@ -65,6 +65,8 @@ type OpOrderInfoResp struct {
 	TotalMinted      string `json:"totalMinted"`
 	StartBlockHeight string `json:"startBlockHeight"`
 	Qual             string `json:"qual"`
+	PinCheck         string `json:"pinCheck"`
+	PayCheck         string `json:"payCheck"`
 	//QualPath          string                   `json:"qualPath"`
 	//QualLevel         int64                    `json:"qualLevel"`
 	//QualCount         int64                    `json:"qualCount"`

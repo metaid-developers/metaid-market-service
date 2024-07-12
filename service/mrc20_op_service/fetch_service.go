@@ -55,10 +55,15 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			}
 			tickInfoMap[v.TickId] = tickInfo
 		}
+		pinCheck := ""
+		payCheck := ""
 		metaData := ""
 		deployState := 0
+
 		if tickInfoMap[v.TickId] != nil {
 			metaData = tickInfoMap[v.TickId].Metadata
+			pinCheck = tool.AnyToStr(tickInfoMap[v.TickId].PinCheck)
+			payCheck = tool.AnyToStr(tickInfoMap[v.TickId].PayCheck)
 		}
 		if v.ConfirmationState == models.ConfirmationStateConfirmed {
 			if tickInfoMap[v.TickId] != nil {
@@ -80,7 +85,9 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			PremineCount:      v.PremineCount,
 			TotalMinted:       v.MintCount,
 			StartBlockHeight:  v.StartBlockHeight,
-			Qual:              v.Qual,
+			Qual:              pinCheck,
+			PinCheck:          pinCheck,
+			PayCheck:          payCheck,
 			UsedPins:          nil,
 			TxId:              v.TxId,
 			BlockHeight:       v.BlockHeight,
@@ -157,7 +164,7 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		startBlockHeight := ""
 		deployerAddress := ""
 		metaData := ""
-		var qual interface{}
+		var pinCheck, payCheck interface{}
 		if _, ok := tickInfoMap[v.TickId]; !ok {
 			tickInfo, _ := man_service.FetchMrc20TickInfo(v.TickId, "")
 			if tickInfo == nil {
@@ -174,7 +181,8 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			premineCount = strconv.FormatInt(tickInfoMap[v.TickId].PremineCount, 10)
 			totalMinted = strconv.FormatInt(tickInfoMap[v.TickId].TotalMinted, 10)
 			startBlockHeight = tickInfoMap[v.TickId].BlockHeight
-			qual = tickInfoMap[v.TickId].Qual
+			pinCheck = tickInfoMap[v.TickId].PinCheck
+			payCheck = tickInfoMap[v.TickId].PayCheck
 			deployerAddress = tickInfoMap[v.TickId].Address
 			metaData = tickInfoMap[v.TickId].Metadata
 		}
@@ -201,7 +209,9 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 			TotalMinted:       totalMinted,
 			MintState:         mintState,
 			StartBlockHeight:  startBlockHeight,
-			Qual:              tool.AnyToStr(qual),
+			Qual:              tool.AnyToStr(pinCheck),
+			PinCheck:          tool.AnyToStr(pinCheck),
+			PayCheck:          tool.AnyToStr(payCheck),
 			UsedPins:          newMintPins,
 			TxId:              v.TxId,
 			BlockHeight:       v.BlockHeight,

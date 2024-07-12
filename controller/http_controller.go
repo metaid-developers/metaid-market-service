@@ -60,6 +60,11 @@ func Run() {
 		v1.POST("/inscribe/mrc20/deploy/commit", auth.AuthSignMiddleware(), Mrc20Deploy)
 		v1.GET("/inscribe/mrc20/orders", FetchMrc20OpOrders)
 
+		v1.POST("/id-coins/deploy/pre", auth.AuthSignMiddleware(), BuildIdCoinsPre)
+		v1.POST("/id-coins/deploy/commit", auth.AuthSignMiddleware(), BuildIdCoinsCommit)
+		v1.POST("/id-coins/mint/pre", auth.AuthSignMiddleware(), IdCoinsMintPre)
+		v1.POST("/id-coins/mint/commit", auth.AuthSignMiddleware(), IdCoinsMintCommit)
+
 		v1.GET("/common/mrc20/tick/info-list", FetchMrc20TickList)
 		v1.GET("/common/mrc20/tick/info", FetchMrc20TickInfo)
 		v1.GET("/common/mrc20/address/balance-list", FetchMrc20TickAddressBalances)

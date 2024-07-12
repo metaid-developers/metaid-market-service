@@ -1,8 +1,10 @@
 package mrc20_service
 
 import (
+	"fmt"
 	"github.com/godaddy-x/freego/utils/decimal"
 	"metaid-market-service/tool"
+	"strconv"
 )
 
 type Mrc20DataItem struct {
@@ -36,4 +38,56 @@ func MakeTransferPayload(tickId string, transferMrc20s []*TransferMrc20, mrc20Ou
 	payload = tool.AnyToStr(dataItems)
 
 	return payload, nil
+}
+
+type Mrc20DeployData struct {
+	Tick         string      `json:"tick"`
+	TokenName    string      `json:"tokenName"`
+	Decimals     string      `json:"decimals"`
+	AmtPerMint   string      `json:"amtPerMint"`
+	MintCount    string      `json:"mintCount"`
+	PremineCount string      `json:"premineCount"`
+	Blockheight  string      `json:"blockheight"`
+	Metadata     string      `json:"metadata"`
+	PinCheck     interface{} `json:"pinCheck"`
+	PayCheck     *PayCheck   `json:"payCheck"`
+}
+
+type PayCheck struct {
+	PayAmount string `json:"payAmount"`
+	PayTo     string `json:"payTo"`
+}
+
+func MakeDeployPayloadForIdCoins(tick, tokenName, metaId, metadata, payTo string, followersNum, amountPerMint, liquidityPerMint int64) (string, *Mrc20DeployData, int64) {
+	var (
+		payload         string           = ""
+		totalSupply     int64            = 0
+		mrc20DeployData *Mrc20DeployData = &Mrc20DeployData{
+			Tick:         tick,
+			TokenName:    tokenName,
+			Decimals:     "8",
+			AmtPerMint:   strconv.FormatInt(amountPerMint, 10),
+			MintCount:    strconv.FormatInt(followersNum, 10),
+			PremineCount: "",
+			Blockheight:  "",
+			Metadata:     metadata,
+			PinCheck: map[string]interface{}{
+				"creator": "",
+				"path":    fmt.Sprintf("/follow['%s']", metaId),
+				"lvl":     "",
+				"count":   "1",
+			},
+			PayCheck: &PayCheck{
+				PayAmount: strconv.FormatInt(liquidityPerMint, 10),
+				PayTo:     payTo,
+			},
+		}
+	)
+
+	amtPerMintDe, _ := decimal.NewFromString(mrc20DeployData.AmtPerMint)
+	mintCountDe, _ := decimal.NewFromString(mrc20DeployData.MintCount)
+	totalSupply = amtPerMintDe.Mul(mintCountDe).IntPart()
+
+	payload = tool.AnyToStr(mrc20DeployData)
+	return payload, mrc20DeployData, totalSupply
 }

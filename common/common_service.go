@@ -40,6 +40,10 @@ func GetPlatformKeyAndAddressForReceiveFee(net string) (string, string) {
 	return conf.PlatformPrivateKeyReceiveFee, conf.PlatformAddressReceiveFee
 }
 
+func GetPlatformKeyForSignMsg() (string, string) {
+	return conf.PlatformPrivateKeySignMsg, conf.PlatformPublicKeySignMsg
+}
+
 // address to pkScript
 func AddressToPkScript(net, address string) (string, error) {
 	netParams := GetNetParams(net)
@@ -199,4 +203,20 @@ func CheckPublicKeyAddress(netParams *chaincfg.Params, publicKeyStr, checkAddres
 
 func FetchTxHex(txId string) (string, error) {
 	return own_service.GetTxRaw(txId)
+}
+
+func GetSegwitAddressFromPublicKey(netParams *chaincfg.Params, publicKeyHex string) (string, error) {
+	publicKeyBytes, err := hex.DecodeString(publicKeyHex)
+	if err != nil {
+		return "", err
+	}
+	publicKey, err := btcec.ParsePubKey(publicKeyBytes)
+	if err != nil {
+		return "", err
+	}
+	nativeSegwitAddress, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(publicKey.SerializeCompressed()), netParams)
+	if err != nil {
+		return "", err
+	}
+	return nativeSegwitAddress.EncodeAddress(), nil
 }

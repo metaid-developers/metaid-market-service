@@ -76,6 +76,38 @@ definitions:
       txHex:
         type: string
     type: object
+  request.BuildIdCoinsCommitRequest:
+    properties:
+      commitTxOutIndex:
+        type: integer
+      commitTxRaw:
+        type: string
+      orderId:
+        type: string
+    type: object
+  request.BuildIdCoinsPreRequest:
+    properties:
+      amountPerMint:
+        type: integer
+      followersNum:
+        type: integer
+      issuerAddress:
+        type: string
+      issuerMetaId:
+        type: string
+      issuerSign:
+        type: string
+      liquidityPerMint:
+        type: integer
+      message:
+        type: string
+      networkFeeRate:
+        type: integer
+      tick:
+        type: string
+      ticker:
+        type: string
+    type: object
   request.CancelMrc20OrderReq:
     properties:
       orderId:
@@ -110,6 +142,26 @@ definitions:
         type: string
       utxoType:
         $ref: '#/definitions/models.UtxoType'
+    type: object
+  request.IdCoinsMintCommitRequest:
+    properties:
+      commitTxOutIndex:
+        type: integer
+      commitTxRaw:
+        type: string
+      orderId:
+        type: string
+    type: object
+  request.IdCoinsMintPreRequest:
+    properties:
+      networkFeeRate:
+        type: integer
+      outAddress:
+        type: string
+      outValue:
+        type: integer
+      tickId:
+        type: string
     type: object
   request.MintPinInfo:
     properties:
@@ -293,6 +345,34 @@ definitions:
       txId:
         type: string
     type: object
+  respond.BuildIdCoinsCommitResp:
+    properties:
+      commitTxId:
+        type: string
+      orderId:
+        type: string
+      pinId:
+        type: string
+      revealTxId:
+        type: string
+      tickId:
+        type: string
+      txId:
+        type: string
+    type: object
+  respond.BuildIdCoinsPreResp:
+    properties:
+      minerFee:
+        type: integer
+      orderId:
+        type: string
+      receiveAddress:
+        type: string
+      serviceFee:
+        type: integer
+      totalFee:
+        type: integer
+    type: object
   respond.CancelMrc20OrderResp:
     properties:
       assetType:
@@ -322,6 +402,35 @@ definitions:
           $ref: '#/definitions/respond.OpOrderInfoResp'
         type: array
       total:
+        type: integer
+    type: object
+  respond.IdCoinsMintCommitResp:
+    properties:
+      commitTxId:
+        type: string
+      orderId:
+        type: string
+      revealInscribeTxId:
+        type: string
+      revealMintTxId:
+        type: string
+    type: object
+  respond.IdCoinsMintPreResp:
+    properties:
+      extra: {}
+      orderId:
+        type: string
+      revealAddress:
+        type: string
+      revealInscribeFee:
+        type: integer
+      revealMintFee:
+        type: integer
+      serviceAddress:
+        type: string
+      serviceFee:
+        type: integer
+      totalFee:
         type: integer
     type: object
   respond.Message:
@@ -526,6 +635,8 @@ definitions:
         type: boolean
       mrc20Id:
         type: string
+      payCheck: {}
+      pinCheck: {}
       pinNumber:
         type: integer
       premineCount:
@@ -690,6 +801,10 @@ definitions:
       opOrderType:
         type: string
       orderId:
+        type: string
+      payCheck:
+        type: string
+      pinCheck:
         type: string
       premineCount:
         type: string
@@ -1155,6 +1270,86 @@ paths:
       summary: Broadcast Tx
       tags:
       - Common
+  /api/v1/id-coins/deploy/commit:
+    post:
+      description: Deploy id coins commit
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.BuildIdCoinsCommitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.BuildIdCoinsCommitResp'
+      summary: Deploy id coins commit
+      tags:
+      - IdCoins
+  /api/v1/id-coins/deploy/pre:
+    post:
+      description: Deploy id coins pre
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.BuildIdCoinsPreRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.BuildIdCoinsPreResp'
+      summary: Deploy id coins pre
+      tags:
+      - IdCoins
+  /api/v1/id-coins/mint/commit:
+    post:
+      description: Mint id coins commit
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.IdCoinsMintCommitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.IdCoinsMintCommitResp'
+      summary: Mint id coins commit
+      tags:
+      - IdCoins
+  /api/v1/id-coins/mint/pre:
+    post:
+      description: Mint id coins pre
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.IdCoinsMintPreRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.IdCoinsMintPreResp'
+      summary: Mint id coins pre
+      tags:
+      - IdCoins
   /api/v1/inscribe/mrc20/deploy/commit:
     post:
       description: Inscribe Mrc20 deploy commit
