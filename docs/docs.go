@@ -1578,7 +1578,10 @@ const docTemplate = `{
         "request.IdCoinsMintCommitRequest": {
             "type": "object",
             "properties": {
-                "commitTxOutIndex": {
+                "commitTxOutInscribeIndex": {
+                    "type": "integer"
+                },
+                "commitTxOutMintIndex": {
                     "type": "integer"
                 },
                 "commitTxRaw": {
@@ -2006,11 +2009,14 @@ const docTemplate = `{
                 "orderId": {
                     "type": "string"
                 },
-                "revealAddress": {
+                "revealInscribeAddress": {
                     "type": "string"
                 },
                 "revealInscribeFee": {
                     "type": "integer"
+                },
+                "revealMintAddress": {
+                    "type": "string"
                 },
                 "revealMintFee": {
                     "type": "integer"

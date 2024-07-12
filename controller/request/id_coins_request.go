@@ -27,7 +27,8 @@ type IdCoinsMintPreRequest struct {
 }
 
 type IdCoinsMintCommitRequest struct {
-	OrderId          string `json:"orderId"`
-	CommitTxRaw      string `json:"commitTxRaw"`
-	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
+	OrderId                  string `json:"orderId"`
+	CommitTxRaw              string `json:"commitTxRaw"`
+	CommitTxOutInscribeIndex int64  `json:"commitTxOutInscribeIndex"`
+	CommitTxOutMintIndex     int64  `json:"commitTxOutMintIndex"`
 }

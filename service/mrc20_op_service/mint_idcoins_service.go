@@ -34,14 +34,15 @@ func IdCoinsMintPreFromOrders(req *request.IdCoinsMintPreRequest, publicKey, ip 
 		return nil, err
 	}
 	return &respond.IdCoinsMintPreResp{
-		OrderId:           respOrders.OrderId,
-		TotalFee:          respOrders.TotalFee,
-		RevealInscribeFee: respOrders.RevealInscribeFee,
-		RevealMintFee:     respOrders.RevealMintFee,
-		RevealAddress:     respOrders.RevealAddress,
-		ServiceFee:        respOrders.ServiceFee,
-		ServiceAddress:    respOrders.ServiceAddress,
-		Extra:             respOrders.Extra,
+		OrderId:               respOrders.OrderId,
+		TotalFee:              respOrders.TotalFee,
+		RevealInscribeFee:     respOrders.RevealInscribeFee,
+		RevealMintFee:         respOrders.RevealMintFee,
+		RevealInscribeAddress: respOrders.RevealInscribeAddress,
+		RevealMintAddress:     respOrders.RevealMintAddress,
+		ServiceFee:            respOrders.ServiceFee,
+		ServiceAddress:        respOrders.ServiceAddress,
+		Extra:                 respOrders.Extra,
 	}, nil
 }
 
@@ -52,9 +53,10 @@ func IdCoinsMintCommitFromOrder(req *request.IdCoinsMintCommitRequest, publicKey
 		}
 
 		reqOrders *orders_exchange_service.IdCoinsMintCommitRequest = &orders_exchange_service.IdCoinsMintCommitRequest{
-			OrderId:          req.OrderId,
-			CommitTxRaw:      req.CommitTxRaw,
-			CommitTxOutIndex: req.CommitTxOutIndex,
+			OrderId:                  req.OrderId,
+			CommitTxRaw:              req.CommitTxRaw,
+			CommitTxOutInscribeIndex: req.CommitTxOutInscribeIndex,
+			CommitTxOutMintIndex:     req.CommitTxOutMintIndex,
 		}
 		respOrders *orders_exchange_service.IdCoinsMintCommitResp
 		err        error

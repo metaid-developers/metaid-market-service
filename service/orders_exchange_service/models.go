@@ -34,9 +34,10 @@ type IdCoinsMintPreRequest struct {
 }
 
 type IdCoinsMintCommitRequest struct {
-	OrderId          string `json:"orderId"`
-	CommitTxRaw      string `json:"commitTxRaw"`
-	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
+	OrderId                  string `json:"orderId"`
+	CommitTxRaw              string `json:"commitTxRaw"`
+	CommitTxOutInscribeIndex int64  `json:"commitTxOutInscribeIndex"`
+	CommitTxOutMintIndex     int64  `json:"commitTxOutMintIndex"`
 }
 
 type BuildIdCoinsPreResp struct {
@@ -57,14 +58,15 @@ type BuildIdCoinsCommitResp struct {
 }
 
 type IdCoinsMintPreResp struct {
-	OrderId           string      `json:"orderId"`
-	TotalFee          int64       `json:"totalFee"`
-	RevealInscribeFee int64       `json:"revealInscribeFee"`
-	RevealMintFee     int64       `json:"revealMintFee"`
-	RevealAddress     string      `json:"revealAddress"`
-	ServiceFee        int64       `json:"serviceFee"`
-	ServiceAddress    string      `json:"serviceAddress"`
-	Extra             interface{} `json:"extra"`
+	OrderId               string      `json:"orderId"`
+	TotalFee              int64       `json:"totalFee"`
+	RevealInscribeFee     int64       `json:"revealInscribeFee"`
+	RevealMintFee         int64       `json:"revealMintFee"`
+	RevealInscribeAddress string      `json:"revealInscribeAddress"`
+	RevealMintAddress     string      `json:"revealMintAddress"`
+	ServiceFee            int64       `json:"serviceFee"`
+	ServiceAddress        string      `json:"serviceAddress"`
+	Extra                 interface{} `json:"extra"`
 }
 
 type IdCoinsMintCommitResp struct {
