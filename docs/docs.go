@@ -363,6 +363,93 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/id-coins/coins-info": {
+            "get": {
+                "description": "Fetch id-coins info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Fetch id-coins info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.IdCoinsInfoResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/coins-list": {
+            "get": {
+                "description": "Fetch id-coins info list",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Fetch id-coins info list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "supply/pool/timestamp, default:timestamp  ",
+                        "name": "orderBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:-1",
+                        "name": "sortType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "followerAddress",
+                        "name": "followerAddress",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:10, max:50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FetchIdCoinsListResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/id-coins/deploy/commit": {
             "post": {
                 "description": "Deploy id coins commit",
@@ -420,6 +507,60 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.BuildIdCoinsPreResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/inscribe/orders": {
+            "get": {
+                "description": "Fetch inscribe id-coins orders",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Fetch inscribe id-coins orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "default:deploy, mint",
+                        "name": "opOrderType",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:10, max:50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FetchIdCoinsOpOrdersResp"
                         }
                     }
                 }
@@ -1971,6 +2112,34 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.FetchIdCoinsListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.IdCoinsInfoResp"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.FetchIdCoinsOpOrdersResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.IdCoinsOpOrderInfoResp"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "respond.FetchMrc20OpOrdersResp": {
             "type": "object",
             "properties": {
@@ -1982,6 +2151,95 @@ const docTemplate = `{
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "respond.IdCoinsInfoResp": {
+            "type": "object",
+            "properties": {
+                "amtPerMint": {
+                    "type": "string"
+                },
+                "blockHeight": {
+                    "type": "string"
+                },
+                "decimals": {
+                    "type": "string"
+                },
+                "deployTime": {
+                    "type": "integer"
+                },
+                "deployerAddress": {
+                    "type": "string"
+                },
+                "deployerMetaId": {
+                    "type": "string"
+                },
+                "deployerUserInfo": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "followersLimit": {
+                    "type": "string"
+                },
+                "holders": {
+                    "type": "integer"
+                },
+                "liquidityPerMint": {
+                    "type": "integer"
+                },
+                "metaData": {
+                    "type": "string"
+                },
+                "mintCount": {
+                    "type": "string"
+                },
+                "mintable": {
+                    "type": "boolean"
+                },
+                "mrc20Id": {
+                    "type": "string"
+                },
+                "payCheck": {},
+                "pinCheck": {},
+                "pinNumber": {
+                    "type": "integer"
+                },
+                "pool": {
+                    "type": "integer"
+                },
+                "premineCount": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "string"
+                },
+                "priceUsd": {
+                    "type": "string"
+                },
+                "qual": {},
+                "remaining": {
+                    "type": "string"
+                },
+                "supply": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "tokenName": {
+                    "type": "string"
+                },
+                "totalMinted": {
+                    "type": "string"
+                },
+                "totalSupply": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
                 }
             }
         },
@@ -2029,6 +2287,91 @@ const docTemplate = `{
                 },
                 "totalFee": {
                     "type": "integer"
+                }
+            }
+        },
+        "respond.IdCoinsOpOrderInfoResp": {
+            "type": "object",
+            "properties": {
+                "amtPerMint": {
+                    "type": "string"
+                },
+                "blockHeight": {
+                    "type": "integer"
+                },
+                "confirmationState": {
+                    "$ref": "#/definitions/models.ConfirmationState"
+                },
+                "decimals": {
+                    "type": "string"
+                },
+                "deployState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
+                },
+                "deployerAddress": {
+                    "type": "string"
+                },
+                "deployerMetaId": {
+                    "type": "string"
+                },
+                "deployerUserInfo": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "metaData": {
+                    "type": "string"
+                },
+                "mintCount": {
+                    "type": "string"
+                },
+                "mintState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
+                },
+                "opOrderType": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "payCheck": {
+                    "type": "string"
+                },
+                "pinCheck": {
+                    "type": "string"
+                },
+                "premineCount": {
+                    "type": "string"
+                },
+                "qual": {
+                    "type": "string"
+                },
+                "startBlockHeight": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "tickName": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "totalMinted": {
+                    "type": "string"
+                },
+                "txId": {
+                    "type": "string"
+                },
+                "usedPins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

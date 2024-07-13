@@ -397,6 +397,24 @@ definitions:
       orderState:
         $ref: '#/definitions/models.OrderState'
     type: object
+  respond.FetchIdCoinsListResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.IdCoinsInfoResp'
+        type: array
+      total:
+        type: integer
+    type: object
+  respond.FetchIdCoinsOpOrdersResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.IdCoinsOpOrderInfoResp'
+        type: array
+      total:
+        type: integer
+    type: object
   respond.FetchMrc20OpOrdersResp:
     properties:
       list:
@@ -405,6 +423,66 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  respond.IdCoinsInfoResp:
+    properties:
+      amtPerMint:
+        type: string
+      blockHeight:
+        type: string
+      decimals:
+        type: string
+      deployTime:
+        type: integer
+      deployerAddress:
+        type: string
+      deployerMetaId:
+        type: string
+      deployerUserInfo:
+        $ref: '#/definitions/respond.UserInfo'
+      followersLimit:
+        type: string
+      holders:
+        type: integer
+      liquidityPerMint:
+        type: integer
+      metaData:
+        type: string
+      mintCount:
+        type: string
+      mintable:
+        type: boolean
+      mrc20Id:
+        type: string
+      payCheck: {}
+      pinCheck: {}
+      pinNumber:
+        type: integer
+      pool:
+        type: integer
+      premineCount:
+        type: string
+      price:
+        type: string
+      priceUsd:
+        type: string
+      qual: {}
+      remaining:
+        type: string
+      supply:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tokenName:
+        type: string
+      totalMinted:
+        type: string
+      totalSupply:
+        type: string
+      type:
+        type: string
     type: object
   respond.IdCoinsMintCommitResp:
     properties:
@@ -436,6 +514,63 @@ definitions:
         type: integer
       totalFee:
         type: integer
+    type: object
+  respond.IdCoinsOpOrderInfoResp:
+    properties:
+      amtPerMint:
+        type: string
+      blockHeight:
+        type: integer
+      confirmationState:
+        $ref: '#/definitions/models.ConfirmationState'
+      decimals:
+        type: string
+      deployState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
+      deployerAddress:
+        type: string
+      deployerMetaId:
+        type: string
+      deployerUserInfo:
+        $ref: '#/definitions/respond.UserInfo'
+      metaData:
+        type: string
+      mintCount:
+        type: string
+      mintState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
+      opOrderType:
+        type: string
+      orderId:
+        type: string
+      payCheck:
+        type: string
+      pinCheck:
+        type: string
+      premineCount:
+        type: string
+      qual:
+        type: string
+      startBlockHeight:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tickName:
+        type: string
+      timestamp:
+        type: integer
+      totalMinted:
+        type: string
+      txId:
+        type: string
+      usedPins:
+        items:
+          type: string
+        type: array
     type: object
   respond.Message:
     properties:
@@ -1274,6 +1409,63 @@ paths:
       summary: Broadcast Tx
       tags:
       - Common
+  /api/v1/id-coins/coins-info:
+    get:
+      description: Fetch id-coins info
+      parameters:
+      - description: tickId
+        in: query
+        name: tickId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.IdCoinsInfoResp'
+      summary: Fetch id-coins info
+      tags:
+      - IdCoins
+  /api/v1/id-coins/coins-list:
+    get:
+      description: Fetch id-coins info list
+      parameters:
+      - description: address
+        in: query
+        name: address
+        type: string
+      - description: 'supply/pool/timestamp, default:timestamp  '
+        in: query
+        name: orderBy
+        type: string
+      - description: default:-1
+        in: query
+        name: sortType
+        type: integer
+      - description: followerAddress
+        in: query
+        name: followerAddress
+        type: string
+      - description: default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: default:10, max:50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FetchIdCoinsListResp'
+      summary: Fetch id-coins info list
+      tags:
+      - IdCoins
   /api/v1/id-coins/deploy/commit:
     post:
       description: Deploy id coins commit
@@ -1312,6 +1504,42 @@ paths:
           schema:
             $ref: '#/definitions/respond.BuildIdCoinsPreResp'
       summary: Deploy id coins pre
+      tags:
+      - IdCoins
+  /api/v1/id-coins/inscribe/orders:
+    get:
+      description: Fetch inscribe id-coins orders
+      parameters:
+      - description: default:deploy, mint
+        in: query
+        name: opOrderType
+        required: true
+        type: string
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: tickId
+        in: query
+        name: tickId
+        type: string
+      - description: default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: default:10, max:50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FetchIdCoinsOpOrdersResp'
+      summary: Fetch inscribe id-coins orders
       tags:
       - IdCoins
   /api/v1/id-coins/mint/commit:

@@ -154,3 +154,120 @@ func IdCoinsMintCommit(req *IdCoinsMintCommitRequest, headers map[string]string)
 
 	return data, nil
 }
+
+func FetchIdCoinsOpOrders(req *FetchIdCoinsOpOrdersRequest, headers map[string]string) (*FetchIdCoinsOpOrdersResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *FetchIdCoinsOpOrdersResp
+		err    error
+		query  map[string]string = map[string]string{
+			"opOrderType": req.OpOrderType,
+			"address":     req.Address,
+			"tickId":      req.TickId,
+			"cursor":      fmt.Sprintf("%d", req.Cursor),
+			"size":        fmt.Sprintf("%d", req.Size),
+		}
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/inscribe/orders", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.GetUrl(url, query, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
+func FetchIdCoinsList(req *FetchIdCoinsListRequest, headers map[string]string) (*FetchIdCoinsListResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *FetchIdCoinsListResp
+		err    error
+		query  map[string]string = map[string]string{
+			"address":         req.Address,
+			"cursor":          fmt.Sprintf("%d", req.Cursor),
+			"size":            fmt.Sprintf("%d", req.Size),
+			"orderBy":         req.OrderBy,
+			"sortType":        fmt.Sprintf("%d", req.SortType),
+			"followerAddress": req.FollowerAddress,
+		}
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/coins-list", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.GetUrl(url, query, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
+func FetchOneIdCoinsInfo(req *FetchOneIdCoinsRequest, headers map[string]string) (*IdCoinsInfoResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *IdCoinsInfoResp
+		err    error
+		query  map[string]string = map[string]string{
+			"tickId": req.TickId,
+		}
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/coins-info", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.GetUrl(url, query, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}

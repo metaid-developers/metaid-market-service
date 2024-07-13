@@ -1,5 +1,7 @@
 package orders_exchange_service
 
+import "metaid-market-service/models"
+
 type Message struct {
 	Code           int         `json:"code"`
 	Message        string      `json:"message"`
@@ -74,4 +76,105 @@ type IdCoinsMintCommitResp struct {
 	CommitTxId         string `json:"commitTxId"`
 	RevealInscribeTxId string `json:"revealInscribeTxId"`
 	RevealMintTxId     string `json:"revealMintTxId"`
+}
+
+type FetchIdCoinsListRequest struct {
+	Address         string `json:"address"`
+	Cursor          int64  `json:"cursor"`
+	Size            int64  `json:"size"`
+	OrderBy         string `json:"order"`
+	SortType        int    `json:"sortType"`
+	FollowerAddress string `json:"followerAddress"`
+}
+
+type FetchOneIdCoinsRequest struct {
+	TickId string `json:"tickId"`
+}
+
+type FetchIdCoinsOpOrdersRequest struct {
+	OpOrderType string `json:"opOrderType"`
+	Address     string `json:"address"`
+	TickId      string `json:"tickId"`
+	Cursor      int64  `json:"cursor"`
+	Size        int64  `json:"size"`
+}
+
+type FetchIdCoinsOpOrdersResp struct {
+	Total int64              `json:"total"`
+	List  []*OpOrderInfoResp `json:"list"`
+}
+
+type OpOrderInfoResp struct {
+	OpOrderType      string `json:"opOrderType"`
+	OrderId          string `json:"orderId"`
+	TickId           string `json:"tickId"`
+	Tick             string `json:"tick"`
+	TickName         string `json:"tickName"`
+	Decimals         string `json:"decimals"`
+	DeployState      int    `json:"deployState"` //0-pending, 1-success, 2-fail
+	MintState        int    `json:"mintState"`   //0-pending, 1-success, 2-fail
+	AmtPerMint       string `json:"amtPerMint"`
+	MintCount        string `json:"mintCount"`
+	PremineCount     string `json:"premineCount"`
+	TotalMinted      string `json:"totalMinted"`
+	StartBlockHeight string `json:"startBlockHeight"`
+	Qual             string `json:"qual"`
+	PinCheck         string `json:"pinCheck"`
+	PayCheck         string `json:"payCheck"`
+	//QualPath          string                   `json:"qualPath"`
+	//QualLevel         int64                    `json:"qualLevel"`
+	//QualCount         int64                    `json:"qualCount"`
+	UsedPins          []string                 `json:"usedPins"`
+	TxId              string                   `json:"txId"`
+	BlockHeight       int64                    `json:"blockHeight"`
+	ConfirmationState models.ConfirmationState `json:"confirmationState"`
+	Timestamp         int64                    `json:"timestamp"`
+	DeployerAddress   string                   `json:"deployerAddress"`
+	DeployerMetaId    string                   `json:"deployerMetaId"`
+	DeployerUserInfo  *UserInfo                `json:"deployerUserInfo"`
+	MetaData          string                   `json:"metaData"`
+}
+
+type UserInfo struct {
+	Name   string `json:"name"`
+	Avatar string `json:"avatar"`
+}
+
+type FetchIdCoinsListResp struct {
+	Total int64              `json:"total"`
+	List  []*IdCoinsInfoResp `json:"list"`
+}
+
+type IdCoinsInfoResp struct {
+	TickId           string      `json:"tickId"`
+	Tick             string      `json:"tick"`
+	TokenName        string      `json:"tokenName"`
+	Decimals         string      `json:"decimals"`
+	AmtPerMint       string      `json:"amtPerMint"`
+	FollowersLimit   string      `json:"followersLimit"`
+	MintCount        string      `json:"mintCount"`
+	LiquidityPerMint int64       `json:"liquidityPerMint"`
+	PremineCount     string      `json:"premineCount"`
+	TotalMinted      string      `json:"totalMinted"`
+	BlockHeight      string      `json:"blockHeight"`
+	MetaData         string      `json:"metaData"`
+	Type             string      `json:"type"`
+	Qual             interface{} `json:"qual"`
+	PinCheck         interface{} `json:"pinCheck"`
+	PayCheck         interface{} `json:"payCheck"`
+	Mrc20Id          string      `json:"mrc20Id"`
+	PinNumber        int64       `json:"pinNumber"`
+	Holders          int64       `json:"holders"`
+	DeployerMetaId   string      `json:"deployerMetaId"`
+	DeployerAddress  string      `json:"deployerAddress"`
+	DeployerUserInfo *UserInfo   `json:"deployerUserInfo"`
+	DeployTime       int64       `json:"deployTime"`
+	Price            string      `json:"price"`
+	PriceUsd         string      `json:"priceUsd"`
+	Pool             int64       `json:"pool"`
+	TotalSupply      string      `json:"totalSupply"`
+	Supply           string      `json:"supply"`
+	Mintable         bool        `json:"mintable"`
+	Remaining        string      `json:"remaining"`
+	IsFollowing      bool        `json:"isFollowing"`
 }

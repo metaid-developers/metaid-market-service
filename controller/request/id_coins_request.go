@@ -32,3 +32,24 @@ type IdCoinsMintCommitRequest struct {
 	CommitTxOutInscribeIndex int64  `json:"commitTxOutInscribeIndex"`
 	CommitTxOutMintIndex     int64  `json:"commitTxOutMintIndex"`
 }
+
+type FetchIdCoinsListRequest struct {
+	Address         string `json:"address"`
+	Cursor          int64  `json:"cursor"`
+	Size            int64  `json:"size"`
+	OrderBy         string `json:"order"`
+	SortType        int    `json:"sortType"`
+	FollowerAddress string `json:"followerAddress"`
+}
+
+type FetchOneIdCoinsRequest struct {
+	TickId string `json:"tickId"`
+}
+
+type FetchIdCoinsOpOrdersRequest struct {
+	OpOrderType string `json:"opOrderType"`
+	Address     string `json:"address"`
+	TickId      string `json:"tickId"`
+	Cursor      int64  `json:"cursor"`
+	Size        int64  `json:"size"`
+}
