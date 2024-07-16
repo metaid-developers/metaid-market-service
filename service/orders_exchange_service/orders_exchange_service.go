@@ -195,6 +195,43 @@ func FetchIdCoinsOpOrders(req *FetchIdCoinsOpOrdersRequest, headers map[string]s
 	return data, nil
 }
 
+func FetchIdCoinsAddressMintOrder(req *FetchIdCoinsMintOrderRequest, headers map[string]string) (*FetchOneIdCoinsMintOrderResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *FetchOneIdCoinsMintOrderResp
+		err    error
+		query  map[string]string = map[string]string{
+			"address": req.Address,
+			"tickId":  req.TickId,
+		}
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/address/mint/order", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.GetUrl(url, query, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
 func FetchIdCoinsList(req *FetchIdCoinsListRequest, headers map[string]string) (*FetchIdCoinsListResp, error) {
 	var (
 		url    string
@@ -244,7 +281,9 @@ func FetchOneIdCoinsInfo(req *FetchOneIdCoinsRequest, headers map[string]string)
 		data   *IdCoinsInfoResp
 		err    error
 		query  map[string]string = map[string]string{
-			"tickId": req.TickId,
+			"tickId":        req.TickId,
+			"tick":          req.Tick,
+			"issuerAddress": req.IssuerAddress,
 		}
 	)
 	headers = addHeaderKey(headers)

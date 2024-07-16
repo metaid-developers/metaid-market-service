@@ -44,7 +44,7 @@ type TickInfo struct {
 	Type         string      `json:"type"`
 	Qual         interface{} `json:"qual"`
 	PinCheck     interface{} `json:"pinCheck"`
-	PayCheck     interface{} `json:"payCheck"`
+	PayCheck     *PayCheck   `json:"payCheck"`
 	TotalMinted  string      `json:"totalMinted"`
 	Mrc20Id      string      `json:"mrc20Id"`
 	PinNumber    int64       `json:"pinNumber"`
@@ -56,6 +56,18 @@ type TickInfo struct {
 	DeployTime   int64       `json:"deployTime"`
 }
 
+type PayCheck struct {
+	PayTo     string `json:"payTo"`
+	PayAmount string `json:"payAmount"`
+}
+
+type PinCheck struct {
+	Creator string `json:"creator"`
+	Path    string `json:"path"`
+	Lvl     string `json:"lvl"`
+	Count   string `json:"count"`
+}
+
 func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 	var (
 		mrc20Resp *man_service.Mrc20TickInfo
@@ -65,6 +77,12 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	payCheck := &PayCheck{}
+	if mrc20Resp.PayCheck != nil {
+		payCheck.PayTo = mrc20Resp.PayCheck.PayTo
+		payCheck.PayAmount = mrc20Resp.PayCheck.PayAmount
+	}
+
 	return &TickInfo{
 		Tick:         mrc20Resp.Tick,
 		TokenName:    mrc20Resp.TokenName,
@@ -77,7 +95,7 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 		Type:         mrc20Resp.Type,
 		Qual:         mrc20Resp.PinCheck,
 		PinCheck:     mrc20Resp.PinCheck,
-		PayCheck:     mrc20Resp.PayCheck,
+		PayCheck:     payCheck,
 		TotalMinted:  strconv.FormatInt(mrc20Resp.TotalMinted, 10),
 		Mrc20Id:      mrc20Resp.Mrc20Id,
 		PinNumber:    mrc20Resp.PinNumber,

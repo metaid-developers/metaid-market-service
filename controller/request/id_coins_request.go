@@ -43,7 +43,9 @@ type FetchIdCoinsListRequest struct {
 }
 
 type FetchOneIdCoinsRequest struct {
-	TickId string `json:"tickId"`
+	TickId        string `json:"tickId"`
+	Tick          string `json:"tick"`
+	IssuerAddress string `json:"issuerAddress"`
 }
 
 type FetchIdCoinsOpOrdersRequest struct {
@@ -52,4 +54,9 @@ type FetchIdCoinsOpOrdersRequest struct {
 	TickId      string `json:"tickId"`
 	Cursor      int64  `json:"cursor"`
 	Size        int64  `json:"size"`
+}
+
+type FetchIdCoinsMintOrderRequest struct {
+	Address string `json:"address"`
+	TickId  string `json:"tickId"`
 }

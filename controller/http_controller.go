@@ -65,6 +65,7 @@ func Run() {
 		v1.POST("/id-coins/mint/pre", auth.AuthSignMiddleware(), IdCoinsMintPre)
 		v1.POST("/id-coins/mint/commit", auth.AuthSignMiddleware(), IdCoinsMintCommit)
 		v1.GET("/id-coins/inscribe/orders", auth.AuthSignMiddleware(), FetchIdCoinsOpOrders)
+		v1.GET("/id-coins/address/mint/order", auth.AuthSignMiddleware(), FetchIdCoinsAddressMintOrder)
 		v1.GET("/id-coins/coins-list", FetchIdCoinsList)
 		v1.GET("/id-coins/coins-info", FetchOneIdCoinsInfo)
 

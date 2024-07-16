@@ -88,7 +88,9 @@ type FetchIdCoinsListRequest struct {
 }
 
 type FetchOneIdCoinsRequest struct {
-	TickId string `json:"tickId"`
+	TickId        string `json:"tickId"`
+	Tick          string `json:"tick"`
+	IssuerAddress string `json:"issuerAddress"`
 }
 
 type FetchIdCoinsOpOrdersRequest struct {
@@ -117,6 +119,8 @@ type OpOrderInfoResp struct {
 	MintCount        string `json:"mintCount"`
 	PremineCount     string `json:"premineCount"`
 	TotalMinted      string `json:"totalMinted"`
+	FollowersLimit   string `json:"followersLimit"`
+	LiquidityPerMint int64  `json:"liquidityPerMint"`
 	StartBlockHeight string `json:"startBlockHeight"`
 	Qual             string `json:"qual"`
 	PinCheck         string `json:"pinCheck"`
@@ -177,4 +181,41 @@ type IdCoinsInfoResp struct {
 	Mintable         bool        `json:"mintable"`
 	Remaining        string      `json:"remaining"`
 	IsFollowing      bool        `json:"isFollowing"`
+	FollowersCount   int64       `json:"followersCount"`
+}
+
+type FetchIdCoinsMintOrderRequest struct {
+	Address string `json:"address"`
+	TickId  string `json:"tickId"`
+}
+
+type FetchOneIdCoinsMintOrderResp struct {
+	AddressMintState  int64                    `json:"addressMintState"` //0-unminted, 1-minted
+	OpOrderType       string                   `json:"opOrderType"`
+	OrderId           string                   `json:"orderId"`
+	TickId            string                   `json:"tickId"`
+	Tick              string                   `json:"tick"`
+	TickName          string                   `json:"tickName"`
+	Decimals          string                   `json:"decimals"`
+	DeployState       int                      `json:"deployState"` //0-pending, 1-success, 2-fail
+	MintState         int                      `json:"mintState"`   //0-pending, 1-success, 2-fail
+	FollowersLimit    string                   `json:"followersLimit"`
+	LiquidityPerMint  int64                    `json:"liquidityPerMint"`
+	AmtPerMint        string                   `json:"amtPerMint"`
+	MintCount         string                   `json:"mintCount"`
+	PremineCount      string                   `json:"premineCount"`
+	TotalMinted       string                   `json:"totalMinted"`
+	StartBlockHeight  string                   `json:"startBlockHeight"`
+	Qual              string                   `json:"qual"`
+	PinCheck          string                   `json:"pinCheck"`
+	PayCheck          string                   `json:"payCheck"`
+	UsedPins          []string                 `json:"usedPins"`
+	TxId              string                   `json:"txId"`
+	BlockHeight       int64                    `json:"blockHeight"`
+	ConfirmationState models.ConfirmationState `json:"confirmationState"`
+	Timestamp         int64                    `json:"timestamp"`
+	DeployerAddress   string                   `json:"deployerAddress"`
+	DeployerMetaId    string                   `json:"deployerMetaId"`
+	DeployerUserInfo  *UserInfo                `json:"deployerUserInfo"`
+	MetaData          string                   `json:"metaData"`
 }

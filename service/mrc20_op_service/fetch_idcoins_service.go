@@ -1,9 +1,13 @@
 package mrc20_op_service
 
 import (
+	"github.com/godaddy-x/freego/utils/decimal"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
+	"metaid-market-service/models"
+	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/orders_exchange_service"
+	"strconv"
 )
 
 func FetchIdCoinsOpOrders(req *request.FetchIdCoinsOpOrdersRequest, publicKey, ip string) (*respond.FetchIdCoinsOpOrdersResp, error) {
@@ -53,6 +57,8 @@ func fetchIdCoinsOpOrdersFromOrders(req *request.FetchIdCoinsOpOrdersRequest, pu
 			MintCount:         v.MintCount,
 			PremineCount:      v.PremineCount,
 			TotalMinted:       v.TotalMinted,
+			FollowersLimit:    v.FollowersLimit,
+			LiquidityPerMint:  v.LiquidityPerMint,
 			StartBlockHeight:  v.StartBlockHeight,
 			Qual:              v.Qual,
 			PinCheck:          v.PinCheck,
@@ -73,6 +79,67 @@ func fetchIdCoinsOpOrdersFromOrders(req *request.FetchIdCoinsOpOrdersRequest, pu
 		Total: respOrders.Total,
 		List:  list,
 	}, nil
+}
+
+func FetchIdCoinsAddressMintOrder(req *request.FetchIdCoinsMintOrderRequest, publicKey, ip string) (*respond.FetchOneIdCoinsMintOrderResp, error) {
+	return fetchIdCoinsAddressMintOrder(req, publicKey, ip)
+}
+
+func fetchIdCoinsAddressMintOrder(req *request.FetchIdCoinsMintOrderRequest, publicKey, ip string) (*respond.FetchOneIdCoinsMintOrderResp, error) {
+	var (
+		headers map[string]string = map[string]string{
+			"X-Public-Key": publicKey,
+		}
+
+		reqOrders *orders_exchange_service.FetchIdCoinsMintOrderRequest = &orders_exchange_service.FetchIdCoinsMintOrderRequest{
+			TickId:  req.TickId,
+			Address: req.Address,
+		}
+		respOrders *orders_exchange_service.FetchOneIdCoinsMintOrderResp
+		err        error
+	)
+	respOrders, err = orders_exchange_service.FetchIdCoinsAddressMintOrder(reqOrders, headers)
+	if err != nil {
+		return nil, err
+	}
+	deployerUserInfo := &respond.UserInfo{}
+	if respOrders.DeployerUserInfo != nil {
+		deployerUserInfo = &respond.UserInfo{
+			Name:   respOrders.DeployerUserInfo.Name,
+			Avatar: respOrders.DeployerUserInfo.Avatar,
+		}
+	}
+	resp := &respond.FetchOneIdCoinsMintOrderResp{
+		AddressMintState:  respOrders.AddressMintState,
+		OpOrderType:       respOrders.OpOrderType,
+		OrderId:           respOrders.OrderId,
+		TickId:            respOrders.TickId,
+		Tick:              respOrders.Tick,
+		TickName:          respOrders.TickName,
+		Decimals:          respOrders.Decimals,
+		DeployState:       respOrders.DeployState,
+		MintState:         respOrders.MintState,
+		FollowersLimit:    respOrders.FollowersLimit,
+		LiquidityPerMint:  respOrders.LiquidityPerMint,
+		AmtPerMint:        respOrders.AmtPerMint,
+		MintCount:         respOrders.MintCount,
+		PremineCount:      respOrders.PremineCount,
+		TotalMinted:       respOrders.TotalMinted,
+		StartBlockHeight:  respOrders.StartBlockHeight,
+		Qual:              respOrders.Qual,
+		PinCheck:          respOrders.PinCheck,
+		PayCheck:          respOrders.PayCheck,
+		UsedPins:          respOrders.UsedPins,
+		TxId:              respOrders.OrderId,
+		BlockHeight:       respOrders.BlockHeight,
+		ConfirmationState: respOrders.ConfirmationState,
+		Timestamp:         respOrders.Timestamp,
+		DeployerAddress:   respOrders.DeployerAddress,
+		DeployerMetaId:    respOrders.DeployerMetaId,
+		DeployerUserInfo:  deployerUserInfo,
+		MetaData:          respOrders.MetaData,
+	}
+	return resp, nil
 }
 
 func FetchIdCoinsList(req *request.FetchIdCoinsListRequest, publicKey, ip string) (*respond.FetchIdCoinsListResp, error) {
@@ -162,7 +229,9 @@ func fetchOneIdCoinsInfoFromOrders(req *request.FetchOneIdCoinsRequest, publicKe
 		}
 
 		reqOrders *orders_exchange_service.FetchOneIdCoinsRequest = &orders_exchange_service.FetchOneIdCoinsRequest{
-			TickId: req.TickId,
+			TickId:        req.TickId,
+			Tick:          req.Tick,
+			IssuerAddress: req.IssuerAddress,
 		}
 		respOrders *orders_exchange_service.IdCoinsInfoResp
 		err        error
@@ -178,6 +247,39 @@ func fetchOneIdCoinsInfoFromOrders(req *request.FetchOneIdCoinsRequest, publicKe
 			Avatar: respOrders.DeployerUserInfo.Avatar,
 		}
 	}
+
+	marketInfo, _ := models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
+		TickId: respOrders.Mrc20Id,
+	})
+	price := "0"
+	priceUsd := "0.00"
+	floorPrice := "0"
+	floorPriceUsd := "0.00"
+	change24h := "+0.00%"
+	marketCap := "0"
+	marketCapUsd := "0.00"
+	totalVolume := int64(0)
+	if marketInfo != nil {
+		floorPrice = strconv.FormatFloat(marketInfo.FloorPrice, 'f', -1, 64)
+		price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
+		marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
+		change24HDe := decimal.New(marketInfo.Change24H, 0)
+		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+
+		btcUsd := common_service.GetPriceForUsd("BTC")
+		btcUsdDe, _ := decimal.NewFromString(btcUsd)
+		satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+		priceDe, _ := decimal.NewFromString(price)
+		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		floorPriceDe, _ := decimal.NewFromString(floorPrice)
+		floorPriceUsd = floorPriceDe.Mul(satUsdDe).StringFixed(3)
+		marketCapDe, _ := decimal.NewFromString(marketCap)
+		marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+
+		totalVolume = marketInfo.TotalVolume
+	}
+
 	resp := &respond.IdCoinsInfoResp{
 		TickId:           respOrders.TickId,
 		Tick:             respOrders.Tick,
@@ -210,6 +312,15 @@ func fetchOneIdCoinsInfoFromOrders(req *request.FetchOneIdCoinsRequest, publicKe
 		Mintable:         respOrders.Mintable,
 		Remaining:        respOrders.Remaining,
 		IsFollowing:      respOrders.IsFollowing,
+		FollowersCount:   respOrders.FollowersCount,
+		MarketPrice:      price,
+		MarketPriceUsd:   priceUsd,
+		FloorPrice:       floorPrice,
+		FloorPriceUsd:    floorPriceUsd,
+		Change24h:        change24h,
+		MarketCap:        marketCap,
+		MarketCapUsd:     marketCapUsd,
+		TotalVolume:      totalVolume,
 	}
 	return resp, nil
 }

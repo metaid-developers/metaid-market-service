@@ -52,7 +52,7 @@ type Mrc20TickInfo struct {
 	PremineCount int64       `json:"premineCount"`
 	Qual         interface{} `json:"qual"`
 	PinCheck     interface{} `json:"pinCheck"`
-	PayCheck     interface{} `json:"payCheck"`
+	PayCheck     *PayCheck   `json:"payCheck"`
 	TotalMinted  int64       `json:"totalMinted"`
 	Mrc20Id      string      `json:"mrc20Id"`
 	PinNumber    int64       `json:"pinNumber"`
@@ -62,6 +62,10 @@ type Mrc20TickInfo struct {
 	MetaId       string      `json:"metaId"`
 	Address      string      `json:"address"`
 	DeployTime   int64       `json:"deployTime"`
+}
+type PayCheck struct {
+	PayTo     string `json:"payTo"`
+	PayAmount string `json:"payAmount"`
 }
 
 type Mrc20ShovelResp struct {

@@ -13,8 +13,10 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
+	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/tool"
+	"strconv"
 	"strings"
 )
 
@@ -28,25 +30,48 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		minerFee   int64 = 0
 		serviceFee int64 = 0
 
-		mrc20Builder        *mrc20_service.Mrc20Builder
-		mrc20OpRequest      *mrc20_service.Mrc20OpRequest
-		tickId              string                   = req.TickerId
-		payload             string                   = fmt.Sprintf(`{"id":"%s"}`, tickId)
-		pinUtxoIds          string                   = ""
-		mintPinsStr         string                   = ""
-		mintPins            []*mrc20_service.MintPin = make([]*mrc20_service.MintPin, 0)
-		mrc20OutValue       int64                    = req.OutValue
-		mrc20OutAddressList []string                 = []string{req.OutAddress, req.OutAddress}
-		changeAddress       string                   = req.OutAddress
-		feeRate             int64                    = req.NetworkFeeRate
-		revealPrePsbtRaw    string                   = ""
-		revealAddress       string                   = ""
-		revealInputIndex    int64                    = 0
+		mrc20Builder   *mrc20_service.Mrc20Builder
+		mrc20OpRequest *mrc20_service.Mrc20OpRequest
+		tickId         string                   = req.TickerId
+		payload        string                   = fmt.Sprintf(`{"id":"%s"}`, tickId)
+		pinUtxoIds     string                   = ""
+		mintPinsStr    string                   = ""
+		mintPins       []*mrc20_service.MintPin = make([]*mrc20_service.MintPin, 0)
+		payTos         []*mrc20_service.PayTo   = make([]*mrc20_service.PayTo, 0)
+		//payToAddress        string                   = ""
+		//payToAmount         int64                    = 0
+		mrc20OutValue       int64    = req.OutValue
+		mrc20OutAddressList []string = []string{req.OutAddress, req.OutAddress}
+		changeAddress       string   = req.OutAddress
+		feeRate             int64    = req.NetworkFeeRate
+		revealPrePsbtRaw    string   = ""
+		revealAddress       string   = ""
+		revealInputIndex    int64    = 0
 
 		nowTime int64 = tool.MakeTimestamp()
 
 		extra map[string]interface{} = make(map[string]interface{})
+
+		tickInfo *common_service.TickInfo
 	)
+
+	tickInfo, err = common_service.GetMrc20TickInfo(tickId)
+	if err != nil {
+		return nil, err
+	}
+	if tickInfo.PayCheck != nil {
+		//payToAddress = tickInfo.PayCheck.PayTo
+		payTo := &mrc20_service.PayTo{
+			Address: tickInfo.PayCheck.PayTo,
+		}
+		payTo.Amount, _ = strconv.ParseInt(tickInfo.PayCheck.PayAmount, 10, 64)
+		if payTo.Amount <= 546 {
+			payTo.Amount = 546
+		}
+		//payToAmount = payTo.Amount
+		payTos = append(payTos, payTo)
+	}
+
 	for _, pin := range req.MintPins {
 		if pin.PinUtxoTxId == "" || pin.PinUtxoOutValue <= 0 {
 			return nil, errors.New("mint pin parameter error")
@@ -84,6 +109,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		Op:                  "mint",
 		OpPayload:           payload,
 		MintPins:            mintPins,
+		PayTos:              payTos,
 		TransferMrc20s:      nil,
 		Mrc20OutValue:       mrc20OutValue,
 		Mrc20OutAddressList: mrc20OutAddressList,

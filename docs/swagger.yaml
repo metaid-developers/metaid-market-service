@@ -424,11 +424,77 @@ definitions:
       total:
         type: integer
     type: object
+  respond.FetchOneIdCoinsMintOrderResp:
+    properties:
+      addressMintState:
+        description: 0-unminted, 1-minted
+        type: integer
+      amtPerMint:
+        type: string
+      blockHeight:
+        type: integer
+      confirmationState:
+        $ref: '#/definitions/models.ConfirmationState'
+      decimals:
+        type: string
+      deployState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
+      deployerAddress:
+        type: string
+      deployerMetaId:
+        type: string
+      deployerUserInfo:
+        $ref: '#/definitions/respond.UserInfo'
+      followersLimit:
+        type: string
+      liquidityPerMint:
+        type: integer
+      metaData:
+        type: string
+      mintCount:
+        type: string
+      mintState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
+      opOrderType:
+        type: string
+      orderId:
+        type: string
+      payCheck:
+        type: string
+      pinCheck:
+        type: string
+      premineCount:
+        type: string
+      qual:
+        type: string
+      startBlockHeight:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tickName:
+        type: string
+      timestamp:
+        type: integer
+      totalMinted:
+        type: string
+      txId:
+        type: string
+      usedPins:
+        items:
+          type: string
+        type: array
+    type: object
   respond.IdCoinsInfoResp:
     properties:
       amtPerMint:
         type: string
       blockHeight:
+        type: string
+      change24h:
         type: string
       decimals:
         type: string
@@ -440,12 +506,28 @@ definitions:
         type: string
       deployerUserInfo:
         $ref: '#/definitions/respond.UserInfo'
+      floorPrice:
+        type: string
+      floorPriceUsd:
+        type: string
+      followersCount:
+        type: integer
       followersLimit:
         type: string
       holders:
         type: integer
+      isFollowing:
+        type: boolean
       liquidityPerMint:
         type: integer
+      marketCap:
+        type: string
+      marketCapUsd:
+        type: string
+      marketPrice:
+        type: string
+      marketPriceUsd:
+        type: string
       metaData:
         type: string
       mintCount:
@@ -481,6 +563,8 @@ definitions:
         type: string
       totalSupply:
         type: string
+      totalVolume:
+        type: integer
       type:
         type: string
     type: object
@@ -534,6 +618,10 @@ definitions:
         type: string
       deployerUserInfo:
         $ref: '#/definitions/respond.UserInfo'
+      followersLimit:
+        type: string
+      liquidityPerMint:
+        type: integer
       metaData:
         type: string
       mintCount:
@@ -1409,6 +1497,30 @@ paths:
       summary: Broadcast Tx
       tags:
       - Common
+  /api/v1/id-coins/address/mint/order:
+    get:
+      description: Fetch address id-coins mint orders
+      parameters:
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: tickId
+        in: query
+        name: tickId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FetchOneIdCoinsMintOrderResp'
+      summary: Fetch address id-coins mint orders
+      tags:
+      - IdCoins
   /api/v1/id-coins/coins-info:
     get:
       description: Fetch id-coins info
@@ -1417,6 +1529,14 @@ paths:
         in: query
         name: tickId
         required: true
+        type: string
+      - description: tick
+        in: query
+        name: tick
+        type: string
+      - description: issuerAddress
+        in: query
+        name: issuerAddress
         type: string
       produces:
       - application/json

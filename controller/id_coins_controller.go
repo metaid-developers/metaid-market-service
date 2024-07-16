@@ -152,6 +152,32 @@ func FetchIdCoinsOpOrders(c *gin.Context) {
 	return
 }
 
+// @Summary Fetch address id-coins mint orders
+// @Description Fetch address id-coins mint orders
+// @Produce  json
+// @Tags IdCoins
+// @Param address query string true "address"
+// @Param tickId query string true "tickId"
+// @Success 200 {object} respond.FetchOneIdCoinsMintOrderResp ""
+// @Router /api/v1/id-coins/address/mint/order [get]
+func FetchIdCoinsAddressMintOrder(c *gin.Context) {
+	var (
+		t         int64                                 = tool.MakeTimestamp()
+		publicKey                                       = getAuthParams(c)
+		req       *request.FetchIdCoinsMintOrderRequest = &request.FetchIdCoinsMintOrderRequest{
+			TickId:  c.DefaultQuery("tickId", ""),
+			Address: c.DefaultQuery("address", ""),
+		}
+	)
+	resp, err := mrc20_op_service.FetchIdCoinsAddressMintOrder(req, publicKey, c.ClientIP())
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
+	return
+}
+
 // @Summary Fetch id-coins info list
 // @Description Fetch id-coins info list
 // @Produce  json
@@ -195,6 +221,8 @@ func FetchIdCoinsList(c *gin.Context) {
 // @Produce  json
 // @Tags IdCoins
 // @Param tickId query string true "tickId"
+// @Param tick query string false "tick"
+// @Param issuerAddress query string false "issuerAddress"
 // @Success 200 {object} respond.IdCoinsInfoResp ""
 // @Router /api/v1/id-coins/coins-info [get]
 func FetchOneIdCoinsInfo(c *gin.Context) {
@@ -202,7 +230,9 @@ func FetchOneIdCoinsInfo(c *gin.Context) {
 		t         int64                           = tool.MakeTimestamp()
 		publicKey                                 = getAuthParams(c)
 		req       *request.FetchOneIdCoinsRequest = &request.FetchOneIdCoinsRequest{
-			TickId: c.DefaultQuery("tickId", ""),
+			TickId:        c.DefaultQuery("tickId", ""),
+			Tick:          c.DefaultQuery("tick", ""),
+			IssuerAddress: c.DefaultQuery("issuerAddress", ""),
 		}
 	)
 
