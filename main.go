@@ -7,7 +7,6 @@ import (
 	"metaid-market-service/controller"
 	"metaid-market-service/major"
 	"metaid-market-service/redis"
-	"metaid-market-service/service/task"
 )
 
 var ENV string
@@ -56,6 +55,6 @@ func main() {
 	InitAll()
 	//fix.FixMarketPinOrders()
 	//task.JobForCheckValidOrders()
-	go task.RunJob()
+	//go task.RunJob()
 	controller.Run()
 }

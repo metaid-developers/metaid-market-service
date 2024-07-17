@@ -35,6 +35,8 @@ var (
 	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg     = "", ""
 
 	PopExtractCount int = 0
+
+	GrpcAssetBaseAddress string = ""
 )
 
 func InitConfig() {
@@ -70,4 +72,6 @@ func InitConfig() {
 	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg = viper.GetString("platform.sign_msg.private_key"), viper.GetString("platform.sign_msg.public_key")
 
 	PopExtractCount = viper.GetInt("pop.extract_count")
+
+	GrpcAssetBaseAddress = viper.GetString("grpc.asset_base.address")
 }

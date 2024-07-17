@@ -1,0 +1,102 @@
+syntax = "proto3";
+option go_package = "./protobuf/mrc20_utxo_service";
+
+package protobuf;
+
+message AddressMrc20TxRequest {
+  string address = 1;
+  string tickId = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+
+message Mrc20TxListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20TxInfoResponse detail = 3;
+}
+
+message Mrc20TxInfoResponse {
+  string txId = 1;
+  string tickId = 2;
+  string tick = 3;
+  string tokenName = 4;
+  int64 decimals = 5;
+  string metadata = 6;
+  string from = 7;
+  string to = 8;
+  string amount = 9;
+  int64 txType = 10;
+  int64 timestamp = 11;
+}
+
+
+
+message AddressMrc20BalanceRequest {
+  string address = 1;
+  repeated string tickIds = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+message Mrc20BalanceListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20BalanceInfoResponse detail = 3;
+}
+
+message Mrc20BalanceInfoResponse {
+  string tickId = 1;
+  string tick = 2;
+  string tokenName = 3;
+  int64 decimals = 4;
+  string balance = 5;
+  string metadata = 6;
+}
+
+
+
+
+message AddressMrc20UtxoRequest {
+  string address = 1;
+  repeated string tickIds = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+
+message Mrc20UtxoResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20UtxoInfo detail = 3;
+}
+
+message Mrc20UtxoInfo {
+  string chain = 1;
+  int64 blockHeight = 2;
+  string address = 3;
+  int64 satoshi = 4;
+  int64 satoshis = 5;
+  string scriptPk = 6;
+  string txId = 7;
+  int64 vout = 8;
+  int64 outputIndex = 9;
+  repeated Mrc20Info mrc20s = 10;
+  int64 mrc20Total = 11;
+  int64 timestamp = 12;
+}
+message Mrc20Info {
+  string tick = 1;
+  string mrc20Id = 2;
+  string txPoint = 3;
+  string amount = 4;
+  string decimals = 5;
+}
+
+
+service Mrc20UtxoService {
+  rpc FetchMrc20AddressTxList(AddressMrc20TxRequest) returns (Mrc20TxListResponse) {};
+  rpc FetchMrc20AddressBalanceList(AddressMrc20BalanceRequest) returns (Mrc20BalanceListResponse) {};
+  rpc FetchMrc20AddressUtxoList(AddressMrc20UtxoRequest) returns (Mrc20UtxoResponse) {};
+}

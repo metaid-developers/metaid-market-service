@@ -1,0 +1,140 @@
+syntax = "proto3";
+option go_package = "./protobuf/rune_utxo_service";
+
+package protobuf;
+
+message AddressRuneBalanceInfoListRequest {
+  string address = 1;
+  int64 offset = 2;
+  int64 limit = 3;
+}
+
+message AddressRuneBalanceInfoRequest {
+  string address = 1;
+  string runeId = 2;
+}
+
+message AddressRuneUtxoRequest {
+  string address = 1;
+  string runeId = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+message AddressRuneTxRequest {
+  string address = 1;
+  string runeId = 2;
+  int64 txType = 3;
+  int64 offset = 4;
+  int64 limit = 5;
+}
+
+message RuneUtxoRequest {
+  string txId = 1;
+  int64 index = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+message AddressRuneUtxoBalanceRequest {
+  string address = 1;
+}
+
+
+message RuneBalanceInfoResponse {
+  string amount = 1;
+  string runeId = 2;
+  string rune = 3;
+  string spacedRune = 4;
+  string symbol = 5;
+  int64 divisibility = 6;
+}
+
+message RuneBalanceInfoListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated RuneBalanceInfoResponse detail = 3;
+}
+
+message RuneUtxoCheckRequest {
+  string txId = 1;
+  int64 vout = 2;
+}
+
+message BatchUtxoCheckRequest {
+  repeated string runePositions = 1;
+}
+
+message RuneUtxoListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated RuneUtxoInfoResponse detail = 3;
+}
+
+message RuneUtxoInfoResponse {
+  string address = 1;
+  int64 satoshi = 2;
+  string scriptPk = 3;
+  string txId = 4;
+  int64 vout = 5;
+  repeated UtxoRunes runes = 6;
+}
+
+message UtxoRunes {
+  string amount = 1;
+  string runeId = 2;
+  string rune = 3;
+  string spacedRune = 4;
+  string symbol = 5;
+  int64 divisibility = 6;
+}
+
+message RuneUtxoInfoListResponse  {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated UtxoRunes detail = 3;
+}
+
+message RuneUtxoCheckResponse {
+  bool isRune = 1;
+}
+
+message BatchRuneUtxoCheckResponse {
+  map<string, RuneUtxoCheckResponse> runePositionInfos = 1;
+}
+
+message AddressRuneUtxoBalanceResponse  {
+  int64 totalOutValue = 1;
+}
+
+message RuneTxListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated RuneTxInfoResponse detail = 3;
+}
+
+message RuneTxInfoResponse {
+  string txId = 1;
+  string runeId = 2;
+  string rune = 3;
+  string spacedRune = 4;
+  string symbol = 5;
+  int64 divisibility = 6;
+  string from = 7;
+  string to = 8;
+  string amount = 9;
+  int64 txType = 10;
+  int64 timestamp = 11;
+}
+
+
+service RuneUtxoService {
+  rpc FetchAddressRuneBalanceList(AddressRuneBalanceInfoListRequest) returns (RuneBalanceInfoListResponse) {};
+  rpc FetchAddressRuneBalanceInfo(AddressRuneBalanceInfoRequest) returns (RuneBalanceInfoResponse) {};
+  rpc FetchRuneUtxoInfo(RuneUtxoRequest) returns (RuneUtxoInfoListResponse) {};
+  rpc FetchAddressRuneUtxoList(AddressRuneUtxoRequest) returns (RuneUtxoListResponse) {};
+  rpc FetchRuneUtxoCheck(RuneUtxoCheckRequest) returns (RuneUtxoCheckResponse) {};
+  rpc BatchFetchRuneUtxoCheck(BatchUtxoCheckRequest) returns (BatchRuneUtxoCheckResponse) {};
+  rpc FetchAddressRuneUtxoBalance(AddressRuneUtxoBalanceRequest) returns (AddressRuneUtxoBalanceResponse) {};
+  rpc FetchAddressRuneTxList(AddressRuneTxRequest) returns (RuneTxListResponse) {};
+}

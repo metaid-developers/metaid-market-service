@@ -310,3 +310,37 @@ func FetchOneIdCoinsInfo(req *FetchOneIdCoinsRequest, headers map[string]string)
 
 	return data, nil
 }
+
+func FetchIdCoinsTickIds(headers map[string]string) (*FetchIdCoinsTickIdsResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *FetchIdCoinsTickIdsResp
+		err    error
+		query  map[string]string = map[string]string{}
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/tick-ids", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.GetUrl(url, query, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}

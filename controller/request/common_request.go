@@ -40,3 +40,10 @@ type BroadcastTxReq struct {
 type FetchMrc20TickMarketPriceResp struct {
 	TickId string `json:"tickId"`
 }
+
+type Mrc20IdCoinsAddressUtxosReq struct {
+	TickId  string `json:"tickId"`
+	Address string `json:"address"`
+	Cursor  int64  `json:"cursor"`
+	Size    int64  `json:"size"`
+}

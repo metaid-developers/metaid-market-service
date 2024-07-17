@@ -59,7 +59,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	if err != nil {
 		return nil, err
 	}
-	if tickInfo.PayCheck != nil {
+	if tickInfo.PayCheck != nil && tickInfo.PayCheck.PayTo != "" && tickInfo.PayCheck.PayAmount != "" {
 		//payToAddress = tickInfo.PayCheck.PayTo
 		payTo := &mrc20_service.PayTo{
 			Address: tickInfo.PayCheck.PayTo,
@@ -95,7 +95,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			if err != nil {
 				return nil, err
 			}
-			fmt.Printf("mintPin.OutRaw: %s\n", mintPin.OutRaw)
+			//fmt.Printf("mintPin.OutRaw: %s\n", mintPin.OutRaw)
 			//mintPin.PkScript = ""
 		}
 		mintPins = append(mintPins, mintPin)

@@ -219,3 +219,7 @@ type FetchOneIdCoinsMintOrderResp struct {
 	DeployerUserInfo  *UserInfo                `json:"deployerUserInfo"`
 	MetaData          string                   `json:"metaData"`
 }
+
+type FetchIdCoinsTickIdsResp struct {
+	TickIds []string `json:"tickIds"`
+}

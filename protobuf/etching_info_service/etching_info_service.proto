@@ -1,0 +1,62 @@
+syntax = "proto3";
+option go_package = "./protobuf/etching_info_service";
+
+package protobuf;
+
+message EtchingInfoRequest {
+  string runeId = 1;
+}
+
+message SearchEtchingListRequest {
+  string spacedRune = 1;
+  string sort = 2;
+  string complete = 3;
+  int64 offset = 4;
+  int64 limit = 5;
+}
+
+message EtchingInfoResponse {
+  string runeId = 1;
+  string rune = 2;
+  string spacedRune = 3;
+  int64 number = 4;
+  int64 height = 5;
+  int64 txIdx = 6;
+  int64 timestamp = 7;
+  int64 divisibility = 8;
+  string symbol = 9;
+  string etching = 10;
+  string premine = 11;
+  termsInfo terms = 12;
+  string mints = 13;
+  string burned = 14;
+  int64 holders = 15;
+  int64 transactions = 16;
+  string supply = 17;
+  int64 start = 18;
+  int64 end = 19;
+  bool mintable = 20;
+  string remaining = 21;
+}
+
+message termsInfo {
+  string amount = 1;
+  string cap = 2;
+  int64 heightStart = 3;
+  int64 heightEnd = 4;
+  int64 offsetStart = 5;
+  int64 offsetEnd = 6;
+}
+
+message EtchingInfoListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated EtchingInfoResponse detail = 3;
+}
+
+
+
+service EtchingService {
+  rpc FetchEtchingInfo(EtchingInfoRequest) returns (EtchingInfoResponse) {};
+  rpc SearchEtchingList(SearchEtchingListRequest) returns (EtchingInfoListResponse) {};
+}

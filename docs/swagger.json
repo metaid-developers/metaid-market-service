@@ -212,6 +212,53 @@
                 }
             }
         },
+        "/api/v1/common/mrc20/id-coins/address/utxo": {
+            "get": {
+                "description": "Fetch address mrc20 id-coins utxo",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch address mrc20 id-coins utxo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size：max=50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20UtxoResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/common/mrc20/market/price/info": {
             "get": {
                 "description": "Fetch mrc20 market price info",
@@ -3036,6 +3083,10 @@
                     "type": "integer"
                 },
                 "scriptPk": {
+                    "type": "string"
+                },
+                "tag": {
+                    "description": "id-coins",
                     "type": "string"
                 },
                 "timestamp": {

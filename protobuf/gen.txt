@@ -1,0 +1,11 @@
+# etching_info_service
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative etching_info_service.proto
+
+# rune_utxo_service
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative rune_utxo_service.proto
+
+# mrc20_holders_service
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative mrc20_holders_service.proto
+
+# mrc20_utxo_service
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative mrc20_utxo_service.proto

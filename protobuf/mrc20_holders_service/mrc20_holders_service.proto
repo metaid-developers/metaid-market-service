@@ -1,0 +1,29 @@
+syntax = "proto3";
+option go_package = "./protobuf/mrc20_holders_service";
+
+package protobuf;
+
+message Mrc20TickHoldersRequest {
+  string tickId = 1;
+  int64 offset = 2;
+  int64 limit = 3;
+}
+
+
+message Mrc20TickHoldersResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20TickHolder detail = 3;
+}
+
+message Mrc20TickHolder {
+  string address = 1;
+  int64 decimal = 2;
+  string balance = 3;
+  int64 count = 4;
+}
+
+
+service Mrc20HoldersService {
+  rpc FetchMrc20TickHolders(Mrc20TickHoldersRequest) returns (Mrc20TickHoldersResponse) {};
+}

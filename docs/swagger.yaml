@@ -983,6 +983,9 @@ definitions:
         type: integer
       scriptPk:
         type: string
+      tag:
+        description: id-coins
+        type: string
       timestamp:
         type: integer
       txId:
@@ -1399,6 +1402,37 @@ paths:
           schema:
             $ref: '#/definitions/respond.Mrc20UtxoResp'
       summary: Fetch address mrc20 utxo
+      tags:
+      - Common
+  /api/v1/common/mrc20/id-coins/address/utxo:
+    get:
+      description: Fetch address mrc20 id-coins utxo
+      parameters:
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: tickId
+        in: query
+        name: tickId
+        type: string
+      - description: cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: size：max=50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20UtxoResp'
+      summary: Fetch address mrc20 id-coins utxo
       tags:
       - Common
   /api/v1/common/mrc20/market/price/info:

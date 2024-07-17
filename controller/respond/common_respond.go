@@ -119,6 +119,7 @@ type Mrc20Utxo struct {
 	Mrc20s      []*Mrc20Info `json:"mrc20s"`
 	Timestamp   int64        `json:"timestamp"`
 	OrderId     string       `json:"orderId"`
+	Tag         string       `json:"tag"` //id-coins
 }
 
 type Mrc20Info struct {
