@@ -169,3 +169,19 @@ type Mrc20TickMarketPriceResp struct {
 	FloorPrice    string `json:"floorPrice"`
 	FloorPriceUsd string `json:"floorPriceUsd"`
 }
+
+type Mrc20TickHolderResp struct {
+	Total int64         `json:"total"`
+	List  []*HolderInfo `json:"list"`
+}
+
+type HolderInfo struct {
+	TickId     string    `json:"tickId"`
+	Tick       string    `json:"tick"`
+	TokenName  string    `json:"tokenName"`
+	MetaId     string    `json:"metaId"`
+	Address    string    `json:"address"`
+	UserInfo   *UserInfo `json:"userInfo"`
+	Balance    string    `json:"balance"`
+	Proportion string    `json:"proportion"`
+}

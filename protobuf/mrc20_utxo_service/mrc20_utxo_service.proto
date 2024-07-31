@@ -146,10 +146,54 @@ message Mrc20DeployListResponse {
   repeated Mrc20DeployInfoResponse detail = 3;
 }
 
+message Mrc20UtxoTxPointRequest {
+  string txId = 1;
+  int64 vout = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+message Mrc20UtxoTickBlockRequest {
+  string tickId = 1;
+  int64 blockHeight = 2;
+  string mrcOption = 3;
+  string address = 4;
+  int64 offset = 5;
+  int64 limit = 6;
+}
+
+message Mrc20DbUtxoResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20UtxoDbInfo detail = 3;
+}
+
+
+message Mrc20UtxoDbInfo {
+  string tick = 1;
+  string mrc20Id = 2;
+  string txPoint = 3;
+  int64 pointValue = 4;
+  string pinId = 5;
+  string pinContent = 6;
+  bool verify = 7;
+  int64 blockHeight = 8;
+  string mrcOption = 9;
+  string fromAddress = 10;
+  string toAddress = 11;
+  string msg = 12;
+  string amtChange = 13;
+  int64 status = 14;
+  string chain = 15;
+  int64 index = 16;
+  int64 timestamp = 17;
+}
 
 service Mrc20UtxoService {
   rpc FetchMrc20AddressTxList(AddressMrc20TxRequest) returns (Mrc20TxListResponse) {};
   rpc FetchMrc20AddressBalanceList(AddressMrc20BalanceRequest) returns (Mrc20BalanceListResponse) {};
   rpc FetchMrc20AddressUtxoList(AddressMrc20UtxoRequest) returns (Mrc20UtxoResponse) {};
   rpc FetchMrc20DeployList(TickListRequest) returns (Mrc20DeployListResponse) {};
+  rpc FetchMrc20UtxoTxPoint(Mrc20UtxoTxPointRequest) returns (Mrc20DbUtxoResponse) {};
+  rpc FetchMrc20UtxoTickBlock(Mrc20UtxoTickBlockRequest) returns (Mrc20DbUtxoResponse) {};
 }

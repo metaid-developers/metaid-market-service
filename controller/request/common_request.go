@@ -48,3 +48,10 @@ type Mrc20IdCoinsAddressUtxosReq struct {
 	Cursor  int64  `json:"cursor"`
 	Size    int64  `json:"size"`
 }
+
+type Mrc20TickHoldersRequest struct {
+	TickId string `json:"tickId"`
+	Tick   string `json:"tick"`
+	Cursor int64  `json:"cursor"`
+	Size   int64  `json:"size"`
+}

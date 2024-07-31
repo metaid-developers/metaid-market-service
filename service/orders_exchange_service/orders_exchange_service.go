@@ -383,3 +383,69 @@ func FetchIdCoinsDeployCheckInfo(req *FetchIdCoinsDeployCheckRequest, headers ma
 
 	return data, nil
 }
+
+func RefundIdCoinsInvalidLpPre(req *RefundIdCoinsValidPreRequest, headers map[string]string) (*RefundIdCoinsValidPreResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *RefundIdCoinsValidPreResp
+		err    error
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/invalid/refund/pre", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.PostUrl(url, req, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
+func RefundIdCoinsInvalidLpCommit(req *RefundIdCoinsValidCommitRequest, headers map[string]string) (*RefundIdCoinsValidCommitResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *RefundIdCoinsValidCommitResp
+		err    error
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/invalid/refund/commit", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.PostUrl(url, req, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}

@@ -127,6 +127,37 @@ func FetchMrc20IdCoinsTickAddressUtxos(c *gin.Context) {
 	return
 }
 
+// @Summary Fetch mrc20 holders
+// @Description Fetch mrc20 holders
+// @Produce  json
+// @Tags Common
+// @Param tickId query string false "tickId"
+// @Param tick query string false "tick"
+// @Param cursor query int false "cursor"
+// @Param size query int false "size：max=50"
+// @Success 200 {object} respond.Mrc20UtxoResp ""
+// @Router /api/v1/common/mrc20/tick/holder-list [get]
+func FetchMrc20Holders(c *gin.Context) {
+	var (
+		t   int64                            = tool.MakeTimestamp()
+		req *request.Mrc20TickHoldersRequest = &request.Mrc20TickHoldersRequest{
+			TickId: c.DefaultQuery("tickId", ""),
+			Tick:   c.DefaultQuery("tick", ""),
+			Cursor: 0,
+			Size:   0,
+		}
+	)
+	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)
+	responseModel, err := common_service.FetchMrc20Holders(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}
+
 // @Summary Fetch address mrc20 shovels
 // @Description Fetch address mrc20 shovels
 // @Produce  json

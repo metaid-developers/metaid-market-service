@@ -293,6 +293,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/common/mrc20/tick/holder-list": {
+            "get": {
+                "description": "Fetch mrc20 holders",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch mrc20 holders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "tickId",
+                        "name": "tickId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "tick",
+                        "name": "tick",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size：max=50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20UtxoResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/common/mrc20/tick/info": {
             "get": {
                 "description": "Fetch mrc20 tick info",
@@ -702,6 +748,68 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.FetchIdCoinsOpOrdersResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/invalid/refund/commit": {
+            "post": {
+                "description": "Refund invalid id coins commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Refund invalid id coins commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.RefundIdCoinsValidCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.RefundIdCoinsValidCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/invalid/refund/pre": {
+            "post": {
+                "description": "Refund invalid id coins pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Refund invalid id coins pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.RefundIdCoinsValidPreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.RefundIdCoinsValidPreResp"
                         }
                     }
                 }
@@ -2138,6 +2246,28 @@ const docTemplate = `{
                 }
             }
         },
+        "request.RefundIdCoinsValidCommitRequest": {
+            "type": "object",
+            "properties": {
+                "orderId": {
+                    "type": "string"
+                },
+                "psbtRaw": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.RefundIdCoinsValidPreRequest": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                }
+            }
+        },
         "request.TakeMrc20OrderReq": {
             "type": "object",
             "properties": {
@@ -2664,8 +2794,14 @@ const docTemplate = `{
                 "deployerUserInfo": {
                     "$ref": "#/definitions/respond.UserInfo"
                 },
+                "endBlockHeight": {
+                    "type": "string"
+                },
                 "followersLimit": {
                     "type": "string"
+                },
+                "holders": {
+                    "type": "integer"
                 },
                 "liquidityPerMint": {
                     "type": "integer"
@@ -3313,6 +3449,12 @@ const docTemplate = `{
                 "deployerUserInfo": {
                     "$ref": "#/definitions/respond.UserInfo"
                 },
+                "endBlockHeight": {
+                    "type": "string"
+                },
+                "holders": {
+                    "type": "integer"
+                },
                 "metaData": {
                     "type": "string"
                 },
@@ -3506,6 +3648,40 @@ const docTemplate = `{
                 },
                 "orderState": {
                     "$ref": "#/definitions/models.OrderState"
+                }
+            }
+        },
+        "respond.RefundIdCoinsValidCommitResp": {
+            "type": "object",
+            "properties": {
+                "orderId": {
+                    "type": "string"
+                },
+                "refundAddress": {
+                    "type": "string"
+                },
+                "refundAmount": {
+                    "type": "integer"
+                },
+                "txId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.RefundIdCoinsValidPreResp": {
+            "type": "object",
+            "properties": {
+                "orderId": {
+                    "type": "string"
+                },
+                "psbtRaw": {
+                    "type": "string"
+                },
+                "refundAddress": {
+                    "type": "string"
+                },
+                "refundAmount": {
+                    "type": "integer"
                 }
             }
         },

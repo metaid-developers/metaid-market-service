@@ -59,10 +59,12 @@ type IdCoinsOpOrderInfoResp struct {
 	FollowersLimit    string                   `json:"followersLimit"`
 	LiquidityPerMint  int64                    `json:"liquidityPerMint"`
 	StartBlockHeight  string                   `json:"startBlockHeight"`
+	EndBlockHeight    string                   `json:"endBlockHeight"`
 	Qual              string                   `json:"qual"`
 	PinCheck          string                   `json:"pinCheck"`
 	PayCheck          string                   `json:"payCheck"`
 	UsedPins          []string                 `json:"usedPins"`
+	Holders           int64                    `json:"holders"`
 	TxId              string                   `json:"txId"`
 	BlockHeight       int64                    `json:"blockHeight"`
 	ConfirmationState models.ConfirmationState `json:"confirmationState"`
@@ -157,4 +159,18 @@ type IdCoinsInfoResp struct {
 type FetchIdCoinsDeployCheckResp struct {
 	CanDeploy bool   `json:"canDeploy"`
 	Msg       string `json:"msg"`
+}
+
+type RefundIdCoinsValidPreResp struct {
+	OrderId       string `json:"orderId"`
+	RefundAddress string `json:"refundAddress"`
+	RefundAmount  int64  `json:"refundAmount"`
+	PsbtRaw       string `json:"psbtRaw"`
+}
+
+type RefundIdCoinsValidCommitResp struct {
+	OrderId       string `json:"orderId"`
+	RefundAddress string `json:"refundAddress"`
+	RefundAmount  int64  `json:"refundAmount"`
+	TxId          string `json:"txId"`
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
@@ -1059,13 +1060,47 @@ func (s *PsbtBuilder) CalculateFee(feeRate int64, extraSize int64) (int64, error
 }
 
 func (s *PsbtBuilder) CalTxSize() (int64, error) {
+	//var (
+	//	txSize             int64 = 0
+	//	lenIn              int64 = int64(len(s.PsbtUpdater.Upsbt.UnsignedTx.TxIn))
+	//	emptySegwitWitenss       = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+	//)
+	//txSize = int64(s.PsbtUpdater.Upsbt.UnsignedTx.SerializeSize()) + int64(emptySegwitWitenss.SerializeSize())*lenIn
+	//return txSize, nil
+
 	var (
-		txSize             int64 = 0
-		lenIn              int64 = int64(len(s.PsbtUpdater.Upsbt.UnsignedTx.TxIn))
-		emptySegwitWitenss       = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+		tx          *wire.MsgTx = s.PsbtUpdater.Upsbt.UnsignedTx
+		txTotalSize int         = tx.SerializeSize()
+		txBaseSize  int         = tx.SerializeSizeStripped()
+		weight      int64       = 0
+		vSize       int64       = 0
+
+		pIns []psbt.PInput = s.PsbtUpdater.Upsbt.Inputs
+
+		emptySegwitWitenss   = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+		emptyNestSignature   = make([]byte, 23)
+		emptylegacySignature = make([]byte, 107)
+		emptyTaprootWitness  = wire.TxWitness{make([]byte, 64)}
 	)
-	txSize = int64(s.PsbtUpdater.Upsbt.UnsignedTx.SerializeSize()) + int64(emptySegwitWitenss.SerializeSize())*lenIn
-	return txSize, nil
+
+	for _, v := range pIns {
+		if v.WitnessUtxo != nil {
+			if v.RedeemScript != nil {
+				txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptyNestSignature))) + len(emptyNestSignature)
+			}
+			if v.TaprootKeySpendSig != nil {
+				txTotalSize += emptyTaprootWitness.SerializeSize()
+			} else {
+				txTotalSize += emptySegwitWitenss.SerializeSize()
+			}
+		} else if v.NonWitnessUtxo != nil {
+			txBaseSize += 40 + wire.VarIntSerializeSize(uint64(len(emptylegacySignature))) + len(emptylegacySignature)
+		}
+	}
+
+	weight = int64(txBaseSize*3 + txTotalSize)
+	vSize = (weight + (blockchain.WitnessScaleFactor - 1)) / blockchain.WitnessScaleFactor
+	return vSize, nil
 }
 
 func (s *PsbtBuilder) ExtractPsbtTransaction() (string, error) {

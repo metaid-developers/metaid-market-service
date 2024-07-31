@@ -59,11 +59,13 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 		payCheck := ""
 		metaData := ""
 		deployState := 0
+		holders := int64(0)
 
 		if tickInfoMap[v.TickId] != nil {
 			metaData = tickInfoMap[v.TickId].Metadata
 			pinCheck = tool.AnyToStr(tickInfoMap[v.TickId].PinCheck)
 			payCheck = tool.AnyToStr(tickInfoMap[v.TickId].PayCheck)
+			holders = tickInfoMap[v.TickId].Holders
 		}
 		if v.ConfirmationState == models.ConfirmationStateConfirmed {
 			if tickInfoMap[v.TickId] != nil {
@@ -85,10 +87,12 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			PremineCount:      v.PremineCount,
 			TotalMinted:       v.MintCount,
 			StartBlockHeight:  v.StartBlockHeight,
+			EndBlockHeight:    v.EndBlockHeight,
 			Qual:              pinCheck,
 			PinCheck:          pinCheck,
 			PayCheck:          payCheck,
 			UsedPins:          nil,
+			Holders:           holders,
 			TxId:              v.TxId,
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,

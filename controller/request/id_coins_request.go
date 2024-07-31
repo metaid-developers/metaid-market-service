@@ -69,3 +69,13 @@ type FetchIdCoinsMintOrderRequest struct {
 type FetchIdCoinsDeployCheckRequest struct {
 	Address string `json:"address"`
 }
+
+type RefundIdCoinsValidPreRequest struct {
+	Address string `json:"address"`
+	OrderId string `json:"orderId"`
+}
+
+type RefundIdCoinsValidCommitRequest struct {
+	OrderId string `json:"orderId"`
+	PsbtRaw string `json:"psbtRaw"`
+}

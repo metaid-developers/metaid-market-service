@@ -66,6 +66,8 @@ func Run() {
 		v1.POST("/id-coins/deploy/commit", auth.AuthSignMiddleware(), BuildIdCoinsCommit)
 		v1.POST("/id-coins/mint/pre", auth.AuthSignMiddleware(), IdCoinsMintPre)
 		v1.POST("/id-coins/mint/commit", auth.AuthSignMiddleware(), IdCoinsMintCommit)
+		v1.POST("/id-coins/invalid/refund/pre", auth.AuthSignMiddleware(), RefundIdCoinsInvalidLpPre)
+		v1.POST("/id-coins/invalid/refund/commit", auth.AuthSignMiddleware(), RefundIdCoinsInvalidLpCommit)
 		//v1.GET("/id-coins/inscribe/orders", auth.AuthSignMiddleware(), FetchIdCoinsOpOrders)
 		v1.GET("/id-coins/inscribe/orders", FetchIdCoinsOpOrders)
 		v1.GET("/id-coins/address/mint/order", auth.AuthSignMiddleware(), FetchIdCoinsAddressMintOrder)
@@ -79,6 +81,7 @@ func Run() {
 		v1.GET("/common/mrc20/address/utxo", FetchMrc20AddressUtxoList)
 		v1.GET("/common/mrc20/id-coins/address/utxo", FetchMrc20IdCoinsTickAddressUtxos)
 		v1.GET("/common/mrc20/address/shovel", FetchMrc20TickAddressShovels)
+		v1.GET("/common/mrc20/tick/holder-list", FetchMrc20Holders)
 		v1.GET("/common/mrc20/market/price/info", FetchMrc20TickMarketPrice)
 
 		v1.POST("/common/tx/broadcast", BroadcastTx)

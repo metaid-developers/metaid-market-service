@@ -80,6 +80,7 @@ type OpOrderInfoResp struct {
 	PremineCount     string `json:"premineCount"`
 	TotalMinted      string `json:"totalMinted"`
 	StartBlockHeight string `json:"startBlockHeight"`
+	EndBlockHeight   string `json:"endBlockHeight"`
 	Qual             string `json:"qual"`
 	PinCheck         string `json:"pinCheck"`
 	PayCheck         string `json:"payCheck"`
@@ -87,6 +88,7 @@ type OpOrderInfoResp struct {
 	//QualLevel         int64                    `json:"qualLevel"`
 	//QualCount         int64                    `json:"qualCount"`
 	UsedPins          []string                 `json:"usedPins"`
+	Holders           int64                    `json:"holders"`
 	TxId              string                   `json:"txId"`
 	BlockHeight       int64                    `json:"blockHeight"`
 	ConfirmationState models.ConfirmationState `json:"confirmationState"`

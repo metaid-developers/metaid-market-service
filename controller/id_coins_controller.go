@@ -116,6 +116,58 @@ func IdCoinsMintCommit(c *gin.Context) {
 	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }
 
+// @Summary Refund invalid id coins pre
+// @Description Refund invalid id coins pre
+// @Produce  json
+// @Param Request body request.RefundIdCoinsValidPreRequest true "Request"
+// @Tags IdCoins
+// @Success 200 {object} respond.RefundIdCoinsValidPreResp ""
+// @Router /api/v1/id-coins/invalid/refund/pre [post]
+func RefundIdCoinsInvalidLpPre(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.RefundIdCoinsValidPreRequest
+		publicKey    string = ""
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.RefundIdCoinsInvalidLpPre(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
+// @Summary Refund invalid id coins commit
+// @Description Refund invalid id coins commit
+// @Produce  json
+// @Param Request body request.RefundIdCoinsValidCommitRequest true "Request"
+// @Tags IdCoins
+// @Success 200 {object} respond.RefundIdCoinsValidCommitResp ""
+// @Router /api/v1/id-coins/invalid/refund/commit [post]
+func RefundIdCoinsInvalidLpCommit(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.RefundIdCoinsValidCommitRequest
+		publicKey    string = ""
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.RefundIdCoinsInvalidLpCommit(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
 // @Summary Fetch inscribe id-coins orders
 // @Description Fetch inscribe id-coins orders
 // @Produce  json

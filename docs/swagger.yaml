@@ -303,6 +303,20 @@ definitions:
       psbtRaw:
         type: string
     type: object
+  request.RefundIdCoinsValidCommitRequest:
+    properties:
+      orderId:
+        type: string
+      psbtRaw:
+        type: string
+    type: object
+  request.RefundIdCoinsValidPreRequest:
+    properties:
+      address:
+        type: string
+      orderId:
+        type: string
+    type: object
   request.TakeMrc20OrderReq:
     properties:
       networkFeeRate:
@@ -650,8 +664,12 @@ definitions:
         type: string
       deployerUserInfo:
         $ref: '#/definitions/respond.UserInfo'
+      endBlockHeight:
+        type: string
       followersLimit:
         type: string
+      holders:
+        type: integer
       liquidityPerMint:
         type: integer
       metaData:
@@ -1081,6 +1099,10 @@ definitions:
         type: string
       deployerUserInfo:
         $ref: '#/definitions/respond.UserInfo'
+      endBlockHeight:
+        type: string
+      holders:
+        type: integer
       metaData:
         type: string
       mintCount:
@@ -1213,6 +1235,28 @@ definitions:
         type: string
       orderState:
         $ref: '#/definitions/models.OrderState'
+    type: object
+  respond.RefundIdCoinsValidCommitResp:
+    properties:
+      orderId:
+        type: string
+      refundAddress:
+        type: string
+      refundAmount:
+        type: integer
+      txId:
+        type: string
+    type: object
+  respond.RefundIdCoinsValidPreResp:
+    properties:
+      orderId:
+        type: string
+      psbtRaw:
+        type: string
+      refundAddress:
+        type: string
+      refundAmount:
+        type: integer
     type: object
   respond.ShovelInfo:
     properties:
@@ -1514,6 +1558,36 @@ paths:
       summary: Fetch mrc20 market price info
       tags:
       - Common
+  /api/v1/common/mrc20/tick/holder-list:
+    get:
+      description: Fetch mrc20 holders
+      parameters:
+      - description: tickId
+        in: query
+        name: tickId
+        type: string
+      - description: tick
+        in: query
+        name: tick
+        type: string
+      - description: cursor
+        in: query
+        name: cursor
+        type: integer
+      - description: size：max=50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20UtxoResp'
+      summary: Fetch mrc20 holders
+      tags:
+      - Common
   /api/v1/common/mrc20/tick/info:
     get:
       description: Fetch mrc20 tick info
@@ -1784,6 +1858,46 @@ paths:
           schema:
             $ref: '#/definitions/respond.FetchIdCoinsOpOrdersResp'
       summary: Fetch inscribe id-coins orders
+      tags:
+      - IdCoins
+  /api/v1/id-coins/invalid/refund/commit:
+    post:
+      description: Refund invalid id coins commit
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RefundIdCoinsValidCommitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.RefundIdCoinsValidCommitResp'
+      summary: Refund invalid id coins commit
+      tags:
+      - IdCoins
+  /api/v1/id-coins/invalid/refund/pre:
+    post:
+      description: Refund invalid id coins pre
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RefundIdCoinsValidPreRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.RefundIdCoinsValidPreResp'
+      summary: Refund invalid id coins pre
       tags:
       - IdCoins
   /api/v1/id-coins/mint/commit:

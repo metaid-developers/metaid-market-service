@@ -10,6 +10,7 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
+	"metaid-market-service/protobuf/mrc20_holders_service"
 	"metaid-market-service/protobuf/mrc20_utxo_service"
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/man_service"
@@ -1052,6 +1053,75 @@ func FetchMrc20IdCoinsTickAddressUtxos(req *request.Mrc20IdCoinsAddressUtxosReq)
 		total = grpcResp.Total
 	}
 	return &respond.Mrc20UtxoResp{
+		Total: total,
+		List:  list,
+	}, nil
+}
+
+func FetchMrc20Holders(req *request.Mrc20TickHoldersRequest) (*respond.Mrc20TickHolderResp, error) {
+	var (
+		total int64                 = 0
+		list  []*respond.HolderInfo = make([]*respond.HolderInfo, 0)
+
+		tickInfo *man_service.Mrc20TickInfo
+		grpcResp *mrc20_holders_service.Mrc20TickHoldersResponse
+		err      error
+	)
+	if req.TickId == "" && req.Tick == "" {
+		return nil, errors.New("tickId and tick are empty")
+	}
+	tickInfo, err = man_service.FetchMrc20TickInfo(req.TickId, req.Tick)
+	if err != nil {
+		return nil, err
+	}
+	if tickInfo == nil || tickInfo.Mrc20Id == "" {
+		return nil, errors.New("mrc20 not found")
+	}
+	supply := "0"
+	if tickInfo.AmtPerMint != "" && tickInfo.MintCount != 0 {
+		totalMintedDe := decimal.New(tickInfo.TotalMinted, 0)
+		//premineCountDe := decimal.New(v.PremineCount, 0)
+		amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
+		mintCountDe := decimal.New(tickInfo.MintCount, 0)
+
+		if totalMintedDe.GreaterThan(mintCountDe) {
+			supplyDe := mintCountDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		} else {
+			supplyDe := totalMintedDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		}
+	}
+	supplyDe, _ := decimal.NewFromString(supply)
+
+	client, err := grpc_service.GetMrc20BaseConn()
+	if err != nil {
+		return nil, err
+	}
+	grpcResp, err = client.FetchMrc20TickHolders(tickInfo.Mrc20Id, req.Cursor, req.Size)
+	if err != nil {
+		return nil, err
+	}
+	if grpcResp == nil {
+		return nil, errors.New("grpc response is empty")
+	}
+	total = grpcResp.Total
+	for _, v := range grpcResp.Detail {
+		balanceDe, _ := decimal.NewFromString(v.GetBalance())
+		proportion := balanceDe.Div(supplyDe).Mul(decimal.New(100, 0)).StringFixed(2)
+
+		list = append(list, &respond.HolderInfo{
+			TickId:     tickInfo.Mrc20Id,
+			Tick:       tickInfo.Tick,
+			TokenName:  tickInfo.TokenName,
+			MetaId:     common.GetMetaIdByAddress(v.GetAddress()),
+			Address:    v.GetAddress(),
+			UserInfo:   common.FetchMetaIDUserInfo(v.GetAddress()),
+			Balance:    v.GetBalance(),
+			Proportion: proportion,
+		})
+	}
+	return &respond.Mrc20TickHolderResp{
 		Total: total,
 		List:  list,
 	}, nil
