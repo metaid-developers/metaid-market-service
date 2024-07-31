@@ -123,6 +123,10 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		filter.TickId = req.TickId
 	}
 
+	if req.Confirmation != 0 {
+		filter.ConfirmationState = req.Confirmation
+	}
+
 	total, _ = models.Mrc20MintOrderModelDao().Count(filter)
 	entityList, _ = models.Mrc20MintOrderModelDao().GetList(filter, req.Cursor, req.Size)
 	for _, v := range entityList {

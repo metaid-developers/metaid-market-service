@@ -1,11 +1,12 @@
 package request
 
 type FetchMrc20TickListReq struct {
-	Cursor    int64  `json:"cursor"`
-	Size      int64  `json:"size"`
-	Completed bool   `json:"completed"`
-	OrderBy   string `json:"order"`
-	SortType  int    `json:"sortType"`
+	Cursor     int64  `json:"cursor"`
+	Size       int64  `json:"size"`
+	Completed  string `json:"completed"`
+	OrderBy    string `json:"order"`
+	SortType   int    `json:"sortType"`
+	SearchTick string `json:"searchTick"`
 }
 
 type FetchMrc20TickInfoReq struct {

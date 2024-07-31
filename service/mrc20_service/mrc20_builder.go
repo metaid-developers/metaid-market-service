@@ -263,7 +263,9 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 			Amount:  uint64(m.mrc20OutValue + transferFee),
 		}
 		outputs = append(outputs, outPin)
-		outputs = append(outputs, outMrc20Premine)
+		if m.mrc20PremineOutAddress != "" {
+			outputs = append(outputs, outMrc20Premine)
+		}
 	}
 
 	if m.OtherOuts != nil && len(m.OtherOuts) != 0 {

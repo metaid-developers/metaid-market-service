@@ -141,6 +141,72 @@ func Mrc20Deploy(c *gin.Context) {
 	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }
 
+// @Summary Inscribe Mrc20 deploy pre
+// @Description Inscribe Mrc20 deploy pre
+// @Produce  json
+// @Param Request body request.Mrc20DeployPreRequest true "Request"
+// @Tags Inscribe-Mrc20
+// @Success 200 {object} respond.Mrc20DeployPreResp ""
+// @Router /api/v1/inscribe/mrc20/deploy/pre [post]
+func Mrc20DeployPre(c *gin.Context) {
+	var (
+		t            int64  = tool.MakeTimestamp()
+		publicKey    string = ""
+		requestModel *request.Mrc20DeployPreRequest
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.Mrc20DeployPre(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
+// @Summary Inscribe Mrc20 deploy commit
+// @Description Inscribe Mrc20 deploy commit
+// @Produce  json
+// @Param Request body request.Mrc20DeployCommitRequest true "Request"
+// @Tags Inscribe-Mrc20
+// @Success 200 {object} respond.Mrc20DeployCommitResp ""
+// @Router /api/v1/inscribe/mrc20/deploy/commit [post]
+func Mrc20DeployCommit(c *gin.Context) {
+	var (
+		t            int64  = tool.MakeTimestamp()
+		publicKey    string = ""
+		requestModel *request.Mrc20DeployCommitRequest
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+
+		if requestModel.OrderId == "" && requestModel.RevealTxRaw != "" {
+			responseModel, err := mrc20_op_service.Mrc20Deploy(&request.Mrc20DeployRequest{
+				CommitTxRaw: requestModel.CommitTxRaw,
+				RevealTxRaw: requestModel.RevealTxRaw,
+			}, publicKey, c.ClientIP())
+			if err != nil {
+				c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+				return
+			}
+			c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+			return
+		}
+
+		responseModel, err := mrc20_op_service.Mrc20DeployCommit(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
 // @Summary Fetch inscribe mrc20 orders
 // @Description Fetch inscribe mrc20 orders
 // @Produce  json

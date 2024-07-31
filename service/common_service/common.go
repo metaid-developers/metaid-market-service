@@ -39,7 +39,8 @@ type TickInfo struct {
 	AmtPerMint   string      `json:"amtPerMint"`
 	MintCount    string      `json:"mintCount"`
 	PremineCount string      `json:"premineCount"`
-	BlockHeight  string      `json:"blockheight"`
+	BeginHeight  string      `json:"beginheight"`
+	EndHeight    string      `json:"endheight"`
 	MetaData     string      `json:"metadata"`
 	Type         string      `json:"type"`
 	Qual         interface{} `json:"qual"`
@@ -68,12 +69,12 @@ type PinCheck struct {
 	Count   string `json:"count"`
 }
 
-func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
+func GetMrc20TickInfo(tickId, tick string) (*TickInfo, error) {
 	var (
 		mrc20Resp *man_service.Mrc20TickInfo
 		err       error
 	)
-	mrc20Resp, err = man_service.FetchMrc20TickInfo(tickId, "")
+	mrc20Resp, err = man_service.FetchMrc20TickInfo(tickId, tick)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +91,8 @@ func GetMrc20TickInfo(tickId string) (*TickInfo, error) {
 		AmtPerMint:   mrc20Resp.AmtPerMint,
 		MintCount:    strconv.FormatInt(mrc20Resp.MintCount, 10),
 		PremineCount: strconv.FormatInt(mrc20Resp.PremineCount, 10),
-		BlockHeight:  mrc20Resp.BlockHeight,
+		BeginHeight:  mrc20Resp.BeginHeight,
+		EndHeight:    mrc20Resp.EndHeight,
 		MetaData:     mrc20Resp.Metadata,
 		Type:         mrc20Resp.Type,
 		Qual:         mrc20Resp.PinCheck,

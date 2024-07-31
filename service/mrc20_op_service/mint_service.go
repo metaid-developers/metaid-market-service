@@ -55,7 +55,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		tickInfo *common_service.TickInfo
 	)
 
-	tickInfo, err = common_service.GetMrc20TickInfo(tickId)
+	tickInfo, err = common_service.GetMrc20TickInfo(tickId, "")
 	if err != nil {
 		return nil, err
 	}

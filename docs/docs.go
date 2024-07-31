@@ -340,8 +340,14 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap",
+                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply",
                         "name": "orderBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "searchTick",
+                        "name": "searchTick",
                         "in": "query"
                     },
                     {
@@ -475,6 +481,12 @@ const docTemplate = `{
                         "description": "issuerAddress",
                         "name": "issuerAddress",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -502,6 +514,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "address",
                         "name": "address",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "searchTick",
+                        "name": "searchTick",
                         "in": "query"
                     },
                     {
@@ -540,6 +558,34 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.FetchIdCoinsListResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/deploy/check/info": {
+            "get": {
+                "description": "Fetch id-coins info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Check id-coins deploy check info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FetchIdCoinsDeployCheckResp"
                         }
                     }
                 }
@@ -740,7 +786,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/request.Mrc20DeployRequest"
+                            "$ref": "#/definitions/request.Mrc20DeployCommitRequest"
                         }
                     }
                 ],
@@ -748,7 +794,38 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/respond.Mrc20DeployResp"
+                            "$ref": "#/definitions/respond.Mrc20DeployCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/inscribe/mrc20/deploy/pre": {
+            "post": {
+                "description": "Inscribe Mrc20 deploy pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Inscribe-Mrc20"
+                ],
+                "summary": "Inscribe Mrc20 deploy pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.Mrc20DeployPreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20DeployPreResp"
                         }
                     }
                 }
@@ -1871,6 +1948,38 @@ const docTemplate = `{
                 }
             }
         },
+        "request.Mrc20DeployCommitRequest": {
+            "type": "object",
+            "properties": {
+                "commitTxOutIndex": {
+                    "type": "integer"
+                },
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealTxRaw": {
+                    "description": "RevealPrePsbtRaw string ` + "`" + `json:\"revealPrePsbtRaw\"` + "`" + `",
+                    "type": "string"
+                }
+            }
+        },
+        "request.Mrc20DeployPreRequest": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "payload": {
+                    "type": "string"
+                }
+            }
+        },
         "request.Mrc20DeployRequest": {
             "type": "object",
             "properties": {
@@ -2207,6 +2316,17 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.FetchIdCoinsDeployCheckResp": {
+            "type": "object",
+            "properties": {
+                "canDeploy": {
+                    "type": "boolean"
+                },
+                "msg": {
+                    "type": "string"
+                }
+            }
+        },
         "respond.FetchIdCoinsListResp": {
             "type": "object",
             "properties": {
@@ -2414,6 +2534,12 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "mrc20Id": {
+                    "type": "string"
+                },
+                "ordersPool": {
+                    "type": "integer"
+                },
+                "ordersPrice": {
                     "type": "string"
                 },
                 "payCheck": {},
@@ -2650,6 +2776,43 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.Mrc20DeployCommitResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealTxId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.Mrc20DeployPreResp": {
+            "type": "object",
+            "properties": {
+                "extra": {
+                    "description": "RevealPrePsbtRaw string      ` + "`" + `json:\"revealPrePsbtRaw\"` + "`" + `\nRevealInputIndex int64       ` + "`" + `json:\"revealInputIndex\"` + "`" + `"
+                },
+                "minerFee": {
+                    "type": "integer"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealAddress": {
+                    "type": "string"
+                },
+                "serviceFee": {
+                    "type": "integer"
+                },
+                "totalFee": {
+                    "type": "integer"
+                }
+            }
+        },
         "respond.Mrc20DeployResp": {
             "type": "object",
             "properties": {
@@ -2860,7 +3023,7 @@ const docTemplate = `{
                 "amtPerMint": {
                     "type": "string"
                 },
-                "blockHeight": {
+                "beginHeight": {
                     "type": "string"
                 },
                 "change24h": {
@@ -2880,6 +3043,9 @@ const docTemplate = `{
                 },
                 "deployerUserInfo": {
                     "$ref": "#/definitions/respond.UserInfo"
+                },
+                "endHeight": {
+                    "type": "string"
                 },
                 "floorPrice": {
                     "type": "string"

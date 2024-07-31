@@ -203,7 +203,8 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 			AmtPerMint:          mrc20DeployData.AmtPerMint,
 			MintCount:           mrc20DeployData.MintCount,
 			PremineCount:        mrc20DeployData.PremineCount,
-			StartBlockHeight:    mrc20DeployData.Blockheight,
+			StartBlockHeight:    mrc20DeployData.BeginHeight,
+			EndBlockHeight:      mrc20DeployData.EndHeight,
 			Metadata:            tool.AnyToStr(metaDataMap),
 			TickSign:            signMsg,
 			PinCheck:            tool.AnyToStr(mrc20DeployData.PinCheck),
@@ -244,7 +245,8 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 		idCoinsDeploy.AmtPerMint = mrc20DeployData.AmtPerMint
 		idCoinsDeploy.MintCount = mrc20DeployData.MintCount
 		idCoinsDeploy.PremineCount = mrc20DeployData.PremineCount
-		idCoinsDeploy.StartBlockHeight = mrc20DeployData.Blockheight
+		idCoinsDeploy.StartBlockHeight = mrc20DeployData.BeginHeight
+		idCoinsDeploy.EndBlockHeight = mrc20DeployData.EndHeight
 		idCoinsDeploy.Metadata = tool.AnyToStr(metaDataMap)
 		idCoinsDeploy.TickSign = signMsg
 		idCoinsDeploy.PinCheck = tool.AnyToStr(mrc20DeployData.PinCheck)

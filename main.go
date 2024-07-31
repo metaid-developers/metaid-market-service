@@ -53,7 +53,7 @@ func run() {
 func main() {
 	InitEnv()
 	InitAll()
-	//fix.FixMarketPinOrders()
+	//fix.FixMarketInfoForFloorPrice()
 	//task.JobForCheckValidOrders()
 	//go task.RunJob()
 	controller.Run()

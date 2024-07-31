@@ -1,5 +1,7 @@
 package request
 
+import "metaid-market-service/models"
+
 type Mrc20MintPreRequest struct {
 	NetworkFeeRate int64          `json:"networkFeeRate"`
 	TickerId       string         `json:"tickerId"`
@@ -59,15 +61,30 @@ type Mrc20TransferCommitRequest struct {
 	RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
 }
 
+type Mrc20DeployPreRequest struct {
+	NetworkFeeRate int64  `json:"networkFeeRate"`
+	Payload        string `json:"payload"`
+	Address        string `json:"address"`
+}
+
+type Mrc20DeployCommitRequest struct {
+	OrderId          string `json:"orderId"`
+	CommitTxRaw      string `json:"commitTxRaw"`
+	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
+	//RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
+	RevealTxRaw string `json:"revealTxRaw"`
+}
+
 type Mrc20DeployRequest struct {
 	CommitTxRaw string `json:"commitTxRaw"`
 	RevealTxRaw string `json:"revealTxRaw"`
 }
 
 type FetchMrc20OpOrdersRequest struct {
-	OpOrderType string `json:"opOrderType"`
-	Address     string `json:"address"`
-	TickId      string `json:"tickId"`
-	Cursor      int64  `json:"cursor"`
-	Size        int64  `json:"size"`
+	OpOrderType  string                   `json:"opOrderType"`
+	Address      string                   `json:"address"`
+	TickId       string                   `json:"tickId"`
+	Cursor       int64                    `json:"cursor"`
+	Size         int64                    `json:"size"`
+	Confirmation models.ConfirmationState `json:"confirmation"`
 }

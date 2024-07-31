@@ -1,5 +1,7 @@
 package request
 
+import "metaid-market-service/models"
+
 type BuildIdCoinsPreRequest struct {
 	Tick             string `json:"tick"`
 	TokenName        string `json:"ticker"`
@@ -40,23 +42,30 @@ type FetchIdCoinsListRequest struct {
 	OrderBy         string `json:"order"`
 	SortType        int    `json:"sortType"`
 	FollowerAddress string `json:"followerAddress"`
+	SearchTick      string `json:"searchTick"`
 }
 
 type FetchOneIdCoinsRequest struct {
 	TickId        string `json:"tickId"`
 	Tick          string `json:"tick"`
 	IssuerAddress string `json:"issuerAddress"`
+	Address       string `json:"address"`
 }
 
 type FetchIdCoinsOpOrdersRequest struct {
-	OpOrderType string `json:"opOrderType"`
-	Address     string `json:"address"`
-	TickId      string `json:"tickId"`
-	Cursor      int64  `json:"cursor"`
-	Size        int64  `json:"size"`
+	OpOrderType  string                   `json:"opOrderType"`
+	Address      string                   `json:"address"`
+	TickId       string                   `json:"tickId"`
+	Cursor       int64                    `json:"cursor"`
+	Size         int64                    `json:"size"`
+	Confirmation models.ConfirmationState `json:"confirmation"`
 }
 
 type FetchIdCoinsMintOrderRequest struct {
 	Address string `json:"address"`
 	TickId  string `json:"tickId"`
+}
+
+type FetchIdCoinsDeployCheckRequest struct {
+	Address string `json:"address"`
 }

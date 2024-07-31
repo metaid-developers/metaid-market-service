@@ -150,4 +150,11 @@ type IdCoinsInfoResp struct {
 	MarketCap        string      `json:"marketCap"`
 	MarketCapUsd     string      `json:"marketCapUsd"`
 	TotalVolume      int64       `json:"totalVolume"`
+	OrdersPrice      string      `json:"ordersPrice"`
+	OrdersPool       int64       `json:"ordersPool"`
+}
+
+type FetchIdCoinsDeployCheckResp struct {
+	CanDeploy bool   `json:"canDeploy"`
+	Msg       string `json:"msg"`
 }

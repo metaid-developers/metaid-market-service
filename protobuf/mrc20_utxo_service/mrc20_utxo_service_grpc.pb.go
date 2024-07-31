@@ -22,6 +22,7 @@ const (
 	Mrc20UtxoService_FetchMrc20AddressTxList_FullMethodName      = "/protobuf.Mrc20UtxoService/FetchMrc20AddressTxList"
 	Mrc20UtxoService_FetchMrc20AddressBalanceList_FullMethodName = "/protobuf.Mrc20UtxoService/FetchMrc20AddressBalanceList"
 	Mrc20UtxoService_FetchMrc20AddressUtxoList_FullMethodName    = "/protobuf.Mrc20UtxoService/FetchMrc20AddressUtxoList"
+	Mrc20UtxoService_FetchMrc20DeployList_FullMethodName         = "/protobuf.Mrc20UtxoService/FetchMrc20DeployList"
 )
 
 // Mrc20UtxoServiceClient is the client API for Mrc20UtxoService service.
@@ -31,6 +32,7 @@ type Mrc20UtxoServiceClient interface {
 	FetchMrc20AddressTxList(ctx context.Context, in *AddressMrc20TxRequest, opts ...grpc.CallOption) (*Mrc20TxListResponse, error)
 	FetchMrc20AddressBalanceList(ctx context.Context, in *AddressMrc20BalanceRequest, opts ...grpc.CallOption) (*Mrc20BalanceListResponse, error)
 	FetchMrc20AddressUtxoList(ctx context.Context, in *AddressMrc20UtxoRequest, opts ...grpc.CallOption) (*Mrc20UtxoResponse, error)
+	FetchMrc20DeployList(ctx context.Context, in *TickListRequest, opts ...grpc.CallOption) (*Mrc20DeployListResponse, error)
 }
 
 type mrc20UtxoServiceClient struct {
@@ -68,6 +70,15 @@ func (c *mrc20UtxoServiceClient) FetchMrc20AddressUtxoList(ctx context.Context, 
 	return out, nil
 }
 
+func (c *mrc20UtxoServiceClient) FetchMrc20DeployList(ctx context.Context, in *TickListRequest, opts ...grpc.CallOption) (*Mrc20DeployListResponse, error) {
+	out := new(Mrc20DeployListResponse)
+	err := c.cc.Invoke(ctx, Mrc20UtxoService_FetchMrc20DeployList_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Mrc20UtxoServiceServer is the server API for Mrc20UtxoService service.
 // All implementations must embed UnimplementedMrc20UtxoServiceServer
 // for forward compatibility
@@ -75,6 +86,7 @@ type Mrc20UtxoServiceServer interface {
 	FetchMrc20AddressTxList(context.Context, *AddressMrc20TxRequest) (*Mrc20TxListResponse, error)
 	FetchMrc20AddressBalanceList(context.Context, *AddressMrc20BalanceRequest) (*Mrc20BalanceListResponse, error)
 	FetchMrc20AddressUtxoList(context.Context, *AddressMrc20UtxoRequest) (*Mrc20UtxoResponse, error)
+	FetchMrc20DeployList(context.Context, *TickListRequest) (*Mrc20DeployListResponse, error)
 	mustEmbedUnimplementedMrc20UtxoServiceServer()
 }
 
@@ -90,6 +102,9 @@ func (UnimplementedMrc20UtxoServiceServer) FetchMrc20AddressBalanceList(context.
 }
 func (UnimplementedMrc20UtxoServiceServer) FetchMrc20AddressUtxoList(context.Context, *AddressMrc20UtxoRequest) (*Mrc20UtxoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FetchMrc20AddressUtxoList not implemented")
+}
+func (UnimplementedMrc20UtxoServiceServer) FetchMrc20DeployList(context.Context, *TickListRequest) (*Mrc20DeployListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchMrc20DeployList not implemented")
 }
 func (UnimplementedMrc20UtxoServiceServer) mustEmbedUnimplementedMrc20UtxoServiceServer() {}
 
@@ -158,6 +173,24 @@ func _Mrc20UtxoService_FetchMrc20AddressUtxoList_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Mrc20UtxoService_FetchMrc20DeployList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TickListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(Mrc20UtxoServiceServer).FetchMrc20DeployList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Mrc20UtxoService_FetchMrc20DeployList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(Mrc20UtxoServiceServer).FetchMrc20DeployList(ctx, req.(*TickListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Mrc20UtxoService_ServiceDesc is the grpc.ServiceDesc for Mrc20UtxoService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +209,10 @@ var Mrc20UtxoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FetchMrc20AddressUtxoList",
 			Handler:    _Mrc20UtxoService_FetchMrc20AddressUtxoList_Handler,
+		},
+		{
+			MethodName: "FetchMrc20DeployList",
+			Handler:    _Mrc20UtxoService_FetchMrc20DeployList_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

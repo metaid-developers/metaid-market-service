@@ -108,3 +108,28 @@ func (c *Mrc20BaseConn) FetchMrc20AddressUtxoList(tickIds []string, address stri
 	defer c.clientConn.Close()
 	return resp, err
 }
+
+func (c *Mrc20BaseConn) FetchMrc20DeployList(tick string, completed, order, orderType string, offset, size int64) (*mrc20_utxo_service.Mrc20DeployListResponse, error) {
+	//t := tool.MakeTimestamp()
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.TickListRequest{
+		Tick:      tick,
+		Completed: completed,
+		Order:     order,
+		OrderType: orderType,
+		Offset:    offset,
+		Size:      size,
+	}
+	resp, err := client.FetchMrc20DeployList(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	//fmt.Printf("[GRPC] :%d\n", tool.MakeTimestamp()-t)
+	defer c.clientConn.Close()
+	return resp, err
+}

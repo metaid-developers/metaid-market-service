@@ -38,6 +38,22 @@ type Mrc20TransferCommitResp struct {
 	RevealTxId string `json:"revealTxId"`
 }
 
+type Mrc20DeployPreResp struct {
+	OrderId       string `json:"orderId"`
+	TotalFee      int64  `json:"totalFee"`
+	MinerFee      int64  `json:"minerFee"`
+	ServiceFee    int64  `json:"serviceFee"`
+	RevealAddress string `json:"revealAddress"`
+	//RevealPrePsbtRaw string      `json:"revealPrePsbtRaw"`
+	//RevealInputIndex int64       `json:"revealInputIndex"`
+	Extra interface{} `json:"extra"`
+}
+type Mrc20DeployCommitResp struct {
+	OrderId    string `json:"orderId"`
+	CommitTxId string `json:"commitTxId"`
+	RevealTxId string `json:"revealTxId"`
+}
+
 type Mrc20DeployResp struct {
 	OrderId    string `json:"orderId"`
 	TickId     string `json:"tickId"`

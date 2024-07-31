@@ -182,6 +182,27 @@ definitions:
       pkScript:
         type: string
     type: object
+  request.Mrc20DeployCommitRequest:
+    properties:
+      commitTxOutIndex:
+        type: integer
+      commitTxRaw:
+        type: string
+      orderId:
+        type: string
+      revealTxRaw:
+        description: RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
+        type: string
+    type: object
+  request.Mrc20DeployPreRequest:
+    properties:
+      address:
+        type: string
+      networkFeeRate:
+        type: integer
+      payload:
+        type: string
+    type: object
   request.Mrc20DeployRequest:
     properties:
       commitTxRaw:
@@ -397,6 +418,13 @@ definitions:
       orderState:
         $ref: '#/definitions/models.OrderState'
     type: object
+  respond.FetchIdCoinsDeployCheckResp:
+    properties:
+      canDeploy:
+        type: boolean
+      msg:
+        type: string
+    type: object
   respond.FetchIdCoinsListResp:
     properties:
       list:
@@ -535,6 +563,10 @@ definitions:
       mintable:
         type: boolean
       mrc20Id:
+        type: string
+      ordersPool:
+        type: integer
+      ordersPrice:
         type: string
       payCheck: {}
       pinCheck: {}
@@ -692,6 +724,32 @@ definitions:
       total:
         type: integer
     type: object
+  respond.Mrc20DeployCommitResp:
+    properties:
+      commitTxId:
+        type: string
+      orderId:
+        type: string
+      revealTxId:
+        type: string
+    type: object
+  respond.Mrc20DeployPreResp:
+    properties:
+      extra:
+        description: |-
+          RevealPrePsbtRaw string      `json:"revealPrePsbtRaw"`
+          RevealInputIndex int64       `json:"revealInputIndex"`
+      minerFee:
+        type: integer
+      orderId:
+        type: string
+      revealAddress:
+        type: string
+      serviceFee:
+        type: integer
+      totalFee:
+        type: integer
+    type: object
   respond.Mrc20DeployResp:
     properties:
       commitTxId:
@@ -830,7 +888,7 @@ definitions:
     properties:
       amtPerMint:
         type: string
-      blockHeight:
+      beginHeight:
         type: string
       change24h:
         type: string
@@ -844,6 +902,8 @@ definitions:
         type: string
       deployerUserInfo:
         $ref: '#/definitions/respond.UserInfo'
+      endHeight:
+        type: string
       floorPrice:
         type: string
       floorPriceUsd:
@@ -1480,9 +1540,13 @@ paths:
     get:
       description: Fetch mrc20 tick info list
       parameters:
-      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap
+      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply
         in: query
         name: orderBy
+        type: string
+      - description: searchTick
+        in: query
+        name: searchTick
         type: string
       - description: -1/1, if orderBy is 'change24H/lastPrice/marketCap', it works,
           default '-1'
@@ -1572,6 +1636,10 @@ paths:
         in: query
         name: issuerAddress
         type: string
+      - description: address
+        in: query
+        name: address
+        type: string
       produces:
       - application/json
       responses:
@@ -1589,6 +1657,10 @@ paths:
       - description: address
         in: query
         name: address
+        type: string
+      - description: searchTick
+        in: query
+        name: searchTick
         type: string
       - description: 'supply/pool/timestamp, default:timestamp  '
         in: query
@@ -1618,6 +1690,24 @@ paths:
           schema:
             $ref: '#/definitions/respond.FetchIdCoinsListResp'
       summary: Fetch id-coins info list
+      tags:
+      - IdCoins
+  /api/v1/id-coins/deploy/check/info:
+    get:
+      description: Fetch id-coins info
+      parameters:
+      - description: address
+        in: query
+        name: address
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FetchIdCoinsDeployCheckResp'
+      summary: Check id-coins deploy check info
       tags:
       - IdCoins
   /api/v1/id-coins/deploy/commit:
@@ -1745,15 +1835,35 @@ paths:
         name: Request
         required: true
         schema:
-          $ref: '#/definitions/request.Mrc20DeployRequest'
+          $ref: '#/definitions/request.Mrc20DeployCommitRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/respond.Mrc20DeployResp'
+            $ref: '#/definitions/respond.Mrc20DeployCommitResp'
       summary: Inscribe Mrc20 deploy commit
+      tags:
+      - Inscribe-Mrc20
+  /api/v1/inscribe/mrc20/deploy/pre:
+    post:
+      description: Inscribe Mrc20 deploy pre
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.Mrc20DeployPreRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20DeployPreResp'
+      summary: Inscribe Mrc20 deploy pre
       tags:
       - Inscribe-Mrc20
   /api/v1/inscribe/mrc20/mint/commit:

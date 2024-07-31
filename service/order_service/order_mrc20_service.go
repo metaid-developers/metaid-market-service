@@ -49,6 +49,8 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 
 		feeAmount int64 = 2000
 		feeRate   int64 = 1
+
+		supply string = "0"
 	)
 	if req.PsbtRaw == "" {
 		return nil, errors.New("Wrong Psbt: empty. ")
@@ -113,7 +115,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		if tickId != mrc20Info.Mrc20Id {
 			return nil, errors.New("Wrong Psbt: tickId not match. ")
 		}
-		tickInfo, err := common_service.GetMrc20TickInfo(tickId)
+		tickInfo, err := common_service.GetMrc20TickInfo(tickId, "")
 		if err != nil {
 			return nil, err
 		}
@@ -125,6 +127,13 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		amount, _ = strconv.ParseInt(amountStr, 10, 64)
 		//todo mrc20Info.OutValue
 		outValue = 546
+
+		totalMintDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
+		amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
+		if totalMintDe.GreaterThan(decimal.Zero) {
+			supplyDe := totalMintDe.Mul(amtPerMintDe)
+			supply = supplyDe.String()
+		}
 	}
 
 	for i, v := range outList {
@@ -149,11 +158,11 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 	amountDe, _ := decimal.NewFromString(amountStr)
 	priceAmountDe := decimal.New(priceAmount, 0)
 	tokenPriceRateDe := priceAmountDe.Div(amountDe)
-	tokenPriceRateStr = tokenPriceRateDe.StringFixed(0)
+	tokenPriceRateStr = tokenPriceRateDe.StringFixed(6)
 	tokenPriceRate, _ = tokenPriceRateDe.Float64()
-	if tokenPriceRate < 1 {
-		return nil, errors.New("Wrong Psbt: token price rate < 1. ")
-	}
+	//if tokenPriceRate < 1 {
+	//	return nil, errors.New("Wrong Psbt: token price rate < 1. ")
+	//}
 
 	orderId = fmt.Sprintf("%s_%s_%s_%s", mrc20UtxoId, tickId, assetType, sellerAddress)
 	orderId = hex.EncodeToString(tool.SHA256([]byte(orderId)))
@@ -208,7 +217,8 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			UpdateTime:        0,
 			State:             models.STATE_EXIST,
 		}
-		err = models.MarketMrc20OrderModelDao().Set(orderEntity)
+		//err = models.MarketMrc20OrderModelDao().Set(orderEntity)
+		err = models.MarketMrc20OrderModelDao().SetForPushOrder(orderEntity, supply)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +241,8 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		orderEntity.FeeRate = feeRate
 		orderEntity.MakerPsbt = psbtRaw
 		orderEntity.Timestamp = nowTime
-		err = models.MarketMrc20OrderModelDao().Update(orderEntity)
+		//err = models.MarketMrc20OrderModelDao().Update(orderEntity)
+		err = models.MarketMrc20OrderModelDao().UpdateForPushAndCancel(orderEntity, supply)
 		if err != nil {
 			return nil, err
 		}
@@ -562,7 +573,20 @@ func CancelMarketMrc20Order(req *request.CancelMrc20OrderReq, publicKey, ip stri
 		return nil, errors.New("Order state is not create. ")
 	}
 	entity.OrderState = models.OrderStateCancel
-	err = models.MarketMrc20OrderModelDao().Update(entity)
+
+	supply := "0"
+	tickInfo, err := common_service.GetMrc20TickInfo(entity.TickId, "")
+	if err != nil {
+		return nil, err
+	}
+	totalMintDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
+	amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
+	if totalMintDe.GreaterThan(decimal.Zero) {
+		supplyDe := totalMintDe.Mul(amtPerMintDe)
+		supply = supplyDe.String()
+	}
+
+	err = models.MarketMrc20OrderModelDao().UpdateForPushAndCancel(entity, supply)
 	if err != nil {
 		return nil, err
 	}

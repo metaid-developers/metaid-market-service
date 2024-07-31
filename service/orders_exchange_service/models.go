@@ -85,20 +85,23 @@ type FetchIdCoinsListRequest struct {
 	OrderBy         string `json:"order"`
 	SortType        int    `json:"sortType"`
 	FollowerAddress string `json:"followerAddress"`
+	SearchTick      string `json:"searchTick"`
 }
 
 type FetchOneIdCoinsRequest struct {
 	TickId        string `json:"tickId"`
 	Tick          string `json:"tick"`
 	IssuerAddress string `json:"issuerAddress"`
+	Address       string `json:"address"`
 }
 
 type FetchIdCoinsOpOrdersRequest struct {
-	OpOrderType string `json:"opOrderType"`
-	Address     string `json:"address"`
-	TickId      string `json:"tickId"`
-	Cursor      int64  `json:"cursor"`
-	Size        int64  `json:"size"`
+	OpOrderType  string                   `json:"opOrderType"`
+	Address      string                   `json:"address"`
+	TickId       string                   `json:"tickId"`
+	Cursor       int64                    `json:"cursor"`
+	Size         int64                    `json:"size"`
+	Confirmation models.ConfirmationState `json:"confirmation"`
 }
 
 type FetchIdCoinsOpOrdersResp struct {
@@ -182,6 +185,8 @@ type IdCoinsInfoResp struct {
 	Remaining        string      `json:"remaining"`
 	IsFollowing      bool        `json:"isFollowing"`
 	FollowersCount   int64       `json:"followersCount"`
+	OrdersPrice      string      `json:"ordersPrice"`
+	OrdersPool       int64       `json:"ordersPool"`
 }
 
 type FetchIdCoinsMintOrderRequest struct {
@@ -222,4 +227,13 @@ type FetchOneIdCoinsMintOrderResp struct {
 
 type FetchIdCoinsTickIdsResp struct {
 	TickIds []string `json:"tickIds"`
+}
+
+type FetchIdCoinsDeployCheckRequest struct {
+	Address string `json:"address"`
+}
+
+type FetchIdCoinsDeployCheckResp struct {
+	CanDeploy bool   `json:"canDeploy"`
+	Msg       string `json:"msg"`
 }

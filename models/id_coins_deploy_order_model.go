@@ -33,6 +33,7 @@ type IdCoinsDeployOrderModel struct {
 	MintCount           string            `gorm:"column:mintCount" json:"mintCount"`
 	PremineCount        string            `gorm:"column:premineCount" json:"premineCount"`
 	StartBlockHeight    string            `gorm:"column:startBlockHeight" json:"startBlockHeight"`
+	EndBlockHeight      string            `gorm:"column:endBlockHeight" json:"endBlockHeight"`
 	Metadata            string            `gorm:"column:metadata" json:"metadata"`
 	TickSign            string            `gorm:"column:tickSign" json:"tickSign"`
 	PinCheck            string            `gorm:"column:pinCheck" json:"pinCheck"`

@@ -9,33 +9,45 @@ import (
 )
 
 type Mrc20DeployOrderModel struct {
-	Id                int64             `gorm:"column:id" json:"id"`
-	OrderId           string            `gorm:"column:orderId" json:"orderId"`
-	InscribeState     InscribeState     `gorm:"column:inscribeState" json:"inscribeState"`
-	Address           string            `gorm:"column:address" json:"address"`
-	TickId            string            `gorm:"column:tickId" json:"tickId"`
-	Tick              string            `gorm:"column:tick" json:"tick"`
-	TokenName         string            `gorm:"column:tokenName" json:"tokenName"`
-	Decimals          string            `gorm:"column:decimals" json:"decimals"`
-	AmtPerMint        string            `gorm:"column:amtPerMint" json:"amtPerMint"`
-	MintCount         string            `gorm:"column:mintCount" json:"mintCount"`
-	PremineCount      string            `gorm:"column:premineCount" json:"premineCount"`
-	StartBlockHeight  string            `gorm:"column:startBlockHeight" json:"startBlockHeight"`
-	Qual              string            `gorm:"column:qual" json:"qual"`
-	Payload           string            `gorm:"column:payload" json:"payload"`
-	Chain             string            `gorm:"column:chain" json:"chain"`
-	CommitTxRaw       string            `gorm:"column:commitTxRaw" json:"commitTxRaw"`
-	RevealTxRaw       string            `gorm:"column:revealTxRaw" json:"revealTxRaw"`
-	CommitTxId        string            `gorm:"column:commitTxId" json:"commitTxId"`
-	RevealTxId        string            `gorm:"column:revealTxId" json:"revealTxId"`
-	TxId              string            `gorm:"column:txId" json:"txId"`
-	BlockHeight       int64             `gorm:"column:blockHeight" json:"blockHeight"`
-	ConfirmationState ConfirmationState `gorm:"column:confirmationState" json:"confirmationState"`
-	Timestamp         int64             `gorm:"column:timestamp" json:"timestamp"`
-	Version           int64             `gorm:"column:version" json:"version"`
-	CreateTime        int64             `gorm:"column:createTime" json:"createTime"`
-	UpdateTime        int64             `gorm:"column:updateTime" json:"updateTime"`
-	State             int64             `gorm:"column:state" json:"state"`
+	Id                  int64             `gorm:"column:id" json:"id"`
+	OrderId             string            `gorm:"column:orderId" json:"orderId"`
+	InscribeState       InscribeState     `gorm:"column:inscribeState" json:"inscribeState"`
+	Address             string            `gorm:"column:address" json:"address"`
+	TickId              string            `gorm:"column:tickId" json:"tickId"`
+	Tick                string            `gorm:"column:tick" json:"tick"`
+	TokenName           string            `gorm:"column:tokenName" json:"tokenName"`
+	Decimals            string            `gorm:"column:decimals" json:"decimals"`
+	AmtPerMint          string            `gorm:"column:amtPerMint" json:"amtPerMint"`
+	MintCount           string            `gorm:"column:mintCount" json:"mintCount"`
+	PremineCount        string            `gorm:"column:premineCount" json:"premineCount"`
+	StartBlockHeight    string            `gorm:"column:startBlockHeight" json:"startBlockHeight"`
+	EndBlockHeight      string            `gorm:"column:endBlockHeight" json:"endBlockHeight"`
+	Qual                string            `gorm:"column:qual" json:"qual"`
+	Payload             string            `gorm:"column:payload" json:"payload"`
+	Chain               string            `gorm:"column:chain" json:"chain"`
+	NetworkFeeRate      int64             `gorm:"column:networkFeeRate" json:"networkFeeRate"`
+	TotalFee            int64             `gorm:"column:totalFee" json:"totalFee"`
+	MinerFee            int64             `gorm:"column:minerFee" json:"minerFee"`
+	ServiceFee          int64             `gorm:"column:serviceFee" json:"serviceFee"`
+	RedeemScript        string            `gorm:"column:redeemScript" json:"redeemScript"`
+	ControlBlockWitness string            `gorm:"column:controlBlockWitness" json:"controlBlockWitness"`
+	RevealTxPrivateKey  string            `gorm:"column:revealTxPrivateKey" json:"revealTxPrivateKey"`
+	RevealTxAddress     string            `gorm:"column:revealTxAddress" json:"revealTxAddress"`
+	RevealInputIndex    int64             `gorm:"column:revealInputIndex" json:"revealInputIndex"`
+	RevealPrePsbtRaw    string            `gorm:"column:revealPrePsbtRaw" json:"revealPrePsbtRaw"`
+	RevealFinalPsbtRaw  string            `gorm:"column:revealFinalPsbtRaw" json:"revealFinalPsbtRaw"`
+	CommitTxRaw         string            `gorm:"column:commitTxRaw" json:"commitTxRaw"`
+	RevealTxRaw         string            `gorm:"column:revealTxRaw" json:"revealTxRaw"`
+	CommitTxId          string            `gorm:"column:commitTxId" json:"commitTxId"`
+	RevealTxId          string            `gorm:"column:revealTxId" json:"revealTxId"`
+	TxId                string            `gorm:"column:txId" json:"txId"`
+	BlockHeight         int64             `gorm:"column:blockHeight" json:"blockHeight"`
+	ConfirmationState   ConfirmationState `gorm:"column:confirmationState" json:"confirmationState"`
+	Timestamp           int64             `gorm:"column:timestamp" json:"timestamp"`
+	Version             int64             `gorm:"column:version" json:"version"`
+	CreateTime          int64             `gorm:"column:createTime" json:"createTime"`
+	UpdateTime          int64             `gorm:"column:updateTime" json:"updateTime"`
+	State               int64             `gorm:"column:state" json:"state"`
 }
 
 func (Mrc20DeployOrderModel) TableName() string {
@@ -142,12 +154,18 @@ func (_ *mrc20DeployOrderModelDao) SaveEntityForInscribing(model *Mrc20DeployOrd
 			return errors.New("model is nil")
 		}
 
+		model.RedeemScript = ""
+		model.ControlBlockWitness = ""
+		//model.RevealTxPrivateKey = ""
+		//model.RevealTxAddress = ""
+		model.RevealPrePsbtRaw = ""
+		model.RevealFinalPsbtRaw = ""
 		model.CommitTxRaw = ""
 		model.RevealTxRaw = ""
 		model.InscribeState = InscribeStateFinish
 		model.ConfirmationState = ConfirmationStateUnconfirmed
 
-		if err := tx.Create(model).Error; err != nil {
+		if err := tx.Save(model).Error; err != nil {
 			return err
 		}
 

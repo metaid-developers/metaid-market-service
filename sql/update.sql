@@ -266,3 +266,29 @@ alter table tb_mrc20_mint_order
     add mintPins TEXT AFTER `tickId`;
 
 ALTER table tb_mrc20_deploy_order CONVERT to CHARACTER set utf8mb4;
+
+alter table tb_mrc20_deploy_order
+    add endBlockHeight varchar(50) default '' not null AFTER `startBlockHeight`;
+
+alter table tb_mrc20_deploy_order
+    add networkFeeRate int default 0 not null AFTER `chain`;
+alter table tb_mrc20_deploy_order
+    add totalFee bigint default 0 not null AFTER `networkFeeRate`;
+alter table tb_mrc20_deploy_order
+    add minerFee bigint default 0 not null AFTER `totalFee`;
+alter table tb_mrc20_deploy_order
+    add serviceFee bigint default 0 not null AFTER `minerFee`;
+alter table tb_mrc20_deploy_order
+    add redeemScript TEXT not null AFTER `serviceFee`;
+alter table tb_mrc20_deploy_order
+    add controlBlockWitness TEXT not null AFTER `redeemScript`;
+alter table tb_mrc20_deploy_order
+    add revealTxPrivateKey varchar(80) default '' not null AFTER `controlBlockWitness`;
+alter table tb_mrc20_deploy_order
+    add revealTxAddress varchar(80) default '' not null AFTER `revealTxPrivateKey`;
+alter table tb_mrc20_deploy_order
+    add revealInputIndex int default 0 not null AFTER `revealTxAddress`;
+alter table tb_mrc20_deploy_order
+    add revealPrePsbtRaw TEXT not null AFTER `revealInputIndex`;
+alter table tb_mrc20_deploy_order
+    add revealFinalPsbtRaw TEXT not null AFTER `revealPrePsbtRaw`;

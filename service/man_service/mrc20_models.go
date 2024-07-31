@@ -46,6 +46,8 @@ type Mrc20TickInfo struct {
 	Decimals     string      `json:"decimals"`
 	AmtPerMint   string      `json:"amtPerMint"`
 	MintCount    int64       `json:"mintCount"`
+	BeginHeight  string      `json:"beginHeight"`
+	EndHeight    string      `json:"endHeight"`
 	BlockHeight  string      `json:"blockheight"`
 	Metadata     string      `json:"metadata"`
 	Type         string      `json:"type"`

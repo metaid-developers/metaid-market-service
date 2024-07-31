@@ -19,6 +19,8 @@ var (
 	WalletDomain         = ""
 	OrdersExchangeDomain = ""
 	OrdersExchangeKey    = ""
+	TicketFansDomain     = ""
+	MvcscanDamain        = ""
 
 	RpcUrl      = ""
 	RpcUsername = ""
@@ -33,6 +35,9 @@ var (
 	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk     = "", ""
 	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee = "", ""
 	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg     = "", ""
+
+	MetaCoinMrc20Id                          = ""
+	MetaCoinCodehash, MetaCoinGenesis string = "", ""
 
 	PopExtractCount int = 0
 
@@ -57,6 +62,8 @@ func InitConfig() {
 	WalletDomain = viper.GetString("wallet_node.domain")
 	OrdersExchangeDomain = viper.GetString("orders_exchange.domain")
 	OrdersExchangeKey = viper.GetString("orders_exchange.key")
+	TicketFansDomain = viper.GetString("ticket_fans.domain")
+	MvcscanDamain = viper.GetString("mvcscan.domain")
 
 	RedisEndpoint, RedisPassword = viper.GetString("redis.endpoint"), viper.GetString("redis.password")
 	RedisDbUtxo = viper.GetInt("redis.db_utxo")
@@ -70,6 +77,9 @@ func InitConfig() {
 	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk = viper.GetString("platform.dummy.private_key"), viper.GetString("platform.dummy.address")
 	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee = viper.GetString("platform.receive_fee.private_key"), viper.GetString("platform.receive_fee.address")
 	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg = viper.GetString("platform.sign_msg.private_key"), viper.GetString("platform.sign_msg.public_key")
+
+	MetaCoinMrc20Id = viper.GetString("meta_coin.mrc20id")
+	MetaCoinCodehash, MetaCoinGenesis = viper.GetString("meta_coin.codehash"), viper.GetString("meta_coin.genesis")
 
 	PopExtractCount = viper.GetInt("pop.extract_count")
 

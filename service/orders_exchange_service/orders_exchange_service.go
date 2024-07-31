@@ -163,11 +163,12 @@ func FetchIdCoinsOpOrders(req *FetchIdCoinsOpOrdersRequest, headers map[string]s
 		data   *FetchIdCoinsOpOrdersResp
 		err    error
 		query  map[string]string = map[string]string{
-			"opOrderType": req.OpOrderType,
-			"address":     req.Address,
-			"tickId":      req.TickId,
-			"cursor":      fmt.Sprintf("%d", req.Cursor),
-			"size":        fmt.Sprintf("%d", req.Size),
+			"opOrderType":  req.OpOrderType,
+			"address":      req.Address,
+			"tickId":       req.TickId,
+			"cursor":       fmt.Sprintf("%d", req.Cursor),
+			"size":         fmt.Sprintf("%d", req.Size),
+			"confirmation": fmt.Sprintf("%d", req.Confirmation),
 		}
 	)
 	headers = addHeaderKey(headers)
@@ -246,6 +247,7 @@ func FetchIdCoinsList(req *FetchIdCoinsListRequest, headers map[string]string) (
 			"orderBy":         req.OrderBy,
 			"sortType":        fmt.Sprintf("%d", req.SortType),
 			"followerAddress": req.FollowerAddress,
+			"searchTick":      req.SearchTick,
 		}
 	)
 	headers = addHeaderKey(headers)
@@ -284,6 +286,7 @@ func FetchOneIdCoinsInfo(req *FetchOneIdCoinsRequest, headers map[string]string)
 			"tickId":        req.TickId,
 			"tick":          req.Tick,
 			"issuerAddress": req.IssuerAddress,
+			"address":       req.Address,
 		}
 	)
 	headers = addHeaderKey(headers)
@@ -323,6 +326,42 @@ func FetchIdCoinsTickIds(headers map[string]string) (*FetchIdCoinsTickIdsResp, e
 	headers = addHeaderKey(headers)
 
 	url = fmt.Sprintf("%s/id-coins/tick-ids", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.GetUrl(url, query, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
+func FetchIdCoinsDeployCheckInfo(req *FetchIdCoinsDeployCheckRequest, headers map[string]string) (*FetchIdCoinsDeployCheckResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *FetchIdCoinsDeployCheckResp
+		err    error
+		query  map[string]string = map[string]string{
+			"address": req.Address,
+		}
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/id-coins/deploy/check/info", conf.OrdersExchangeDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {

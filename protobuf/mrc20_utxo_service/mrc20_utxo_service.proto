@@ -94,9 +94,62 @@ message Mrc20Info {
   string decimals = 5;
 }
 
+message TickListRequest {
+  string tick = 1;
+  string completed = 2;
+  string order = 3;
+  string orderType = 4;
+  int64 offset = 5;
+  int64 size = 6;
+}
+
+
+message Mrc20DeployInfoResponse {
+  string tick = 1;
+  string tokenName = 2;
+  string decimals = 3;
+  string amtPerMint = 4;
+  int64 mintCount = 5;
+  string beginHeight = 6;
+  string endHeight = 7;
+  string metadata = 8;
+  string deployType = 9;
+  int64 premineCount = 10;
+  Mrc20DeployPinCheck pinCheck = 11;
+  PayCheck payCheck = 12;
+  int64 totalMinted = 13;
+  string mrc20Id = 14;
+  int64 pinNumber = 15;
+  string chain = 16;
+  int64 holders = 17;
+  int64 txCount = 18;
+  string metaId = 19;
+  string address = 20;
+  int64 deployTime = 21;
+}
+
+message Mrc20DeployPinCheck {
+  string creator = 1;
+  string lvl = 2;
+  string path = 3;
+  string count = 4;
+}
+
+message PayCheck {
+  string payTo = 1;
+  string payAmount = 2;
+}
+
+message Mrc20DeployListResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20DeployInfoResponse detail = 3;
+}
+
 
 service Mrc20UtxoService {
   rpc FetchMrc20AddressTxList(AddressMrc20TxRequest) returns (Mrc20TxListResponse) {};
   rpc FetchMrc20AddressBalanceList(AddressMrc20BalanceRequest) returns (Mrc20BalanceListResponse) {};
   rpc FetchMrc20AddressUtxoList(AddressMrc20UtxoRequest) returns (Mrc20UtxoResponse) {};
+  rpc FetchMrc20DeployList(TickListRequest) returns (Mrc20DeployListResponse) {};
 }

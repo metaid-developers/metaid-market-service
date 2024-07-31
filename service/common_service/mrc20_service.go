@@ -13,19 +13,152 @@ import (
 	"metaid-market-service/protobuf/mrc20_utxo_service"
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/man_service"
+	"metaid-market-service/service/mvcscan_service"
 	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/ticket_service"
 	"strconv"
 	"strings"
 )
 
 func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
+	if req.SearchTick != "" || req.OrderBy == "totalSupply" {
+		return FetchMrc20TickListByGrpc(req)
+	}
 	switch req.OrderBy {
 	case "change24H", "lastPrice", "marketCap":
 		return FetchMrc20TickListByMarket(req)
 	default:
+		req.OrderBy = strings.ToLower(req.OrderBy)
 		return FetchMrc20TickListByMan(req)
 	}
 }
+
+func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
+	var (
+		grpcResp *mrc20_utxo_service.Mrc20DeployListResponse
+		err      error
+		list     []*respond.Mrc20TickInfo = make([]*respond.Mrc20TickInfo, 0)
+		total    int64                    = 0
+		sortType                          = "desc"
+	)
+	if req.SortType > 0 {
+		sortType = "asc"
+	}
+	client, err := grpc_service.GetMrc20BaseConn()
+	if err != nil {
+		return nil, err
+	}
+	grpcResp, err = client.FetchMrc20DeployList(req.SearchTick, req.Completed, req.OrderBy, sortType, req.Cursor, req.Size)
+	if err != nil {
+		return nil, err
+	}
+	if grpcResp == nil {
+		return nil, errors.New("grpc response is empty")
+	}
+
+	if grpcResp != nil {
+		for _, v := range grpcResp.GetDetail() {
+			totalSupply := "0"
+			mintable := false
+			remaining := "0"
+			supply := "0"
+			if v.AmtPerMint != "" && v.MintCount != 0 {
+				totalMintedDe := decimal.New(v.TotalMinted, 0)
+				//premineCountDe := decimal.New(v.PremineCount, 0)
+				amtPerMintDe, _ := decimal.NewFromString(v.AmtPerMint)
+				mintCountDe := decimal.New(v.MintCount, 0)
+
+				if totalMintedDe.GreaterThan(mintCountDe) {
+					supplyDe := mintCountDe.Mul(amtPerMintDe)
+					supply = supplyDe.String()
+				} else {
+					supplyDe := totalMintedDe.Mul(amtPerMintDe)
+					supply = supplyDe.String()
+				}
+
+				totalSupplyDe := mintCountDe.Mul(amtPerMintDe)
+				totalSupply = totalSupplyDe.String()
+
+				remainingDe := mintCountDe.Sub(totalMintedDe).Mul(amtPerMintDe)
+				remaining = remainingDe.String()
+				if remainingDe.GreaterThan(decimal.Zero) {
+					mintable = true
+				}
+			}
+
+			price := "0"
+			priceUsd := "0.00"
+			change24h := "+0.00%"
+			marketCap := "0"
+			marketCapUsd := "0.00"
+			totalVolume := int64(0)
+
+			marketInfo, _ := models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
+				TickId: v.Mrc20Id,
+			})
+			if marketInfo != nil {
+				price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
+				marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
+				change24HDe := decimal.New(marketInfo.Change24H, 0)
+				change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+
+				btcUsd := GetPriceForUsd("BTC")
+				btcUsdDe, _ := decimal.NewFromString(btcUsd)
+				satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+				priceDe, _ := decimal.NewFromString(price)
+				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+				marketCapDe, _ := decimal.NewFromString(marketCap)
+				marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+
+				totalVolume = marketInfo.TotalVolume
+			}
+
+			item := &respond.Mrc20TickInfo{
+				Tick:             v.Tick,
+				TokenName:        v.TokenName,
+				Decimals:         v.Decimals,
+				AmtPerMint:       v.AmtPerMint,
+				MintCount:        strconv.FormatInt(v.MintCount, 10),
+				PremineCount:     strconv.FormatInt(v.PremineCount, 10),
+				BeginHeight:      v.BeginHeight,
+				EndHeight:        v.EndHeight,
+				MetaData:         v.Metadata,
+				Type:             v.DeployType,
+				Qual:             v.PinCheck,
+				PinCheck:         v.PinCheck,
+				PayCheck:         v.PayCheck,
+				TotalMinted:      strconv.FormatInt(v.TotalMinted, 10),
+				Mrc20Id:          v.Mrc20Id,
+				PinNumber:        v.PinNumber,
+				Holders:          v.Holders,
+				TxCount:          v.TxCount,
+				DeployerMetaId:   v.MetaId,
+				DeployerAddress:  v.Address,
+				DeployTime:       v.DeployTime,
+				DeployerUserInfo: common.FetchMetaIDUserInfo(v.Address),
+				Price:            price,
+				PriceUsd:         priceUsd,
+				Change24h:        change24h,
+				MarketCap:        marketCap,
+				MarketCapUsd:     marketCapUsd,
+				TotalVolume:      totalVolume,
+				TotalSupply:      totalSupply,
+				Supply:           supply,
+				Mintable:         mintable,
+				Remaining:        remaining,
+			}
+
+			list = append(list, item)
+		}
+		total = grpcResp.Total
+	}
+	return &respond.Mrc20TickListResp{
+		Total: total,
+		List:  list,
+	}, nil
+}
+
 func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
 	var (
 		mrc20Resp *man_service.Mrc20TickListResp
@@ -106,7 +239,8 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 				AmtPerMint:       v.AmtPerMint,
 				MintCount:        strconv.FormatInt(v.MintCount, 10),
 				PremineCount:     strconv.FormatInt(v.PremineCount, 10),
-				BlockHeight:      v.BlockHeight,
+				BeginHeight:      v.BlockHeight,
+				EndHeight:        v.EndHeight,
 				MetaData:         v.Metadata,
 				Type:             v.Type,
 				Qual:             v.PinCheck,
@@ -191,7 +325,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 
 		totalVolume = v.TotalVolume
 
-		tickInfo, _ := GetMrc20TickInfo(v.TickId)
+		tickInfo, _ := GetMrc20TickInfo(v.TickId, "")
 		if tickInfo == nil {
 			continue
 		}
@@ -219,7 +353,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			}
 		}
 		fmt.Printf("Completed:%t, mintable:%t\n", req.Completed, mintable)
-		if req.Completed && mintable {
+		if req.Completed == "ture" && mintable {
 			continue
 		}
 
@@ -232,7 +366,8 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			AmtPerMint:       tickInfo.AmtPerMint,
 			MintCount:        tickInfo.MintCount,
 			PremineCount:     tickInfo.PremineCount,
-			BlockHeight:      tickInfo.BlockHeight,
+			BeginHeight:      tickInfo.BeginHeight,
+			EndHeight:        tickInfo.EndHeight,
 			MetaData:         tickInfo.MetaData,
 			Type:             tickInfo.Type,
 			Qual:             tickInfo.Qual,
@@ -342,7 +477,8 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				AmtPerMint:       v.AmtPerMint,
 				MintCount:        strconv.FormatInt(v.MintCount, 10),
 				PremineCount:     strconv.FormatInt(v.PremineCount, 10),
-				BlockHeight:      v.BlockHeight,
+				BeginHeight:      v.BeginHeight,
+				EndHeight:        v.EndHeight,
 				MetaData:         v.Metadata,
 				Type:             v.Type,
 				Qual:             v.PinCheck,
@@ -372,6 +508,9 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			list = append(list, item)
 		}
 		total = mrc20Resp.Total
+	}
+	if int64(len(list)) > req.Size {
+		list = list[:req.Size]
 	}
 
 	return &respond.Mrc20TickListResp{
@@ -462,7 +601,8 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		MintCount:        strconv.FormatInt(mrc20Resp.MintCount, 10),
 		PremineCount:     strconv.FormatInt(mrc20Resp.PremineCount, 10),
 		TotalMinted:      strconv.FormatInt(mrc20Resp.TotalMinted, 10),
-		BlockHeight:      mrc20Resp.BlockHeight,
+		BeginHeight:      mrc20Resp.BeginHeight,
+		EndHeight:        mrc20Resp.EndHeight,
 		MetaData:         mrc20Resp.Metadata,
 		Type:             mrc20Resp.Type,
 		Qual:             mrc20Resp.PinCheck,
@@ -727,7 +867,75 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 		marketCap     string = "0"
 		marketCapUsd  string = "0.00"
 		totalVolume   int64  = 0
+
+		ticketPriceInfo *ticket_service.FetchClubTicketPriceInfoResp
 	)
+
+	if req.TickId == conf.MetaCoinMrc20Id {
+		priceInfo, _ := mvcscan_service.FetchMetaContractFtSummaryInfo(conf.MetaCoinCodehash, conf.MetaCoinGenesis, nil)
+		if priceInfo == nil || len(priceInfo.Data) == 0 {
+			return nil, errors.New("meta coin price info not found")
+		}
+		mcPriceInfo := priceInfo.Data[0]
+		priceUsd = mcPriceInfo.MarketPriceUsdt
+		priceUsdDe, _ := decimal.NewFromString(priceUsd)
+
+		btcUsd := GetPriceForUsd("BTC")
+		btcUsdDe, _ := decimal.NewFromString(btcUsd)
+		satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+		priceDe := priceUsdDe.Div(satUsdDe)
+		price = priceDe.StringFixed(6)
+		return &respond.Mrc20TickMarketPriceResp{
+			TickId:    req.TickId,
+			Tick:      "",
+			TokenName: "",
+			Decimals:  0,
+			Supply:    "",
+			//TotalVolume:   totalVolume,
+			//MarketCap:     marketCap,
+			//MarketCapUsd:  marketCapUsd,
+			//LastPrice:     price,
+			//LastPriceUsd:  priceUsd,
+			Price:    price,
+			PriceUsd: priceUsd,
+			//FloorPrice:    floorPrice,
+			//FloorPriceUsd: floorPriceUsd,
+		}, nil
+	}
+
+	ticketPriceInfo, _ = ticket_service.FetchClubTicketPriceInfo(&ticket_service.FetchClubTicketPriceInfoRequest{
+		TicketId: req.TickId,
+	}, nil)
+	if ticketPriceInfo != nil {
+		decimals, _ := strconv.ParseInt(ticketPriceInfo.Decimals, 10, 64)
+
+		btcUsd := GetPriceForUsd("BTC")
+		btcUsdDe, _ := decimal.NewFromString(btcUsd)
+		satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+		price = ticketPriceInfo.TicketPriceStr
+		priceDe, _ := decimal.NewFromString(price)
+		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+
+		return &respond.Mrc20TickMarketPriceResp{
+			TickId:        ticketPriceInfo.TicketId,
+			Tick:          ticketPriceInfo.Tick,
+			TokenName:     ticketPriceInfo.TokenName,
+			Decimals:      decimals,
+			Supply:        "",
+			TotalVolume:   totalVolume,
+			MarketCap:     marketCap,
+			MarketCapUsd:  marketCapUsd,
+			LastPrice:     price,
+			LastPriceUsd:  priceUsd,
+			Price:         price,
+			PriceUsd:      priceUsd,
+			FloorPrice:    floorPrice,
+			FloorPriceUsd: floorPriceUsd,
+		}, nil
+	}
+
 	marketInfo, err = models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
 		TickId: req.TickId,
 	})
@@ -736,6 +944,7 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 	}
 	if marketInfo == nil {
 		return nil, errors.New("mrc20 market info not found")
+
 	}
 	price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
 	floorPrice = strconv.FormatFloat(marketInfo.FloorPrice, 'f', -1, 64)

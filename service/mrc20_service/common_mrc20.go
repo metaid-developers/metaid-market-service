@@ -47,7 +47,8 @@ type Mrc20DeployData struct {
 	AmtPerMint   string      `json:"amtPerMint"`
 	MintCount    string      `json:"mintCount"`
 	PremineCount string      `json:"premineCount"`
-	Blockheight  string      `json:"blockheight"`
+	BeginHeight  string      `json:"beginHeight"`
+	EndHeight    string      `json:"endHeight"`
 	Metadata     string      `json:"metadata"`
 	PinCheck     interface{} `json:"pinCheck"`
 	PayCheck     *PayCheck   `json:"payCheck"`
@@ -56,6 +57,37 @@ type Mrc20DeployData struct {
 type PayCheck struct {
 	PayAmount string `json:"payAmount"`
 	PayTo     string `json:"payTo"`
+}
+
+func MakeDeployPayload(tick, tokenName, metaData, amtPerMint string) (string, *Mrc20DeployData, int64) {
+	var (
+		payload         string           = ""
+		totalSupply     int64            = 0
+		mrc20DeployData *Mrc20DeployData = &Mrc20DeployData{
+			Tick:         tick,
+			TokenName:    tokenName,
+			Decimals:     "8",
+			AmtPerMint:   amtPerMint,
+			MintCount:    "1",
+			PremineCount: "1",
+			BeginHeight:  "",
+			EndHeight:    "",
+			Metadata:     metaData,
+			PinCheck: map[string]interface{}{
+				"creator": "",
+				"path":    "",
+				"lvl":     "",
+				"count":   "",
+			},
+		}
+	)
+
+	amtPerMintDe, _ := decimal.NewFromString(mrc20DeployData.AmtPerMint)
+	mintCountDe, _ := decimal.NewFromString(mrc20DeployData.MintCount)
+	totalSupply = amtPerMintDe.Mul(mintCountDe).IntPart()
+
+	payload = tool.AnyToStr(mrc20DeployData)
+	return payload, mrc20DeployData, totalSupply
 }
 
 func MakeDeployPayloadForIdCoins(tick, tokenName, metaId, metadata, payTo string, followersNum, amountPerMint, liquidityPerMint int64) (string, *Mrc20DeployData, int64) {
@@ -69,7 +101,8 @@ func MakeDeployPayloadForIdCoins(tick, tokenName, metaId, metadata, payTo string
 			AmtPerMint:   strconv.FormatInt(amountPerMint, 10),
 			MintCount:    strconv.FormatInt(followersNum, 10),
 			PremineCount: "",
-			Blockheight:  "",
+			BeginHeight:  "",
+			EndHeight:    "",
 			Metadata:     metadata,
 			PinCheck: map[string]interface{}{
 				"creator": "",

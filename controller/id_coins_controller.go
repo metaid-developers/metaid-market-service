@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
+	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_op_service"
 	"metaid-market-service/tool"
 	"net/http"
@@ -133,14 +134,16 @@ func FetchIdCoinsOpOrders(c *gin.Context) {
 		cursorStr string                               = c.DefaultQuery("cursor", "0")
 		sizeStr   string                               = c.DefaultQuery("size", "10")
 		req       *request.FetchIdCoinsOpOrdersRequest = &request.FetchIdCoinsOpOrdersRequest{
-			OpOrderType: c.DefaultQuery("opOrderType", "deploy"),
-			TickId:      c.DefaultQuery("tickId", ""),
-			Cursor:      0,
-			Size:        0,
-			Address:     c.DefaultQuery("address", ""),
+			OpOrderType:  c.DefaultQuery("opOrderType", "deploy"),
+			TickId:       c.DefaultQuery("tickId", ""),
+			Cursor:       0,
+			Size:         0,
+			Address:      c.DefaultQuery("address", ""),
+			Confirmation: 0,
 		}
 	)
-
+	confirmation, _ := strconv.ParseInt(c.DefaultQuery("confirmation", "0"), 10, 64)
+	req.Confirmation = models.ConfirmationState(confirmation)
 	req.Cursor, _ = strconv.ParseInt(cursorStr, 10, 64)
 	req.Size, _ = strconv.ParseInt(sizeStr, 10, 64)
 	resp, err := mrc20_op_service.FetchIdCoinsOpOrders(req, publicKey, c.ClientIP())
@@ -183,6 +186,7 @@ func FetchIdCoinsAddressMintOrder(c *gin.Context) {
 // @Produce  json
 // @Tags IdCoins
 // @Param address query string false "address"
+// @Param searchTick query string false "searchTick"
 // @Param orderBy query string false "supply/pool/timestamp, default:timestamp  "
 // @Param sortType query int false "default:-1"
 // @Param followerAddress query string false "followerAddress"
@@ -202,6 +206,7 @@ func FetchIdCoinsList(c *gin.Context) {
 			Address:         c.DefaultQuery("address", ""),
 			OrderBy:         c.DefaultQuery("orderBy", ""),
 			FollowerAddress: c.DefaultQuery("followerAddress", ""),
+			SearchTick:      c.DefaultQuery("searchTick", ""),
 		}
 	)
 	req.SortType, _ = strconv.Atoi(c.DefaultQuery("sortType", "-1"))
@@ -223,6 +228,7 @@ func FetchIdCoinsList(c *gin.Context) {
 // @Param tickId query string true "tickId"
 // @Param tick query string false "tick"
 // @Param issuerAddress query string false "issuerAddress"
+// @Param address query string false "address"
 // @Success 200 {object} respond.IdCoinsInfoResp ""
 // @Router /api/v1/id-coins/coins-info [get]
 func FetchOneIdCoinsInfo(c *gin.Context) {
@@ -233,10 +239,36 @@ func FetchOneIdCoinsInfo(c *gin.Context) {
 			TickId:        c.DefaultQuery("tickId", ""),
 			Tick:          c.DefaultQuery("tick", ""),
 			IssuerAddress: c.DefaultQuery("issuerAddress", ""),
+			Address:       c.DefaultQuery("address", ""),
 		}
 	)
 
 	resp, err := mrc20_op_service.FetchOneIdCoinsInfo(req, publicKey, c.ClientIP())
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
+	return
+}
+
+// @Summary Check id-coins deploy check info
+// @Description Fetch id-coins info
+// @Produce  json
+// @Tags IdCoins
+// @Param address query string false "address"
+// @Success 200 {object} respond.FetchIdCoinsDeployCheckResp ""
+// @Router /api/v1/id-coins/deploy/check/info [get]
+func FetchIdCoinsDeployCheckInfo(c *gin.Context) {
+	var (
+		t         int64                                   = tool.MakeTimestamp()
+		publicKey                                         = getAuthParams(c)
+		req       *request.FetchIdCoinsDeployCheckRequest = &request.FetchIdCoinsDeployCheckRequest{
+			Address: c.DefaultQuery("address", ""),
+		}
+	)
+
+	resp, err := mrc20_op_service.FetchIdCoinsDeployCheckInfo(req, publicKey, c.ClientIP())
 	if err != nil {
 		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
 		return

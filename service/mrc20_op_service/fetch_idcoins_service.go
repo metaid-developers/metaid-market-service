@@ -21,11 +21,12 @@ func fetchIdCoinsOpOrdersFromOrders(req *request.FetchIdCoinsOpOrdersRequest, pu
 		}
 
 		reqOrders *orders_exchange_service.FetchIdCoinsOpOrdersRequest = &orders_exchange_service.FetchIdCoinsOpOrdersRequest{
-			OpOrderType: req.OpOrderType,
-			Address:     req.Address,
-			TickId:      req.TickId,
-			Cursor:      req.Cursor,
-			Size:        req.Size,
+			OpOrderType:  req.OpOrderType,
+			Address:      req.Address,
+			TickId:       req.TickId,
+			Cursor:       req.Cursor,
+			Size:         req.Size,
+			Confirmation: req.Confirmation,
 		}
 		respOrders *orders_exchange_service.FetchIdCoinsOpOrdersResp
 		err        error
@@ -159,6 +160,7 @@ func fetchIdCoinsListFromOrders(req *request.FetchIdCoinsListRequest, publicKey,
 			OrderBy:         req.OrderBy,
 			SortType:        req.SortType,
 			FollowerAddress: req.FollowerAddress,
+			SearchTick:      req.SearchTick,
 		}
 		respOrders *orders_exchange_service.FetchIdCoinsListResp
 		err        error
@@ -232,6 +234,7 @@ func fetchOneIdCoinsInfoFromOrders(req *request.FetchOneIdCoinsRequest, publicKe
 			TickId:        req.TickId,
 			Tick:          req.Tick,
 			IssuerAddress: req.IssuerAddress,
+			Address:       req.Address,
 		}
 		respOrders *orders_exchange_service.IdCoinsInfoResp
 		err        error
@@ -321,6 +324,36 @@ func fetchOneIdCoinsInfoFromOrders(req *request.FetchOneIdCoinsRequest, publicKe
 		MarketCap:        marketCap,
 		MarketCapUsd:     marketCapUsd,
 		TotalVolume:      totalVolume,
+		OrdersPrice:      respOrders.OrdersPrice,
+		OrdersPool:       respOrders.OrdersPool,
+	}
+	return resp, nil
+}
+
+func FetchIdCoinsDeployCheckInfo(req *request.FetchIdCoinsDeployCheckRequest, publicKey, ip string) (*respond.FetchIdCoinsDeployCheckResp, error) {
+	return fetchIdCoinsDeployCheckInfo(req, publicKey, ip)
+}
+
+func fetchIdCoinsDeployCheckInfo(req *request.FetchIdCoinsDeployCheckRequest, publicKey, ip string) (*respond.FetchIdCoinsDeployCheckResp, error) {
+	var (
+		headers map[string]string = map[string]string{
+			"X-Public-Key": publicKey,
+		}
+
+		reqOrders *orders_exchange_service.FetchIdCoinsDeployCheckRequest = &orders_exchange_service.FetchIdCoinsDeployCheckRequest{
+			Address: req.Address,
+		}
+		respOrders *orders_exchange_service.FetchIdCoinsDeployCheckResp
+		err        error
+	)
+	respOrders, err = orders_exchange_service.FetchIdCoinsDeployCheckInfo(reqOrders, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &respond.FetchIdCoinsDeployCheckResp{
+		CanDeploy: respOrders.CanDeploy,
+		Msg:       respOrders.Msg,
 	}
 	return resp, nil
 }

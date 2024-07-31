@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"metaid-market-service/conf"
 	"metaid-market-service/tool"
+	"strings"
 )
 
 var (
@@ -98,7 +99,7 @@ func FetchMrc20TickInfo(tickId, tick string) (*Mrc20TickInfo, error) {
 		err    error
 	)
 	query := map[string]string{
-		"tick": tick,
+		"tick": strings.ToUpper(tick),
 		"id":   tickId,
 	}
 	url = fmt.Sprintf("%s/api/mrc20/tick/info", conf.ManDomain)
@@ -208,7 +209,7 @@ func FetchMrc20txPointList(txId string, index, cursor, size int64) (*Mrc20UtxoRe
 	return data, nil
 }
 
-func FetchMrc20TickList(cursor, size int64, completed bool, order, sortType string) (*Mrc20TickListResp, error) {
+func FetchMrc20TickList(cursor, size int64, completed string, order, sortType string) (*Mrc20TickListResp, error) {
 	var (
 		url    string
 		result string
@@ -219,7 +220,7 @@ func FetchMrc20TickList(cursor, size int64, completed bool, order, sortType stri
 	query := map[string]string{
 		"cursor":    fmt.Sprintf("%d", cursor),
 		"size":      fmt.Sprintf("%d", size),
-		"completed": fmt.Sprintf("%t", completed),
+		"completed": fmt.Sprintf("%s", completed),
 		"order":     order,
 		"orderType": sortType,
 	}
