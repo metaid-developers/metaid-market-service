@@ -14,6 +14,13 @@ const (
 	AssetTypeMrc20 = "mrc20"
 )
 
+type AskType int
+
+const (
+	AskTypeNone        AskType = 0
+	AskTypePreTransfer AskType = 1
+)
+
 type MarketMrc20OrderModel struct {
 	Id                int64             `gorm:"column:id" json:"id"`
 	OrderId           string            `gorm:"column:orderId" json:"orderId"`
@@ -32,6 +39,7 @@ type MarketMrc20OrderModel struct {
 	PriceAmount       int64             `gorm:"column:priceAmount" json:"priceAmount"`
 	PriceDecimal      int64             `gorm:"column:priceDecimal" json:"priceDecimal"`
 	PriceCoin         string            `gorm:"column:priceCoin" json:"priceCoin"`
+	AskType           AskType           `gorm:"column:askType" json:"askType"`
 	OrderState        OrderState        `gorm:"column:orderState" json:"orderState"`
 	SellerAddress     string            `gorm:"column:sellerAddress" json:"sellerAddress"`
 	SellerIp          string            `gorm:"column:sellerIp" json:"sellerIp"`

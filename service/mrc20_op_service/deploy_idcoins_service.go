@@ -58,6 +58,8 @@ func buildIdCoinsPreFromOrders(req *request.BuildIdCoinsPreRequest, publicKey, i
 		TotalFee:       respOrders.TotalFee,
 		ReceiveAddress: respOrders.ReceiveAddress,
 		MinerFee:       respOrders.MinerFee,
+		MinerGas:       respOrders.MinerGas,
+		MinerOutValue:  respOrders.MinerOutValue,
 		ServiceFee:     respOrders.ServiceFee,
 	}, nil
 }

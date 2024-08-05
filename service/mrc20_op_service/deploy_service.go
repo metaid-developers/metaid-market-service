@@ -53,20 +53,31 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 
 		mrc20OpRequest        *mrc20_service.Mrc20OpRequest
 		mrc20Builder          *mrc20_service.Mrc20Builder
-		mrc20OutValue         int64  = 546
-		changeAddress         string = address
-		deployPinOutAddress          = address
-		deployMrc20OutAddress        = address
-		revealInputIndex      int64  = 0
-		revealPrePsbtRaw      string = ""
-		revealAddress         string = ""
+		otherOuts             []*mrc20_service.OtherOut = make([]*mrc20_service.OtherOut, 0)
+		mrc20OutValue         int64                     = 546
+		changeAddress         string                    = address
+		deployPinOutAddress                             = address
+		deployMrc20OutAddress                           = address
+		revealInputIndex      int64                     = 0
+		revealPrePsbtRaw      string                    = ""
+		revealAddress         string                    = ""
 
-		totalFee   int64 = 0
-		minerFee   int64 = 0
-		serviceFee int64 = 0
+		totalFee       int64  = 0
+		minerFee       int64  = 0
+		minerGas       int64  = 0
+		minerOutValue  int64  = 0
+		serviceFee     int64  = 0
+		serviceAddress string = ""
 
 		nowTime int64 = tool.MakeTimestamp()
 	)
+	serviceFee, serviceAddress = common.GetPlatformServiceFeeConfigData().DeployFee, common.GetPlatformServiceFeeConfigData().ServiceAddress
+	if serviceFee > 546 {
+		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
+			Address: serviceAddress,
+			Amount:  serviceFee,
+		})
+	}
 
 	if payload == "" {
 		return nil, errors.New("pin content body is empty")
@@ -76,6 +87,9 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	}
 
 	tick = mrc20DeployData.Tick
+	if len(tick) > 24 || len(tick) < 2 {
+		return nil, errors.New("tick length error")
+	}
 
 	tickInfo, _ := common_service.GetMrc20TickInfo("", tick)
 	if tickInfo != nil && tickInfo.Mrc20Id != "" {
@@ -112,7 +126,14 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	if err != nil {
 		return nil, err
 	}
-	totalFee = minerFee + serviceFee
+	totalFee = minerFee
+	if mrc20OpRequest.DeployPinOutAddress != "" {
+		minerOutValue += mrc20OpRequest.Mrc20OutValue
+	}
+	if mrc20OpRequest.DeployMrc20OutAddress != "" {
+		minerOutValue += mrc20OpRequest.Mrc20OutValue
+	}
+	minerGas = minerFee - minerOutValue - serviceFee
 
 	orderId = fmt.Sprintf("mrc20_deploy_%s_%s_%d", deployPinOutAddress, tick, nowTime)
 	orderId = hex.EncodeToString(tool.SHA256([]byte(orderId)))
@@ -200,10 +221,11 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 		OrderId:       orderId,
 		TotalFee:      totalFee,
 		MinerFee:      minerFee,
+		MinerGas:      minerGas,
+		MinerOutValue: minerOutValue,
 		ServiceFee:    serviceFee,
 		RevealAddress: revealAddress,
-		//RevealPrePsbtRaw: revealPrePsbtRaw,
-		//RevealInputIndex: revealInputIndex,
+		Extra:         nil,
 	}, nil
 }
 

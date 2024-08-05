@@ -25,6 +25,7 @@ const (
 	Mrc20UtxoService_FetchMrc20DeployList_FullMethodName         = "/protobuf.Mrc20UtxoService/FetchMrc20DeployList"
 	Mrc20UtxoService_FetchMrc20UtxoTxPoint_FullMethodName        = "/protobuf.Mrc20UtxoService/FetchMrc20UtxoTxPoint"
 	Mrc20UtxoService_FetchMrc20UtxoTickBlock_FullMethodName      = "/protobuf.Mrc20UtxoService/FetchMrc20UtxoTickBlock"
+	Mrc20UtxoService_FetchMrc20CheckBlock_FullMethodName         = "/protobuf.Mrc20UtxoService/FetchMrc20CheckBlock"
 )
 
 // Mrc20UtxoServiceClient is the client API for Mrc20UtxoService service.
@@ -37,6 +38,7 @@ type Mrc20UtxoServiceClient interface {
 	FetchMrc20DeployList(ctx context.Context, in *TickListRequest, opts ...grpc.CallOption) (*Mrc20DeployListResponse, error)
 	FetchMrc20UtxoTxPoint(ctx context.Context, in *Mrc20UtxoTxPointRequest, opts ...grpc.CallOption) (*Mrc20DbUtxoResponse, error)
 	FetchMrc20UtxoTickBlock(ctx context.Context, in *Mrc20UtxoTickBlockRequest, opts ...grpc.CallOption) (*Mrc20DbUtxoResponse, error)
+	FetchMrc20CheckBlock(ctx context.Context, in *Mrc20CheckBlockRequest, opts ...grpc.CallOption) (*Mrc20CheckBlockInfoResponse, error)
 }
 
 type mrc20UtxoServiceClient struct {
@@ -101,6 +103,15 @@ func (c *mrc20UtxoServiceClient) FetchMrc20UtxoTickBlock(ctx context.Context, in
 	return out, nil
 }
 
+func (c *mrc20UtxoServiceClient) FetchMrc20CheckBlock(ctx context.Context, in *Mrc20CheckBlockRequest, opts ...grpc.CallOption) (*Mrc20CheckBlockInfoResponse, error) {
+	out := new(Mrc20CheckBlockInfoResponse)
+	err := c.cc.Invoke(ctx, Mrc20UtxoService_FetchMrc20CheckBlock_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Mrc20UtxoServiceServer is the server API for Mrc20UtxoService service.
 // All implementations must embed UnimplementedMrc20UtxoServiceServer
 // for forward compatibility
@@ -111,6 +122,7 @@ type Mrc20UtxoServiceServer interface {
 	FetchMrc20DeployList(context.Context, *TickListRequest) (*Mrc20DeployListResponse, error)
 	FetchMrc20UtxoTxPoint(context.Context, *Mrc20UtxoTxPointRequest) (*Mrc20DbUtxoResponse, error)
 	FetchMrc20UtxoTickBlock(context.Context, *Mrc20UtxoTickBlockRequest) (*Mrc20DbUtxoResponse, error)
+	FetchMrc20CheckBlock(context.Context, *Mrc20CheckBlockRequest) (*Mrc20CheckBlockInfoResponse, error)
 	mustEmbedUnimplementedMrc20UtxoServiceServer()
 }
 
@@ -135,6 +147,9 @@ func (UnimplementedMrc20UtxoServiceServer) FetchMrc20UtxoTxPoint(context.Context
 }
 func (UnimplementedMrc20UtxoServiceServer) FetchMrc20UtxoTickBlock(context.Context, *Mrc20UtxoTickBlockRequest) (*Mrc20DbUtxoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FetchMrc20UtxoTickBlock not implemented")
+}
+func (UnimplementedMrc20UtxoServiceServer) FetchMrc20CheckBlock(context.Context, *Mrc20CheckBlockRequest) (*Mrc20CheckBlockInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchMrc20CheckBlock not implemented")
 }
 func (UnimplementedMrc20UtxoServiceServer) mustEmbedUnimplementedMrc20UtxoServiceServer() {}
 
@@ -257,6 +272,24 @@ func _Mrc20UtxoService_FetchMrc20UtxoTickBlock_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Mrc20UtxoService_FetchMrc20CheckBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Mrc20CheckBlockRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(Mrc20UtxoServiceServer).FetchMrc20CheckBlock(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Mrc20UtxoService_FetchMrc20CheckBlock_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(Mrc20UtxoServiceServer).FetchMrc20CheckBlock(ctx, req.(*Mrc20CheckBlockRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Mrc20UtxoService_ServiceDesc is the grpc.ServiceDesc for Mrc20UtxoService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -287,6 +320,10 @@ var Mrc20UtxoService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FetchMrc20UtxoTickBlock",
 			Handler:    _Mrc20UtxoService_FetchMrc20UtxoTickBlock_Handler,
+		},
+		{
+			MethodName: "FetchMrc20CheckBlock",
+			Handler:    _Mrc20UtxoService_FetchMrc20CheckBlock_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

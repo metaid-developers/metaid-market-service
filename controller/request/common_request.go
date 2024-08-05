@@ -55,3 +55,7 @@ type Mrc20TickHoldersRequest struct {
 	Cursor int64  `json:"cursor"`
 	Size   int64  `json:"size"`
 }
+
+type CheckUtxoInfoReq struct {
+	OutPoints []string `json:"outPoints"`
+}

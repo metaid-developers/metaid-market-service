@@ -1,5 +1,13 @@
 basePath: /api-market-testnet
 definitions:
+  models.AskType:
+    enum:
+    - 0
+    - 1
+    type: integer
+    x-enum-varnames:
+    - AskTypeNone
+    - AskTypePreTransfer
   models.AssetType:
     enum:
     - pins
@@ -34,6 +42,36 @@ definitions:
     x-enum-varnames:
     - UtxoTypeDummy600
     - UtxoTypeDummy1200
+  own_service.OwnUtxoInfo:
+    properties:
+      address:
+        type: string
+      date:
+        type: integer
+      height:
+        type: integer
+      isExist:
+        type: boolean
+      spendInfo:
+        properties:
+          date:
+            type: integer
+          height:
+            type: integer
+          spendTx:
+            type: string
+          where:
+            type: string
+        type: object
+      spendStatus:
+        type: string
+      txConfirm:
+        type: boolean
+      value:
+        type: integer
+      where:
+        type: string
+    type: object
   request.BatchFetchOrderPsbtReq:
     properties:
       buyerAddress:
@@ -117,6 +155,13 @@ definitions:
     properties:
       orderId:
         type: string
+    type: object
+  request.CheckUtxoInfoReq:
+    properties:
+      outPoints:
+        items:
+          type: string
+        type: array
     type: object
   request.ColdDownDummyUtxoRequest:
     properties:
@@ -281,14 +326,24 @@ definitions:
     properties:
       address:
         type: string
+      askType:
+        allOf:
+        - $ref: '#/definitions/models.AskType'
+        description: 0-none,1-preTransfer
       assetType:
         allOf:
         - $ref: '#/definitions/models.AssetType'
         description: pins/ordinals
+      coinAmountStr:
+        description: if askType is preTransfer, this field is required
+        type: string
       psbtRaw:
         type: string
       tickId:
         type: string
+      utxoOutValue:
+        description: if askType is preTransfer, this field is required
+        type: integer
     type: object
   request.PushOrderReq:
     properties:
@@ -400,6 +455,10 @@ definitions:
   respond.BuildIdCoinsPreResp:
     properties:
       minerFee:
+        type: integer
+      minerGas:
+        type: integer
+      minerOutValue:
         type: integer
       orderId:
         type: string
@@ -630,16 +689,24 @@ definitions:
       extra: {}
       orderId:
         type: string
+      payToAmount:
+        type: integer
       revealInscribeAddress:
         type: string
       revealInscribeFee:
+        type: integer
+      revealInscribeGas:
+        type: integer
+      revealInscribeOutValue:
         type: integer
       revealMintAddress:
         type: string
       revealMintFee:
         type: integer
-      serviceAddress:
-        type: string
+      revealMintGas:
+        type: integer
+      revealMintOutValue:
+        type: integer
       serviceFee:
         type: integer
       totalFee:
@@ -690,6 +757,8 @@ definitions:
       premineCount:
         type: string
       qual:
+        type: string
+      refundTxId:
         type: string
       startBlockHeight:
         type: string
@@ -753,11 +822,12 @@ definitions:
     type: object
   respond.Mrc20DeployPreResp:
     properties:
-      extra:
-        description: |-
-          RevealPrePsbtRaw string      `json:"revealPrePsbtRaw"`
-          RevealInputIndex int64       `json:"revealInputIndex"`
+      extra: {}
       minerFee:
+        type: integer
+      minerGas:
+        type: integer
+      minerOutValue:
         type: integer
       orderId:
         type: string
@@ -806,15 +876,19 @@ definitions:
       extra: {}
       orderId:
         type: string
+      payToAmount:
+        type: integer
       revealAddress:
         type: string
       revealFee:
         type: integer
+      revealGas:
+        type: integer
       revealInputIndex:
         type: integer
+      revealOutValue:
+        type: integer
       revealPrePsbtRaw:
-        type: string
-      serviceAddress:
         type: string
       serviceFee:
         type: integer
@@ -827,6 +901,8 @@ definitions:
         type: integer
       amountStr:
         type: string
+      askType:
+        $ref: '#/definitions/models.AskType'
       assetType:
         $ref: '#/definitions/models.AssetType'
       blockHeight:
@@ -950,6 +1026,8 @@ definitions:
         type: string
       priceUsd:
         type: string
+      progress:
+        type: number
       qual: {}
       remaining:
         type: string
@@ -999,6 +1077,8 @@ definitions:
         type: string
       priceUsd:
         type: string
+      progress:
+        type: number
       supply:
         type: string
       tick:
@@ -1028,11 +1108,13 @@ definitions:
         type: string
       revealFee:
         type: integer
+      revealGas:
+        type: integer
       revealInputIndex:
         type: integer
+      revealOutValue:
+        type: integer
       revealPrePsbtRaw:
-        type: string
-      serviceAddress:
         type: string
       serviceFee:
         type: integer
@@ -1614,7 +1696,7 @@ paths:
     get:
       description: Fetch mrc20 tick info list
       parameters:
-      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply
+      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress
         in: query
         name: orderBy
         type: string
@@ -1667,6 +1749,26 @@ paths:
           schema:
             $ref: '#/definitions/respond.BroadcastTxResp'
       summary: Broadcast Tx
+      tags:
+      - Common
+  /api/v1/common/utxo/check/info:
+    post:
+      description: Check Utxo Info
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CheckUtxoInfoReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/own_service.OwnUtxoInfo'
+      summary: Check Utxo Info
       tags:
       - Common
   /api/v1/id-coins/address/mint/order:

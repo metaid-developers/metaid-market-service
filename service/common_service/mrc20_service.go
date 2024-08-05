@@ -16,13 +16,14 @@ import (
 	"metaid-market-service/service/man_service"
 	"metaid-market-service/service/mvcscan_service"
 	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/own_service"
 	"metaid-market-service/service/ticket_service"
 	"strconv"
 	"strings"
 )
 
 func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
-	if req.SearchTick != "" || req.OrderBy == "totalSupply" {
+	if req.SearchTick != "" || req.OrderBy == "totalSupply" || req.OrderBy == "progress" {
 		return FetchMrc20TickListByGrpc(req)
 	}
 	switch req.OrderBy {
@@ -148,6 +149,7 @@ func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc2
 				Supply:           supply,
 				Mintable:         mintable,
 				Remaining:        remaining,
+				Progress:         float64(v.Progress),
 			}
 
 			list = append(list, item)
@@ -1125,4 +1127,19 @@ func FetchMrc20Holders(req *request.Mrc20TickHoldersRequest) (*respond.Mrc20Tick
 		Total: total,
 		List:  list,
 	}, nil
+}
+
+func CheckUtxoInfo(req *request.CheckUtxoInfoReq) (map[string]*own_service.OwnUtxoInfo, error) {
+	var (
+		err      error
+		utxoInfo map[string]*own_service.OwnUtxoInfo
+	)
+	utxoInfo, err = own_service.CheckUtxoInfo("", req.OutPoints)
+	if err != nil {
+		return nil, err
+	}
+	if utxoInfo == nil {
+		return nil, errors.New("utxo not found")
+	}
+	return utxoInfo, nil
 }

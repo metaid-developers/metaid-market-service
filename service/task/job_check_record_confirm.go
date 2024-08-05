@@ -5,6 +5,7 @@ import (
 	"metaid-market-service/conf"
 	"metaid-market-service/models"
 	"metaid-market-service/service/own_service"
+	"strings"
 )
 
 func JobForCheckRecordConfirm() {
@@ -13,6 +14,7 @@ func JobForCheckRecordConfirm() {
 	jobForCheckMrc20DeployRecordConfirm()
 	jobForCheckMrc20MintRecordConfirm()
 	jobForCheckMrc20TransferRecordConfirm()
+	jobForCheckMrc20PreTransferOrderAskConfirm()
 }
 
 func jobForCheckRecordConfirm() {
@@ -143,7 +145,7 @@ func jobForCheckMrc20MintRecordConfirm() {
 		jobName    = "CheckMrc20MintOrderConfirm"
 		entityList []*models.Mrc20MintOrderModel
 		offset     int64 = 0
-		limit      int64 = 100
+		limit      int64 = 1000
 	)
 	entityList, _ = models.Mrc20MintOrderModelDao().GetListAsc(
 		&models.Mrc20MintOrderModel{InscribeState: models.InscribeStateFinish, ConfirmationState: models.ConfirmationStateUnconfirmed},
@@ -218,4 +220,54 @@ func jobForCheckMrc20TransferRecordConfirm() {
 		}
 	}
 	fmt.Printf("[JOB][%s] check finsih and confirmed Mrc20 Transfer end. entityList: %d\n", jobName, len(entityList))
+}
+
+func jobForCheckMrc20PreTransferOrderAskConfirm() {
+	var (
+		jobName    = "CheckMrc20PreTransferOrderAskConfirm"
+		entityList []*models.MarketMrc20OrderModel
+		offset     int64 = 0
+		limit      int64 = 100
+	)
+	entityList, _ = models.MarketMrc20OrderModelDao().GetList(
+		&models.MarketMrc20OrderModel{
+			OrderState: models.OrderStateCreate,
+			AskType:    models.AskTypePreTransfer,
+		},
+		offset, limit)
+	fmt.Printf("[JOB][%s] check finsih and confirmed Mrc20 Transfer start. entityList: %d\n", jobName, len(entityList))
+	for _, entity := range entityList {
+		if entity.OrderState != models.OrderStateCreate || entity.AskType != models.AskTypePreTransfer {
+			fmt.Printf("[JOB][%s][%s] OrderState or AskType not match. OrderState: %v, AskType: %v\n", jobName, entity.OrderId, entity.OrderState, entity.AskType)
+			continue
+		}
+		if entity.UtxoId == "" {
+			fmt.Printf("[JOB][%s][%s] UtxoId is empty\n", jobName, entity.OrderId)
+			continue
+		}
+
+		// check confirm
+		utxoIdStrs := strings.Split(entity.UtxoId, "_")
+		if len(utxoIdStrs) != 2 {
+			fmt.Printf("[JOB][%s][%s] UtxoId format error\n", jobName, entity.OrderId)
+			continue
+		}
+		txId := utxoIdStrs[0]
+
+		txInfo, err := own_service.GetTxInfo(conf.Net, txId)
+		if err != nil {
+			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
+		if txInfo.Confirmed && txInfo.Height > 0 {
+			entity.AskType = models.AskTypeNone
+			err := models.MarketMrc20OrderModelDao().Update(entity)
+			if err != nil {
+				fmt.Printf("[JOB][%s][%s] Update error: %v\n", jobName, entity.OrderId, err)
+				continue
+			}
+			fmt.Printf("[JOB][%s][%s] Update success\n", jobName, entity.OrderId)
+		}
+	}
+	fmt.Printf("[JOB][%s] check asset-utxo confirmed Mrc20 pre Transfer end. entityList: %d\n", jobName, len(entityList))
 }

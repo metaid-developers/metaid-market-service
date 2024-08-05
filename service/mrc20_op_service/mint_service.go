@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/godaddy-x/freego/utils/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
@@ -25,19 +26,25 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		orderId   string = ""
 		mintOrder *models.Mrc20MintOrderModel
 		err       error
+		address   string = req.OutAddress
 
-		totalFee   int64 = 0
-		minerFee   int64 = 0
-		serviceFee int64 = 0
+		totalFee         int64  = 0
+		minerFee         int64  = 0
+		minerGas         int64  = 0
+		minerOutValue    int64  = 0
+		minerPayToAmount int64  = 0
+		serviceFee       int64  = common.GetPlatformServiceFeeConfigData().MintFee
+		serviceAddress   string = common.GetPlatformServiceFeeConfigData().ServiceAddress
 
 		mrc20Builder   *mrc20_service.Mrc20Builder
 		mrc20OpRequest *mrc20_service.Mrc20OpRequest
-		tickId         string                   = req.TickerId
-		payload        string                   = fmt.Sprintf(`{"id":"%s"}`, tickId)
-		pinUtxoIds     string                   = ""
-		mintPinsStr    string                   = ""
-		mintPins       []*mrc20_service.MintPin = make([]*mrc20_service.MintPin, 0)
-		payTos         []*mrc20_service.PayTo   = make([]*mrc20_service.PayTo, 0)
+		tickId         string                    = req.TickerId
+		payload        string                    = fmt.Sprintf(`{"id":"%s"}`, tickId)
+		pinUtxoIds     string                    = ""
+		mintPinsStr    string                    = ""
+		mintPins       []*mrc20_service.MintPin  = make([]*mrc20_service.MintPin, 0)
+		payTos         []*mrc20_service.PayTo    = make([]*mrc20_service.PayTo, 0)
+		otherOuts      []*mrc20_service.OtherOut = make([]*mrc20_service.OtherOut, 0)
 		//payToAddress        string                   = ""
 		//payToAmount         int64                    = 0
 		mrc20OutValue       int64    = req.OutValue
@@ -55,6 +62,13 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		tickInfo *common_service.TickInfo
 	)
 
+	if serviceFee > 546 {
+		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
+			Address: serviceAddress,
+			Amount:  serviceFee,
+		})
+	}
+
 	tickInfo, err = common_service.GetMrc20TickInfo(tickId, "")
 	if err != nil {
 		return nil, err
@@ -68,8 +82,16 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		if payTo.Amount <= 546 {
 			payTo.Amount = 546
 		}
-		//payToAmount = payTo.Amount
+		minerPayToAmount = payTo.Amount
 		payTos = append(payTos, payTo)
+	}
+
+	mintCountDe, _ := decimal.NewFromString(tickInfo.MintCount)
+	totalMintedDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
+	if address != "n4FSvStqcX5VL1dJd7XgYsiaAzaFtDmQ64" {
+		if totalMintedDe.GreaterThanOrEqual(mintCountDe) {
+			return nil, errors.New("the mint limit has been reached")
+		}
 	}
 
 	for _, pin := range req.MintPins {
@@ -101,6 +123,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		mintPins = append(mintPins, mintPin)
 		revealInputIndex++
 	}
+
 	payload = fmt.Sprintf(`{"id":"%s", "vout":"%d"}`, tickId, revealInputIndex+1)
 	mintPinsStr = strings.Trim(mintPinsStr, ",")
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
@@ -110,6 +133,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		OpPayload:           payload,
 		MintPins:            mintPins,
 		PayTos:              payTos,
+		OtherOuts:           otherOuts,
 		TransferMrc20s:      nil,
 		Mrc20OutValue:       mrc20OutValue,
 		Mrc20OutAddressList: mrc20OutAddressList,
@@ -128,7 +152,12 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	if err != nil {
 		return nil, err
 	}
-	totalFee = minerFee + serviceFee
+	totalFee = minerFee
+	for _, outAddress := range mrc20OpRequest.Mrc20OutAddressList {
+		_ = outAddress
+		minerOutValue += mrc20OpRequest.Mrc20OutValue
+	}
+	minerGas = minerFee - minerOutValue - serviceFee - minerPayToAmount
 
 	orderId = fmt.Sprintf("mrc20_mint_%s_%s_%s_%d", req.TickerId, req.OutAddress, pinUtxoIds, nowTime)
 	orderId = hex.EncodeToString(tool.SHA256([]byte(orderId)))
@@ -196,9 +225,11 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		OrderId:          mintOrder.OrderId,
 		TotalFee:         mintOrder.TotalFee,
 		RevealFee:        mintOrder.MinerFee,
+		RevealGas:        minerGas,
+		RevealOutValue:   minerOutValue,
+		PayToAmount:      minerPayToAmount,
 		RevealAddress:    mintOrder.RevealTxAddress,
 		ServiceFee:       mintOrder.ServiceFee,
-		ServiceAddress:   "",
 		RevealPrePsbtRaw: mintOrder.RevealPrePsbtRaw,
 		RevealInputIndex: revealInputIndex,
 		Extra:            extra,

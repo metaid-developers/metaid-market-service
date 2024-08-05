@@ -6,9 +6,11 @@ type Mrc20MintPreResp struct {
 	OrderId          string      `json:"orderId"`
 	TotalFee         int64       `json:"totalFee"`
 	RevealFee        int64       `json:"revealFee"`
+	RevealGas        int64       `json:"revealGas"`
+	RevealOutValue   int64       `json:"revealOutValue"`
+	PayToAmount      int64       `json:"payToAmount"`
 	RevealAddress    string      `json:"revealAddress"`
 	ServiceFee       int64       `json:"serviceFee"`
-	ServiceAddress   string      `json:"serviceAddress"`
 	RevealPrePsbtRaw string      `json:"revealPrePsbtRaw"`
 	RevealInputIndex int64       `json:"revealInputIndex"`
 	Extra            interface{} `json:"extra"`
@@ -24,9 +26,10 @@ type Mrc20TransferPreResp struct {
 	OrderId          string      `json:"orderId"`
 	TotalFee         int64       `json:"totalFee"`
 	RevealFee        int64       `json:"revealFee"`
+	RevealGas        int64       `json:"revealGas"`
+	RevealOutValue   int64       `json:"revealOutValue"`
 	RevealAddress    string      `json:"revealAddress"`
 	ServiceFee       int64       `json:"serviceFee"`
-	ServiceAddress   string      `json:"serviceAddress"`
 	RevealPrePsbtRaw string      `json:"revealPrePsbtRaw"`
 	RevealInputIndex int64       `json:"revealInputIndex"`
 	Extra            interface{} `json:"extra"`
@@ -39,14 +42,14 @@ type Mrc20TransferCommitResp struct {
 }
 
 type Mrc20DeployPreResp struct {
-	OrderId       string `json:"orderId"`
-	TotalFee      int64  `json:"totalFee"`
-	MinerFee      int64  `json:"minerFee"`
-	ServiceFee    int64  `json:"serviceFee"`
-	RevealAddress string `json:"revealAddress"`
-	//RevealPrePsbtRaw string      `json:"revealPrePsbtRaw"`
-	//RevealInputIndex int64       `json:"revealInputIndex"`
-	Extra interface{} `json:"extra"`
+	OrderId       string      `json:"orderId"`
+	TotalFee      int64       `json:"totalFee"`
+	MinerFee      int64       `json:"minerFee"`
+	MinerGas      int64       `json:"minerGas"`
+	MinerOutValue int64       `json:"minerOutValue"`
+	ServiceFee    int64       `json:"serviceFee"`
+	RevealAddress string      `json:"revealAddress"`
+	Extra         interface{} `json:"extra"`
 }
 type Mrc20DeployCommitResp struct {
 	OrderId    string `json:"orderId"`

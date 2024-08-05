@@ -292,3 +292,7 @@ alter table tb_mrc20_deploy_order
     add revealPrePsbtRaw TEXT not null AFTER `revealInputIndex`;
 alter table tb_mrc20_deploy_order
     add revealFinalPsbtRaw TEXT not null AFTER `revealPrePsbtRaw`;
+
+
+alter table tb_market_mrc20_order
+    add askType int  default 0 not null AFTER `priceCoin`;

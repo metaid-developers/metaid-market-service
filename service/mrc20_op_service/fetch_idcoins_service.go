@@ -68,6 +68,7 @@ func fetchIdCoinsOpOrdersFromOrders(req *request.FetchIdCoinsOpOrdersRequest, pu
 			UsedPins:          v.UsedPins,
 			Holders:           v.Holders,
 			TxId:              v.TxId,
+			RefundTxId:        v.RefundTxId,
 			BlockHeight:       v.BlockHeight,
 			ConfirmationState: v.ConfirmationState,
 			Timestamp:         v.Timestamp,

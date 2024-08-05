@@ -15,6 +15,7 @@ type Mrc20OpRequest struct {
 	TransferMrc20s        []*TransferMrc20
 	Mrc20Outs             []*Mrc20OutInfo
 	PayTos                []*PayTo
+	OtherOuts             []*OtherOut
 	Mrc20OutValue         int64
 	Mrc20OutAddressList   []string
 	ChangeAddress         string
@@ -122,6 +123,7 @@ func Mrc20MintBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int6
 		FeeRate:        feeRate,
 		op:             opRep.Op,
 		PayTos:         opRep.PayTos,
+		OtherOuts:      opRep.OtherOuts,
 
 		mrc20OutValue:       opRep.Mrc20OutValue,
 		mrc20OutAddressList: opRep.Mrc20OutAddressList,
@@ -186,6 +188,7 @@ func Mrc20TransferBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, 
 		FeeRate:            feeRate,
 		op:                 opRep.Op,
 		mrc20ChangeAddress: opRep.ChangeAddress,
+		OtherOuts:          opRep.OtherOuts,
 
 		mrc20OutValue:       opRep.Mrc20OutValue,
 		mrc20OutAddressList: opRep.Mrc20OutAddressList,

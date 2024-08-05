@@ -483,6 +483,7 @@ func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 			revealOutValues += v.Amount
 		}
 	} else if m.op == "transfer" {
+		inValue := int64(0)
 		for _, v := range m.TransferMrc20s {
 			addressClass, err := common.CheckAddressClass(m.Net, v.Address)
 			if err != nil {
@@ -499,16 +500,33 @@ func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 			} else {
 				txTotalSize += emptySegwitWitenss.SerializeSize()
 			}
+			inValue += v.UtxoOutValue
+		}
+		outValue := int64(0)
+		if m.mrc20ChangeAddress != "" {
+			outValue += 546
 		}
 		for _, v := range m.Mrc20Outs {
-			revealOutValues += v.OutValue
+			outValue += v.OutValue
 		}
+		if inValue < outValue {
+			revealOutValues += outValue - inValue
+		} else if inValue > outValue {
+			revealOutValues -= inValue - outValue
+		}
+
 	} else if m.op == "deploy" {
 		if m.mrc20PremineOutAddress != "" {
 			revealOutValues += m.mrc20OutValue
 		}
 		if m.mrc20PinOutAddress != "" {
 			revealOutValues += m.mrc20OutValue
+		}
+	}
+
+	if m.OtherOuts != nil && len(m.OtherOuts) > 0 {
+		for _, v := range m.OtherOuts {
+			revealOutValues += v.Amount
 		}
 	}
 

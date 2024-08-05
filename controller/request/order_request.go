@@ -80,10 +80,13 @@ type TestAuthReq struct {
 
 // mrc20 orders
 type PushMrc20OrderReq struct {
-	AssetType models.AssetType `json:"assetType"` //pins/ordinals
-	TickId    string           `json:"tickId"`
-	Address   string           `json:"address"`
-	PsbtRaw   string           `json:"psbtRaw"`
+	AssetType     models.AssetType `json:"assetType"` //pins/ordinals
+	TickId        string           `json:"tickId"`
+	Address       string           `json:"address"`
+	PsbtRaw       string           `json:"psbtRaw"`
+	AskType       models.AskType   `json:"askType"`       //0-none,1-preTransfer
+	CoinAmountStr string           `json:"coinAmountStr"` //if askType is preTransfer, this field is required
+	UtxoOutValue  int64            `json:"utxoOutValue"`  //if askType is preTransfer, this field is required
 }
 
 type FetchMrc20OrderPsbtReq struct {

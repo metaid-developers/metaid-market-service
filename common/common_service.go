@@ -44,6 +44,10 @@ func GetPlatformKeyForSignMsg() (string, string) {
 	return conf.PlatformPrivateKeySignMsg, conf.PlatformPublicKeySignMsg
 }
 
+func GetPlatformServiceFeeConfigData() *conf.ServiceFeeConfig {
+	return conf.PlatformServiceFeeConfigData
+}
+
 // address to pkScript
 func AddressToPkScript(net, address string) (string, error) {
 	netParams := GetNetParams(net)

@@ -193,7 +193,7 @@ func FetchMrc20TickAddressShovels(c *gin.Context) {
 // @Description Fetch mrc20 tick info list
 // @Produce  json
 // @Tags Common
-// @Param orderBy query string false "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply"
+// @Param orderBy query string false "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress"
 // @Param searchTick query string false "searchTick"
 // @Param sortType query int false "-1/1, if orderBy is 'change24H/lastPrice/marketCap', it works, default '-1'"
 // @Param completed query bool false "true/false/null, default null"
@@ -270,4 +270,28 @@ func FetchMrc20TickMarketPrice(c *gin.Context) {
 	}
 	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
 	return
+}
+
+// @Summary Check Utxo Info
+// @Description Check Utxo Info
+// @Produce  json
+// @Param Request body request.CheckUtxoInfoReq true "Request"
+// @Tags Common
+// @Success 200 {object} own_service.OwnUtxoInfo ""
+// @Router /api/v1/common/utxo/check/info [post]
+func CheckUtxoInfo(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.CheckUtxoInfoReq
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		responseModel, err := common_service.CheckUtxoInfo(requestModel)
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }

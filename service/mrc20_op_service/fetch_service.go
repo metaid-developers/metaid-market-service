@@ -196,7 +196,10 @@ func fetchMrc20MintOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fetc
 		}
 		mintState := 0
 		if v.ConfirmationState == models.ConfirmationStateConfirmed {
-			txPointInfo, _, _ := common_service.FetchTxPointInfo(v.TxId, int64(mintIndex), 0, 100)
+			txPointInfo, _, _ := common_service.FetchTxPointInfo(v.TxId, int64(mintIndex)+1, 0, 100)
+			if txPointInfo == nil || len(txPointInfo) == 0 {
+				txPointInfo, _, _ = common_service.FetchTxPointInfo(v.TxId, int64(mintIndex), 0, 100)
+			}
 			if txPointInfo != nil && len(txPointInfo) > 0 && txPointInfo[0].Verify {
 				mintState = 1
 			} else {

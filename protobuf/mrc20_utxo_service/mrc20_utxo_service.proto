@@ -29,6 +29,7 @@ message Mrc20TxInfoResponse {
   string amount = 9;
   int64 txType = 10;
   int64 timestamp = 11;
+  int64 height = 12;
 }
 
 
@@ -126,6 +127,7 @@ message Mrc20DeployInfoResponse {
   string metaId = 19;
   string address = 20;
   int64 deployTime = 21;
+  float progress = 22;
 }
 
 message Mrc20DeployPinCheck {
@@ -189,6 +191,18 @@ message Mrc20UtxoDbInfo {
   int64 timestamp = 17;
 }
 
+message Mrc20CheckBlockRequest {
+
+}
+
+message Mrc20CheckBlockInfoResponse {
+    int64 blockHeight = 1;
+    string tickIds = 2;
+    int64 checkState = 3;
+    int64 createTime = 5;
+}
+
+
 service Mrc20UtxoService {
   rpc FetchMrc20AddressTxList(AddressMrc20TxRequest) returns (Mrc20TxListResponse) {};
   rpc FetchMrc20AddressBalanceList(AddressMrc20BalanceRequest) returns (Mrc20BalanceListResponse) {};
@@ -196,4 +210,5 @@ service Mrc20UtxoService {
   rpc FetchMrc20DeployList(TickListRequest) returns (Mrc20DeployListResponse) {};
   rpc FetchMrc20UtxoTxPoint(Mrc20UtxoTxPointRequest) returns (Mrc20DbUtxoResponse) {};
   rpc FetchMrc20UtxoTickBlock(Mrc20UtxoTickBlockRequest) returns (Mrc20DbUtxoResponse) {};
+  rpc FetchMrc20CheckBlock(Mrc20CheckBlockRequest) returns (Mrc20CheckBlockInfoResponse) {};
 }

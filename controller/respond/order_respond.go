@@ -112,6 +112,7 @@ type Mrc20OrderInfo struct {
 	OrderId           string                   `json:"orderId"`
 	UtxoId            string                   `json:"utxoId"`
 	OutValue          int64                    `json:"outValue"`
+	AskType           models.AskType           `json:"askType"`
 	AssetType         models.AssetType         `json:"assetType"`
 	OrderState        models.OrderState        `json:"orderState"`
 	SellerMetaId      string                   `json:"sellerMetaId"`

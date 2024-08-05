@@ -386,7 +386,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply",
+                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress",
                         "name": "orderBy",
                         "in": "query"
                     },
@@ -457,6 +457,37 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.BroadcastTxResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/common/utxo/check/info": {
+            "post": {
+                "description": "Check Utxo Info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Check Utxo Info",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.CheckUtxoInfoReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/own_service.OwnUtxoInfo"
                         }
                     }
                 }
@@ -1780,6 +1811,17 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "models.AskType": {
+            "type": "integer",
+            "enum": [
+                0,
+                1
+            ],
+            "x-enum-varnames": [
+                "AskTypeNone",
+                "AskTypePreTransfer"
+            ]
+        },
         "models.AssetType": {
             "type": "string",
             "enum": [
@@ -1825,6 +1867,52 @@ const docTemplate = `{
                 "UtxoTypeDummy600",
                 "UtxoTypeDummy1200"
             ]
+        },
+        "own_service.OwnUtxoInfo": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "isExist": {
+                    "type": "boolean"
+                },
+                "spendInfo": {
+                    "type": "object",
+                    "properties": {
+                        "date": {
+                            "type": "integer"
+                        },
+                        "height": {
+                            "type": "integer"
+                        },
+                        "spendTx": {
+                            "type": "string"
+                        },
+                        "where": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "spendStatus": {
+                    "type": "string"
+                },
+                "txConfirm": {
+                    "type": "boolean"
+                },
+                "value": {
+                    "type": "integer"
+                },
+                "where": {
+                    "type": "string"
+                }
+            }
         },
         "request.BatchFetchOrderPsbtReq": {
             "type": "object",
@@ -1955,6 +2043,17 @@ const docTemplate = `{
             "properties": {
                 "orderId": {
                     "type": "string"
+                }
+            }
+        },
+        "request.CheckUtxoInfoReq": {
+            "type": "object",
+            "properties": {
+                "outPoints": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -2208,6 +2307,14 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
+                "askType": {
+                    "description": "0-none,1-preTransfer",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AskType"
+                        }
+                    ]
+                },
                 "assetType": {
                     "description": "pins/ordinals",
                     "allOf": [
@@ -2216,11 +2323,19 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "coinAmountStr": {
+                    "description": "if askType is preTransfer, this field is required",
+                    "type": "string"
+                },
                 "psbtRaw": {
                     "type": "string"
                 },
                 "tickId": {
                     "type": "string"
+                },
+                "utxoOutValue": {
+                    "description": "if askType is preTransfer, this field is required",
+                    "type": "integer"
                 }
             }
         },
@@ -2396,6 +2511,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "minerFee": {
+                    "type": "integer"
+                },
+                "minerGas": {
+                    "type": "integer"
+                },
+                "minerOutValue": {
                     "type": "integer"
                 },
                 "orderId": {
@@ -2743,10 +2864,19 @@ const docTemplate = `{
                 "orderId": {
                     "type": "string"
                 },
+                "payToAmount": {
+                    "type": "integer"
+                },
                 "revealInscribeAddress": {
                     "type": "string"
                 },
                 "revealInscribeFee": {
+                    "type": "integer"
+                },
+                "revealInscribeGas": {
+                    "type": "integer"
+                },
+                "revealInscribeOutValue": {
                     "type": "integer"
                 },
                 "revealMintAddress": {
@@ -2755,8 +2885,11 @@ const docTemplate = `{
                 "revealMintFee": {
                     "type": "integer"
                 },
-                "serviceAddress": {
-                    "type": "string"
+                "revealMintGas": {
+                    "type": "integer"
+                },
+                "revealMintOutValue": {
+                    "type": "integer"
                 },
                 "serviceFee": {
                     "type": "integer"
@@ -2832,6 +2965,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "qual": {
+                    "type": "string"
+                },
+                "refundTxId": {
                     "type": "string"
                 },
                 "startBlockHeight": {
@@ -2929,10 +3065,14 @@ const docTemplate = `{
         "respond.Mrc20DeployPreResp": {
             "type": "object",
             "properties": {
-                "extra": {
-                    "description": "RevealPrePsbtRaw string      ` + "`" + `json:\"revealPrePsbtRaw\"` + "`" + `\nRevealInputIndex int64       ` + "`" + `json:\"revealInputIndex\"` + "`" + `"
-                },
+                "extra": {},
                 "minerFee": {
+                    "type": "integer"
+                },
+                "minerGas": {
+                    "type": "integer"
+                },
+                "minerOutValue": {
                     "type": "integer"
                 },
                 "orderId": {
@@ -3007,19 +3147,25 @@ const docTemplate = `{
                 "orderId": {
                     "type": "string"
                 },
+                "payToAmount": {
+                    "type": "integer"
+                },
                 "revealAddress": {
                     "type": "string"
                 },
                 "revealFee": {
                     "type": "integer"
                 },
+                "revealGas": {
+                    "type": "integer"
+                },
                 "revealInputIndex": {
                     "type": "integer"
                 },
-                "revealPrePsbtRaw": {
-                    "type": "string"
+                "revealOutValue": {
+                    "type": "integer"
                 },
-                "serviceAddress": {
+                "revealPrePsbtRaw": {
                     "type": "string"
                 },
                 "serviceFee": {
@@ -3038,6 +3184,9 @@ const docTemplate = `{
                 },
                 "amountStr": {
                     "type": "string"
+                },
+                "askType": {
+                    "$ref": "#/definitions/models.AskType"
                 },
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
@@ -3224,6 +3373,9 @@ const docTemplate = `{
                 "priceUsd": {
                     "type": "string"
                 },
+                "progress": {
+                    "type": "number"
+                },
                 "qual": {},
                 "remaining": {
                     "type": "string"
@@ -3298,6 +3450,9 @@ const docTemplate = `{
                 "priceUsd": {
                     "type": "string"
                 },
+                "progress": {
+                    "type": "number"
+                },
                 "supply": {
                     "type": "string"
                 },
@@ -3342,13 +3497,16 @@ const docTemplate = `{
                 "revealFee": {
                     "type": "integer"
                 },
+                "revealGas": {
+                    "type": "integer"
+                },
                 "revealInputIndex": {
                     "type": "integer"
                 },
-                "revealPrePsbtRaw": {
-                    "type": "string"
+                "revealOutValue": {
+                    "type": "integer"
                 },
-                "serviceAddress": {
+                "revealPrePsbtRaw": {
                     "type": "string"
                 },
                 "serviceFee": {

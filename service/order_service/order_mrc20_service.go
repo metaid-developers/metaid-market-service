@@ -42,10 +42,13 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		priceDecimal      int64   = 8
 		priceCoin         string  = "BTC"
 
-		assetType     models.AssetType = req.AssetType
-		sellerAddress string           = req.Address
-		psbtRaw       string           = req.PsbtRaw
-		nowTime       int64            = tool.MakeTimestamp()
+		assetType        models.AssetType = req.AssetType
+		sellerAddress    string           = req.Address
+		psbtRaw          string           = req.PsbtRaw
+		askType          models.AskType   = req.AskType
+		reqCoinAmountStr string           = req.CoinAmountStr
+		reqUtxoOutValue  int64            = req.UtxoOutValue
+		nowTime          int64            = tool.MakeTimestamp()
 
 		feeAmount int64 = 2000
 		feeRate   int64 = 1
@@ -101,32 +104,52 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		preTxIndex := v.PreviousOutPoint.Index
 		mrc20UtxoId = fmt.Sprintf("%s_%d", preTxId, preTxIndex)
 
-		mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(preTxId, int64(preTxIndex), 0, 100)
-		if err != nil {
-			return nil, err
-		}
-		if mrc20InfoTotal > 1 {
-			return nil, errors.New("Wrong Psbt: this mrc20 info is not unique. ")
-		}
+		var tickInfo *common_service.TickInfo
+		if askType == models.AskTypeNone {
+			mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(preTxId, int64(preTxIndex), 0, 100)
+			if err != nil {
+				return nil, err
+			}
+			if mrc20InfoTotal > 1 {
+				return nil, errors.New("Wrong Psbt: this mrc20 info is not unique. ")
+			}
 
-		mrc20Info := mrc20InfoList[0]
+			mrc20Info := mrc20InfoList[0]
 
-		tick = mrc20Info.Tick
-		if tickId != mrc20Info.Mrc20Id {
-			return nil, errors.New("Wrong Psbt: tickId not match. ")
-		}
-		tickInfo, err := common_service.GetMrc20TickInfo(tickId, "")
-		if err != nil {
-			return nil, err
-		}
-		tokenName = tickInfo.TokenName
-		decimals, _ = strconv.ParseInt(tickInfo.Decimals, 10, 64)
-		chain = mrc20Info.Chain
+			tick = mrc20Info.Tick
+			if tickId != mrc20Info.Mrc20Id {
+				return nil, errors.New("Wrong Psbt: tickId not match. ")
+			}
+			tickInfo, err = common_service.GetMrc20TickInfo(tickId, "")
+			if err != nil {
+				return nil, err
+			}
+			tokenName = tickInfo.TokenName
+			decimals, _ = strconv.ParseInt(tickInfo.Decimals, 10, 64)
+			chain = mrc20Info.Chain
 
-		amountStr = mrc20Info.AmtChange
-		amount, _ = strconv.ParseInt(amountStr, 10, 64)
-		//todo mrc20Info.OutValue
-		outValue = 546
+			amountStr = mrc20Info.AmtChange
+			amount, _ = strconv.ParseInt(amountStr, 10, 64)
+			outValue = mrc20Info.PointValue
+		} else if askType == models.AskTypePreTransfer {
+			if reqCoinAmountStr == "" || reqUtxoOutValue == 0 {
+				return nil, errors.New("Wrong Psbt: empty coinAmountStr or outValue if askType is PreTransfer. ")
+			}
+			tickInfo, err = common_service.GetMrc20TickInfo(tickId, "")
+			if err != nil {
+				return nil, err
+			}
+			tick = tickInfo.Tick
+			tokenName = tickInfo.TokenName
+			decimals, _ = strconv.ParseInt(tickInfo.Decimals, 10, 64)
+			chain = tickInfo.Chain
+
+			amountStr = reqCoinAmountStr
+			amount, _ = strconv.ParseInt(amountStr, 10, 64)
+			outValue = reqUtxoOutValue
+		} else {
+			return nil, errors.New("Wrong AskType. ")
+		}
 
 		totalMintDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
 		amtPerMintDe, _ := decimal.NewFromString(tickInfo.AmtPerMint)
@@ -197,6 +220,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			PriceAmount:       priceAmount,
 			PriceDecimal:      priceDecimal,
 			PriceCoin:         priceCoin,
+			AskType:           askType,
 			OrderState:        models.OrderStateCreate,
 			SellerAddress:     sellerAddress,
 			SellerIp:          ip,
@@ -235,6 +259,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		orderEntity.PriceAmount = priceAmount
 		orderEntity.PriceDecimal = priceDecimal
 		orderEntity.PriceCoin = priceCoin
+		orderEntity.AskType = askType
 		orderEntity.OrderState = models.OrderStateCreate
 		orderEntity.SellerIp = ip
 		orderEntity.FeeAmount = feeAmount
@@ -286,6 +311,11 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 	}
 	if entity.OrderState != models.OrderStateCreate {
 		return nil, errors.New("Order is closed. ")
+	}
+
+	if entity.AskType == models.AskTypePreTransfer {
+		return nil, errors.New("The asset-utxo of this order is waiting for confirmation. " +
+			"Please wait for the confirmation or select a different order. ")
 	}
 
 	if entity.FeeRate > 0 {
@@ -640,6 +670,7 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 			OrderId:           v.OrderId,
 			UtxoId:            v.UtxoId,
 			OutValue:          v.OutValue,
+			AskType:           v.AskType,
 			AssetType:         v.AssetType,
 			OrderState:        v.OrderState,
 			SellerMetaId:      common.GetMetaIdByAddress(v.SellerAddress),

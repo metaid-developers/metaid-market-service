@@ -23,9 +23,12 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		transferOrder *models.Mrc20TransferOrderModel
 		err           error
 
-		totalFee   int64 = 0
-		minerFee   int64 = 0
-		serviceFee int64 = 0
+		totalFee       int64  = 0
+		minerFee       int64  = 0
+		minerGas       int64  = 0
+		minerOutValue  int64  = 0
+		serviceFee     int64  = 0
+		serviceAddress string = ""
 
 		mrc20Builder      *mrc20_service.Mrc20Builder
 		mrc20OpRequest    *mrc20_service.Mrc20OpRequest
@@ -35,6 +38,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		mrc20OutAddresses string                         = ""
 		transferMrc20s    []*mrc20_service.TransferMrc20 = make([]*mrc20_service.TransferMrc20, 0)
 		mrc20Outs         []*mrc20_service.Mrc20OutInfo  = make([]*mrc20_service.Mrc20OutInfo, 0)
+		otherOuts         []*mrc20_service.OtherOut      = make([]*mrc20_service.OtherOut, 0)
 		changeAddress     string                         = req.ChangeAddress
 		feeRate           int64                          = req.NetworkFeeRate
 		revealPrePsbtRaw  string                         = ""
@@ -44,6 +48,16 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		nowTime int64                  = tool.MakeTimestamp()
 		extra   map[string]interface{} = make(map[string]interface{})
 	)
+
+	serviceFee, serviceAddress = common.GetPlatformServiceFeeConfigData().TransferFee, common.GetPlatformServiceFeeConfigData().ServiceAddress
+	if serviceFee > 546 {
+		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
+			Address: serviceAddress,
+			Amount:  serviceFee,
+		})
+	}
+
+	inValue := int64(0)
 	for _, v := range req.Transfers {
 		if v.Amount == "" || v.UtxoOutValue <= 0 || v.UtxoTxId == "" {
 			return nil, errors.New("transfer request parameter error")
@@ -72,7 +86,9 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		transferMrc20s = append(transferMrc20s, transferMrc20)
 		mrc20UtxoIds += v.UtxoTxId + "_"
 		revealInputIndex++
+		inValue += v.UtxoOutValue
 	}
+	outValue := int64(0)
 	for _, v := range req.Mrc20Outs {
 		mrc20Outs = append(mrc20Outs, &mrc20_service.Mrc20OutInfo{
 			Amount:   v.Amount,
@@ -81,6 +97,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 			OutValue: v.OutValue,
 		})
 		mrc20OutAddresses += v.Address + "_"
+		outValue += v.OutValue
 	}
 	payload, err = mrc20_service.MakeTransferPayload(tickId, transferMrc20s, mrc20Outs)
 	if err != nil {
@@ -97,6 +114,10 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		Mrc20OutAddressList: nil,
 		ChangeAddress:       changeAddress,
 		Mrc20Outs:           mrc20Outs,
+		OtherOuts:           otherOuts,
+	}
+	if changeAddress != "" {
+		outValue += 546
 	}
 
 	mrc20Builder, minerFee, err = mrc20_service.Mrc20TransferBuilder(mrc20OpRequest, feeRate)
@@ -111,7 +132,16 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 	if err != nil {
 		return nil, err
 	}
-	totalFee = minerFee + serviceFee
+	totalFee = minerFee
+	if inValue < outValue {
+		minerOutValue += outValue - inValue
+	} else if inValue > outValue {
+		minerOutValue -= inValue - outValue
+		if minerOutValue < 0 {
+			minerOutValue = 0
+		}
+	}
+	minerGas = minerFee - minerOutValue - serviceFee
 
 	orderId = fmt.Sprintf("mrc20_transfer_%s_%s_%s_%d", req.TickerId, mrc20OutAddresses, mrc20UtxoIds, nowTime)
 	orderId = hex.EncodeToString(tool.SHA256([]byte(orderId)))
@@ -179,9 +209,10 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		OrderId:          transferOrder.OrderId,
 		TotalFee:         transferOrder.TotalFee,
 		RevealFee:        transferOrder.MinerFee,
+		RevealGas:        minerGas,
+		RevealOutValue:   minerOutValue,
 		RevealAddress:    transferOrder.RevealTxAddress,
 		ServiceFee:       transferOrder.ServiceFee,
-		ServiceAddress:   "",
 		RevealPrePsbtRaw: transferOrder.RevealPrePsbtRaw,
 		RevealInputIndex: revealInputIndex,
 		Extra:            extra,

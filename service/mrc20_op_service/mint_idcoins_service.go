@@ -34,15 +34,19 @@ func IdCoinsMintPreFromOrders(req *request.IdCoinsMintPreRequest, publicKey, ip 
 		return nil, err
 	}
 	return &respond.IdCoinsMintPreResp{
-		OrderId:               respOrders.OrderId,
-		TotalFee:              respOrders.TotalFee,
-		RevealInscribeFee:     respOrders.RevealInscribeFee,
-		RevealMintFee:         respOrders.RevealMintFee,
-		RevealInscribeAddress: respOrders.RevealInscribeAddress,
-		RevealMintAddress:     respOrders.RevealMintAddress,
-		ServiceFee:            respOrders.ServiceFee,
-		ServiceAddress:        respOrders.ServiceAddress,
-		Extra:                 respOrders.Extra,
+		OrderId:                respOrders.OrderId,
+		TotalFee:               respOrders.TotalFee,
+		RevealInscribeFee:      respOrders.RevealInscribeFee,
+		RevealInscribeGas:      respOrders.RevealInscribeGas,
+		RevealInscribeOutValue: respOrders.RevealInscribeOutValue,
+		RevealMintFee:          respOrders.RevealMintFee,
+		RevealMintGas:          respOrders.RevealMintGas,
+		RevealMintOutValue:     respOrders.RevealMintOutValue,
+		RevealInscribeAddress:  respOrders.RevealInscribeAddress,
+		RevealMintAddress:      respOrders.RevealMintAddress,
+		ServiceFee:             respOrders.ServiceFee,
+		PayToAmount:            respOrders.PayToAmount,
+		Extra:                  respOrders.Extra,
 	}, nil
 }
 

@@ -36,6 +36,8 @@ var (
 	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee = "", ""
 	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg     = "", ""
 
+	PlatformServiceFeeConfigData *ServiceFeeConfig = &ServiceFeeConfig{}
+
 	MetaCoinMrc20Id                          = ""
 	MetaCoinCodehash, MetaCoinGenesis string = "", ""
 
@@ -43,6 +45,17 @@ var (
 
 	GrpcAssetBaseAddress string = ""
 )
+
+type ServiceFeeConfig struct {
+	ServiceAddress    string  `json:"service_address"`
+	PinTradeFee       int64   `json:"pin_trade_fee"`
+	PinTradeFeeRate   float64 `json:"pin_trade_fee_rate"`
+	Mrc20TradeFee     int64   `json:"mrc20_trade_fee"`
+	Mrc20TradeFeeRate float64 `json:"mrc20_trade_fee_rate"`
+	DeployFee         int64   `json:"deploy_fee"`
+	MintFee           int64   `json:"mint_fee"`
+	TransferFee       int64   `json:"transfer_fee"`
+}
 
 func InitConfig() {
 	viper.SetConfigFile(GetYaml())
@@ -84,4 +97,15 @@ func InitConfig() {
 	PopExtractCount = viper.GetInt("pop.extract_count")
 
 	GrpcAssetBaseAddress = viper.GetString("grpc.asset_base.address")
+
+	PlatformServiceFeeConfigData = &ServiceFeeConfig{
+		ServiceAddress:    viper.GetString("platform.service_fee.service_address"),
+		PinTradeFee:       viper.GetInt64("platform.service_fee.pin_trade_fee"),
+		PinTradeFeeRate:   viper.GetFloat64("platform.service_fee.pin_trade_fee_rate"),
+		Mrc20TradeFee:     viper.GetInt64("platform.service_fee.mrc20_trade_fee"),
+		Mrc20TradeFeeRate: viper.GetFloat64("platform.service_fee.mrc20_trade_fee_rate"),
+		MintFee:           viper.GetInt64("platform.service_fee.mint_fee"),
+		DeployFee:         viper.GetInt64("platform.service_fee.deploy_fee"),
+		TransferFee:       viper.GetInt64("platform.service_fee.transfer_fee"),
+	}
 }
