@@ -3,6 +3,7 @@ package common_service
 import (
 	"metaid-market-service/service/man_service"
 	"strconv"
+	"strings"
 )
 
 func FetchTxPointInfo(txId string, index, cursor, size int64) ([]*man_service.Mrc20Utxo, int64, error) {
@@ -13,22 +14,23 @@ func FetchTxPointInfo(txId string, index, cursor, size int64) ([]*man_service.Mr
 		total       int64                    = 0
 	)
 	txPointInfo, err = man_service.FetchMrc20txPointList(txId, index, cursor, size)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "no data found") {
 		return nil, 0, err
 	}
-	total = txPointInfo.Total
-	for _, v := range txPointInfo.List {
-		if !v.Verify {
-			total--
-			continue
+	if txPointInfo != nil {
+		total = txPointInfo.Total
+		for _, v := range txPointInfo.List {
+			if !v.Verify {
+				total--
+				continue
+			}
+			if v.AmtChange == "0" || v.AmtChange == "" {
+				total--
+				continue
+			}
+			list = append(list, v)
 		}
-		if v.AmtChange == "0" || v.AmtChange == "" {
-			total--
-			continue
-		}
-		list = append(list, v)
 	}
-
 	return list, total, nil
 }
 

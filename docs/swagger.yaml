@@ -4,10 +4,12 @@ definitions:
     enum:
     - 0
     - 1
+    - 2
     type: integer
     x-enum-varnames:
     - AskTypeNone
     - AskTypePreTransfer
+    - AskTypePreTransferCheck
   models.AssetType:
     enum:
     - pins
@@ -107,6 +109,45 @@ definitions:
           type: string
         type: array
       takerPsbtRaw:
+        type: string
+    type: object
+  request.BookTakeMintBidCommitReq:
+    properties:
+      commitTxOutIndex:
+        type: integer
+      commitTxRaw:
+        type: string
+      orderId:
+        type: string
+      revealPrePsbtRaw:
+        type: string
+    type: object
+  request.BookTakeMintBidPreReq:
+    properties:
+      assetUtxoIds:
+        items:
+          type: string
+        type: array
+      networkFeeRate:
+        type: integer
+      sellCoinAmount:
+        type: string
+      sellerAddress:
+        type: string
+      tickId:
+        type: string
+    type: object
+  request.BookTakeMintBidPreviewReq:
+    properties:
+      assetUtxoIds:
+        items:
+          type: string
+        type: array
+      networkFeeRate:
+        type: integer
+      sellerAddress:
+        type: string
+      tickId:
         type: string
     type: object
   request.BroadcastTxReq:
@@ -431,6 +472,47 @@ definitions:
         type: array
       total:
         type: integer
+    type: object
+  respond.BookMintOrderTakeCommitResp:
+    properties:
+      commitTxId:
+        type: string
+      orderId:
+        type: string
+      revealTxId:
+        type: string
+      tickId:
+        type: string
+      txId:
+        type: string
+    type: object
+  respond.BookMintOrderTakePreResp:
+    properties:
+      minerFee:
+        type: integer
+      orderId:
+        type: string
+      priceAmount:
+        type: integer
+      psbtRaw:
+        type: string
+      receiveAddress:
+        type: string
+      revealInputIndex:
+        type: integer
+      serviceFee:
+        type: integer
+      totalAmount:
+        type: integer
+      totalFee:
+        type: integer
+    type: object
+  respond.BookMintOrderTakePreviewResp:
+    properties:
+      assetCoinList:
+        items:
+          type: string
+        type: array
     type: object
   respond.BroadcastTxResp:
     properties:
@@ -1696,7 +1778,7 @@ paths:
     get:
       description: Fetch mrc20 tick info list
       parameters:
-      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress
+      - description: pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress/deployTime
         in: query
         name: orderBy
         type: string
@@ -2040,6 +2122,66 @@ paths:
           schema:
             $ref: '#/definitions/respond.IdCoinsMintPreResp'
       summary: Mint id coins pre
+      tags:
+      - IdCoins
+  /api/v1/id-coins/redeem/commit:
+    post:
+      description: Redeem id coins commit
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.BookTakeMintBidCommitReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.BookMintOrderTakeCommitResp'
+      summary: Redeem id coins commit
+      tags:
+      - IdCoins
+  /api/v1/id-coins/redeem/pre:
+    post:
+      description: Redeem mint bid order pre
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.BookTakeMintBidPreReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.BookMintOrderTakePreResp'
+      summary: Redeem mint bid order pre
+      tags:
+      - IdCoins
+  /api/v1/id-coins/redeem/preview:
+    post:
+      description: Redeem mint bid order preview
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.BookTakeMintBidPreviewReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.BookMintOrderTakePreviewResp'
+      summary: Redeem mint bid order preview
       tags:
       - IdCoins
   /api/v1/inscribe/mrc20/deploy/commit:

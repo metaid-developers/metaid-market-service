@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"metaid-market-service/conf"
 	"metaid-market-service/models"
+	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/own_service"
+	"strconv"
 	"strings"
 )
 
@@ -253,6 +255,7 @@ func jobForCheckMrc20PreTransferOrderAskConfirm() {
 			continue
 		}
 		txId := utxoIdStrs[0]
+		vout, _ := strconv.ParseInt(utxoIdStrs[1], 10, 64)
 
 		txInfo, err := own_service.GetTxInfo(conf.Net, txId)
 		if err != nil {
@@ -260,8 +263,52 @@ func jobForCheckMrc20PreTransferOrderAskConfirm() {
 			continue
 		}
 		if txInfo.Confirmed && txInfo.Height > 0 {
-			entity.AskType = models.AskTypeNone
-			err := models.MarketMrc20OrderModelDao().Update(entity)
+			mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(txId, int64(vout), 0, 100)
+			if err != nil {
+				fmt.Printf("[JOB][%s][%s] FetchTxPointInfo error: %v\n", jobName, entity.OrderId, err)
+				continue
+			}
+			if mrc20InfoTotal > 1 {
+				fmt.Printf("[JOB][%s][%s] FetchTxPointInfo total > 1\n", jobName, entity.OrderId)
+				entity.OrderState = models.OrderStateCancel
+				entity.Reason = "FetchTxPointInfo total > 1"
+				entity.AskType = models.AskTypePreTransferCheck
+				err = models.MarketMrc20OrderModelDao().Update(entity)
+				if err != nil {
+					fmt.Printf("[JOB][%s][%s] Update error: %v\n", jobName, entity.OrderId, err)
+					continue
+				}
+				continue
+			}
+			if mrc20InfoList == nil || len(mrc20InfoList) == 0 {
+				fmt.Printf("[JOB][%s][%s] FetchTxPointInfo list is empty\n", jobName, entity.OrderId)
+				entity.OrderState = models.OrderStateCancel
+				entity.Reason = "FetchTxPointInfo list is empty"
+				entity.AskType = models.AskTypePreTransferCheck
+				err = models.MarketMrc20OrderModelDao().Update(entity)
+				if err != nil {
+					fmt.Printf("[JOB][%s][%s] Update error: %v\n", jobName, entity.OrderId, err)
+					continue
+				}
+				continue
+			}
+
+			mrc20Info := mrc20InfoList[0]
+			tick := mrc20Info.Tick
+
+			coinAmountStr := mrc20Info.AmtChange
+			coinAmount, _ := strconv.ParseInt(coinAmountStr, 10, 64)
+			//outValue := mrc20Info.PointValue
+
+			entity.Tick = tick
+			entity.TickId = mrc20Info.Mrc20Id
+
+			entity.AmountStr = coinAmountStr
+			entity.Amount = int64(coinAmount)
+			//entity.OutValue = outValue
+
+			entity.AskType = models.AskTypePreTransferCheck
+			err = models.MarketMrc20OrderModelDao().Update(entity)
 			if err != nil {
 				fmt.Printf("[JOB][%s][%s] Update error: %v\n", jobName, entity.OrderId, err)
 				continue

@@ -145,7 +145,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			chain = tickInfo.Chain
 
 			amountStr = reqCoinAmountStr
-			amount, _ = strconv.ParseInt(amountStr, 10, 64)
+			//amount, _ = strconv.ParseInt(amountStr, 10, 64)
+			amountDe, _ := decimal.NewFromString(amountStr)
+			amount = amountDe.IntPart()
 			outValue = reqUtxoOutValue
 		} else {
 			return nil, errors.New("Wrong AskType. ")
@@ -318,15 +320,17 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 			"Please wait for the confirmation or select a different order. ")
 	}
 
-	if entity.FeeRate > 0 {
-		feeRateDe := decimal.New(int64(entity.FeeRate), -2)
-		feeAmountForPlatform = decimal.New(entity.PriceAmount, 0).Mul(feeRateDe).IntPart()
-		if feeAmountForPlatform < 2000 {
-			feeAmountForPlatform = 2000
-		}
-	} else if entity.FeeAmount > 0 {
-		feeAmountForPlatform = entity.FeeAmount
-	}
+	feeAmountForPlatform, _ = common.GetPlatformMrc20TradeServiceFee(int64(entity.PriceAmount))
+
+	//if entity.FeeRate > 0 {
+	//	feeRateDe := decimal.New(int64(entity.FeeRate), -2)
+	//	feeAmountForPlatform = decimal.New(entity.PriceAmount, 0).Mul(feeRateDe).IntPart()
+	//	if feeAmountForPlatform < 2000 {
+	//		feeAmountForPlatform = 2000
+	//	}
+	//} else if entity.FeeAmount > 0 {
+	//	feeAmountForPlatform = entity.FeeAmount
+	//}
 
 	if entity.SellerAddress == req.BuyerAddress {
 		return nil, errors.New("Buyer address is same as seller. ")

@@ -270,3 +270,49 @@ type RefundIdCoinsValidCommitResp struct {
 	RefundAmount  int64  `json:"refundAmount"`
 	TxId          string `json:"txId"`
 }
+
+type BookTakeMintBidPreviewReq struct {
+	TickId         string   `json:"tickId"`
+	AssetUtxoIds   []string `json:"assetUtxoIds"`
+	SellerAddress  string   `json:"sellerAddress"`
+	NetworkFeeRate int64    `json:"networkFeeRate"`
+}
+
+type BookTakeMintBidPreReq struct {
+	TickId         string   `json:"tickId"`
+	AssetUtxoIds   []string `json:"assetUtxoIds"`
+	SellCoinAmount string   `json:"sellCoinAmount"`
+	SellerAddress  string   `json:"sellerAddress"`
+	NetworkFeeRate int64    `json:"networkFeeRate"`
+}
+
+type BookTakeMintBidCommitReq struct {
+	OrderId          string `json:"orderId"`
+	CommitTxRaw      string `json:"commitTxRaw"`
+	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
+	RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
+}
+
+type BookMintOrderTakePreviewResp struct {
+	AssetCoinList []string `json:"assetCoinList"`
+}
+
+type BookMintOrderTakePreResp struct {
+	OrderId          string `json:"orderId"`
+	TotalAmount      int64  `json:"totalAmount"`
+	ReceiveAddress   string `json:"receiveAddress"`
+	PriceAmount      int64  `json:"priceAmount"`
+	TotalFee         int64  `json:"totalFee"`
+	MinerFee         int64  `json:"minerFee"`
+	ServiceFee       int64  `json:"serviceFee"`
+	PsbtRaw          string `json:"psbtRaw"`
+	RevealInputIndex int64  `json:"revealInputIndex"`
+}
+
+type BookMintOrderTakeCommitResp struct {
+	OrderId    string `json:"orderId"`
+	TxId       string `json:"txId"`
+	CommitTxId string `json:"commitTxId"`
+	RevealTxId string `json:"revealTxId"`
+	TickId     string `json:"tickId"`
+}

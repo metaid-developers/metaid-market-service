@@ -23,7 +23,7 @@ import (
 )
 
 func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
-	if req.SearchTick != "" || req.OrderBy == "totalSupply" || req.OrderBy == "progress" {
+	if req.SearchTick != "" || req.OrderBy == "totalSupply" || req.OrderBy == "progress" || req.OrderBy == "deployTime" {
 		return FetchMrc20TickListByGrpc(req)
 	}
 	switch req.OrderBy {

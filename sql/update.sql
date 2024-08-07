@@ -296,3 +296,5 @@ alter table tb_mrc20_deploy_order
 
 alter table tb_market_mrc20_order
     add askType int  default 0 not null AFTER `priceCoin`;
+alter table tb_market_mrc20_order
+    add reason varchar(100)  default '' not null AFTER `askType`;

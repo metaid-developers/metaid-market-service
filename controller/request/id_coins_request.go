@@ -79,3 +79,25 @@ type RefundIdCoinsValidCommitRequest struct {
 	OrderId string `json:"orderId"`
 	PsbtRaw string `json:"psbtRaw"`
 }
+
+type BookTakeMintBidPreviewReq struct {
+	TickId         string   `json:"tickId"`
+	AssetUtxoIds   []string `json:"assetUtxoIds"`
+	SellerAddress  string   `json:"sellerAddress"`
+	NetworkFeeRate int64    `json:"networkFeeRate"`
+}
+
+type BookTakeMintBidPreReq struct {
+	TickId         string   `json:"tickId"`
+	AssetUtxoIds   []string `json:"assetUtxoIds"`
+	SellCoinAmount string   `json:"sellCoinAmount"`
+	SellerAddress  string   `json:"sellerAddress"`
+	NetworkFeeRate int64    `json:"networkFeeRate"`
+}
+
+type BookTakeMintBidCommitReq struct {
+	OrderId          string `json:"orderId"`
+	CommitTxRaw      string `json:"commitTxRaw"`
+	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
+	RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
+}

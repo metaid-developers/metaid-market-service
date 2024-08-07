@@ -17,8 +17,9 @@ const (
 type AskType int
 
 const (
-	AskTypeNone        AskType = 0
-	AskTypePreTransfer AskType = 1
+	AskTypeNone             AskType = 0
+	AskTypePreTransfer      AskType = 1
+	AskTypePreTransferCheck AskType = 2
 )
 
 type MarketMrc20OrderModel struct {
@@ -40,6 +41,7 @@ type MarketMrc20OrderModel struct {
 	PriceDecimal      int64             `gorm:"column:priceDecimal" json:"priceDecimal"`
 	PriceCoin         string            `gorm:"column:priceCoin" json:"priceCoin"`
 	AskType           AskType           `gorm:"column:askType" json:"askType"`
+	Reason            string            `gorm:"column:reason" json:"reason"`
 	OrderState        OrderState        `gorm:"column:orderState" json:"orderState"`
 	SellerAddress     string            `gorm:"column:sellerAddress" json:"sellerAddress"`
 	SellerIp          string            `gorm:"column:sellerIp" json:"sellerIp"`

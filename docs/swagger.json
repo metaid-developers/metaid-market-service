@@ -381,7 +381,7 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress",
+                        "description": "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress/deployTime",
                         "name": "orderBy",
                         "in": "query"
                     },
@@ -898,6 +898,99 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.IdCoinsMintPreResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/redeem/commit": {
+            "post": {
+                "description": "Redeem id coins commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Redeem id coins commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.BookTakeMintBidCommitReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.BookMintOrderTakeCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/redeem/pre": {
+            "post": {
+                "description": "Redeem mint bid order pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Redeem mint bid order pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.BookTakeMintBidPreReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.BookMintOrderTakePreResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/id-coins/redeem/preview": {
+            "post": {
+                "description": "Redeem mint bid order preview",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IdCoins"
+                ],
+                "summary": "Redeem mint bid order preview",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.BookTakeMintBidPreviewReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.BookMintOrderTakePreviewResp"
                         }
                     }
                 }
@@ -1810,11 +1903,13 @@
             "type": "integer",
             "enum": [
                 0,
-                1
+                1,
+                2
             ],
             "x-enum-varnames": [
                 "AskTypeNone",
-                "AskTypePreTransfer"
+                "AskTypePreTransfer",
+                "AskTypePreTransferCheck"
             ]
         },
         "models.AssetType": {
@@ -1964,6 +2059,66 @@
                     }
                 },
                 "takerPsbtRaw": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.BookTakeMintBidCommitReq": {
+            "type": "object",
+            "properties": {
+                "commitTxOutIndex": {
+                    "type": "integer"
+                },
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealPrePsbtRaw": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.BookTakeMintBidPreReq": {
+            "type": "object",
+            "properties": {
+                "assetUtxoIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "sellCoinAmount": {
+                    "type": "string"
+                },
+                "sellerAddress": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.BookTakeMintBidPreviewReq": {
+            "type": "object",
+            "properties": {
+                "assetUtxoIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "networkFeeRate": {
+                    "type": "integer"
+                },
+                "sellerAddress": {
+                    "type": "string"
+                },
+                "tickId": {
                     "type": "string"
                 }
             }
@@ -2468,6 +2623,69 @@
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "respond.BookMintOrderTakeCommitResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "revealTxId": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "txId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.BookMintOrderTakePreResp": {
+            "type": "object",
+            "properties": {
+                "minerFee": {
+                    "type": "integer"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "priceAmount": {
+                    "type": "integer"
+                },
+                "psbtRaw": {
+                    "type": "string"
+                },
+                "receiveAddress": {
+                    "type": "string"
+                },
+                "revealInputIndex": {
+                    "type": "integer"
+                },
+                "serviceFee": {
+                    "type": "integer"
+                },
+                "totalAmount": {
+                    "type": "integer"
+                },
+                "totalFee": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.BookMintOrderTakePreviewResp": {
+            "type": "object",
+            "properties": {
+                "assetCoinList": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

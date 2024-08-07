@@ -328,3 +328,81 @@ func FetchIdCoinsDeployCheckInfo(c *gin.Context) {
 	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
 	return
 }
+
+// @Summary Redeem mint bid order preview
+// @Description Redeem mint bid order preview
+// @Produce  json
+// @Param Request body request.BookTakeMintBidPreviewReq true "Request"
+// @Tags IdCoins
+// @Success 200 {object} respond.BookMintOrderTakePreviewResp ""
+// @Router /api/v1/id-coins/redeem/preview [post]
+func BookOrderTakeMintBidPreview(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.BookTakeMintBidPreviewReq
+		publicKey    string = ""
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.BookOrderTakeMintBidPreview(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
+// @Summary Redeem mint bid order pre
+// @Description Redeem mint bid order pre
+// @Produce  json
+// @Param Request body request.BookTakeMintBidPreReq true "Request"
+// @Tags IdCoins
+// @Success 200 {object} respond.BookMintOrderTakePreResp ""
+// @Router /api/v1/id-coins/redeem/pre [post]
+func BookOrderTakeMintBidPre(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.BookTakeMintBidPreReq
+		publicKey    string = ""
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.BookOrderTakeMintBidPre(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
+// @Summary Redeem id coins commit
+// @Description Redeem id coins commit
+// @Produce  json
+// @Param Request body request.BookTakeMintBidCommitReq true "Request"
+// @Tags IdCoins
+// @Success 200 {object} respond.BookMintOrderTakeCommitResp ""
+// @Router /api/v1/id-coins/redeem/commit [post]
+func BookOrderTakeMintBidCommit(c *gin.Context) {
+	var (
+		t            int64 = tool.MakeTimestamp()
+		requestModel *request.BookTakeMintBidCommitReq
+		publicKey    string = ""
+	)
+	if c.ShouldBindJSON(&requestModel) == nil {
+		publicKey = getAuthParams(c)
+		responseModel, err := mrc20_op_service.BookOrderTakeMintBidCommit(requestModel, publicKey, c.ClientIP())
+		if err != nil {
+			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
+		c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+		return
+	}
+	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}

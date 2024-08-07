@@ -22,10 +22,6 @@ var (
 	TicketFansDomain     = ""
 	MvcscanDamain        = ""
 
-	RpcUrl      = ""
-	RpcUsername = ""
-	RpcPassword = ""
-
 	ZmqRawTxUrl = ""
 
 	RedisEndpoint     = ""
@@ -47,14 +43,14 @@ var (
 )
 
 type ServiceFeeConfig struct {
-	ServiceAddress    string  `json:"service_address"`
-	PinTradeFee       int64   `json:"pin_trade_fee"`
-	PinTradeFeeRate   float64 `json:"pin_trade_fee_rate"`
-	Mrc20TradeFee     int64   `json:"mrc20_trade_fee"`
-	Mrc20TradeFeeRate float64 `json:"mrc20_trade_fee_rate"`
-	DeployFee         int64   `json:"deploy_fee"`
-	MintFee           int64   `json:"mint_fee"`
-	TransferFee       int64   `json:"transfer_fee"`
+	ServiceAddress    string `json:"service_address"`
+	PinTradeFee       int64  `json:"pin_trade_fee"`
+	PinTradeFeeRate   int64  `json:"pin_trade_fee_rate"`
+	Mrc20TradeFee     int64  `json:"mrc20_trade_fee"`
+	Mrc20TradeFeeRate int64  `json:"mrc20_trade_fee_rate"`
+	DeployFee         int64  `json:"deploy_fee"`
+	MintFee           int64  `json:"mint_fee"`
+	TransferFee       int64  `json:"transfer_fee"`
 }
 
 func InitConfig() {
@@ -81,10 +77,6 @@ func InitConfig() {
 	RedisEndpoint, RedisPassword = viper.GetString("redis.endpoint"), viper.GetString("redis.password")
 	RedisDbUtxo = viper.GetInt("redis.db_utxo")
 
-	RpcUrl = viper.GetString("rpc.url")
-	RpcUsername = viper.GetString("rpc.username")
-	RpcPassword = viper.GetString("rpc.password")
-
 	ZmqRawTxUrl = viper.GetString("zmq.btc.rawtx_url")
 
 	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk = viper.GetString("platform.dummy.private_key"), viper.GetString("platform.dummy.address")
@@ -101,9 +93,9 @@ func InitConfig() {
 	PlatformServiceFeeConfigData = &ServiceFeeConfig{
 		ServiceAddress:    viper.GetString("platform.service_fee.service_address"),
 		PinTradeFee:       viper.GetInt64("platform.service_fee.pin_trade_fee"),
-		PinTradeFeeRate:   viper.GetFloat64("platform.service_fee.pin_trade_fee_rate"),
+		PinTradeFeeRate:   viper.GetInt64("platform.service_fee.pin_trade_fee_rate"),
 		Mrc20TradeFee:     viper.GetInt64("platform.service_fee.mrc20_trade_fee"),
-		Mrc20TradeFeeRate: viper.GetFloat64("platform.service_fee.mrc20_trade_fee_rate"),
+		Mrc20TradeFeeRate: viper.GetInt64("platform.service_fee.mrc20_trade_fee_rate"),
 		MintFee:           viper.GetInt64("platform.service_fee.mint_fee"),
 		DeployFee:         viper.GetInt64("platform.service_fee.deploy_fee"),
 		TransferFee:       viper.GetInt64("platform.service_fee.transfer_fee"),

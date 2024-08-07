@@ -449,3 +449,102 @@ func RefundIdCoinsInvalidLpCommit(req *RefundIdCoinsValidCommitRequest, headers 
 
 	return data, nil
 }
+
+func BookOrderTakeMintBidPreview(req *BookTakeMintBidPreviewReq, headers map[string]string) (*BookMintOrderTakePreviewResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *BookMintOrderTakePreviewResp
+		err    error
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/book/bid-mint-take/preview", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.PostUrl(url, req, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
+func BookOrderTakeMintBidPre(req *BookTakeMintBidPreReq, headers map[string]string) (*BookMintOrderTakePreResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *BookMintOrderTakePreResp
+		err    error
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/book/bid-mint-take/pre", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.PostUrl(url, req, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}
+
+func BookOrderTakeMintBidCommit(req *BookTakeMintBidCommitReq, headers map[string]string) (*BookMintOrderTakeCommitResp, error) {
+	var (
+		url    string
+		result string
+		resp   *Message
+		data   *BookMintOrderTakeCommitResp
+		err    error
+	)
+	headers = addHeaderKey(headers)
+
+	url = fmt.Sprintf("%s/book/bid-mint-take/commit", conf.OrdersExchangeDomain)
+	//fmt.Println(url)
+	result, err = tool.PostUrl(url, req, headers)
+	if err != nil {
+		return nil, errReq
+	}
+
+	//fmt.Println(result)
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	if resp.Code != CodeSuccess {
+		return nil, errors.New(fmt.Sprintf("Msg:%v", resp.Message))
+	}
+
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
+	}
+
+	return data, nil
+}

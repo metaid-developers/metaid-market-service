@@ -180,3 +180,27 @@ type RefundIdCoinsValidCommitResp struct {
 	RefundAmount  int64  `json:"refundAmount"`
 	TxId          string `json:"txId"`
 }
+
+type BookMintOrderTakePreviewResp struct {
+	AssetCoinList []string `json:"assetCoinList"`
+}
+
+type BookMintOrderTakePreResp struct {
+	OrderId          string `json:"orderId"`
+	TotalAmount      int64  `json:"totalAmount"`
+	ReceiveAddress   string `json:"receiveAddress"`
+	PriceAmount      int64  `json:"priceAmount"`
+	TotalFee         int64  `json:"totalFee"`
+	MinerFee         int64  `json:"minerFee"`
+	ServiceFee       int64  `json:"serviceFee"`
+	PsbtRaw          string `json:"psbtRaw"`
+	RevealInputIndex int64  `json:"revealInputIndex"`
+}
+
+type BookMintOrderTakeCommitResp struct {
+	OrderId    string `json:"orderId"`
+	TxId       string `json:"txId"`
+	CommitTxId string `json:"commitTxId"`
+	RevealTxId string `json:"revealTxId"`
+	TickId     string `json:"tickId"`
+}

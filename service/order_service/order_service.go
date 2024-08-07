@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/godaddy-x/freego/utils/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
@@ -717,15 +716,17 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New("Order is closed. ")
 	}
 
-	if entity.FeeRate > 0 {
-		feeRateDe := decimal.New(int64(entity.FeeRate), -2)
-		feeAmountForPlatform = decimal.New(entity.SellPriceAmount, 0).Mul(feeRateDe).IntPart()
-		if feeAmountForPlatform < 2000 {
-			feeAmountForPlatform = 2000
-		}
-	} else if entity.FeeAmount > 0 {
-		feeAmountForPlatform = entity.FeeAmount
-	}
+	feeAmountForPlatform, _ = common.GetPlatformMrc20TradeServiceFee(int64(entity.SellPriceAmount))
+
+	//if entity.FeeRate > 0 {
+	//	feeRateDe := decimal.New(int64(entity.FeeRate), -2)
+	//	feeAmountForPlatform = decimal.New(entity.SellPriceAmount, 0).Mul(feeRateDe).IntPart()
+	//	if feeAmountForPlatform < 2000 {
+	//		feeAmountForPlatform = 2000
+	//	}
+	//} else if entity.FeeAmount > 0 {
+	//	feeAmountForPlatform = entity.FeeAmount
+	//}
 
 	if entity.SellerAddress == req.BuyerAddress {
 		return nil, errors.New("Buyer address is same as seller. ")

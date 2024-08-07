@@ -24,7 +24,8 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
-		_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
 		totalBuyerReceiveOutValue uint64 = 0
 		dummyOutValue                    = uint64(0)
@@ -136,7 +137,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 	outputs = append(outputs, dummyOut600)
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform > 546 {
+	if feeAmountForPlatform >= 546 {
 		// add fee output: 5
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -301,7 +302,8 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
-		_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
 		dummyOutValue           = uint64(0)
 		newDummyOutValue uint64 = 600
@@ -392,7 +394,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 	outputs = append(outputs, dummyOut600)
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform > 546 {
+	if feeAmountForPlatform >= 546 {
 		// add fee output: 5
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -552,7 +554,8 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
-		_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
 		dummyOutValue           = uint64(0)
 		newDummyOutValue uint64 = 600
@@ -669,7 +672,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 	outputs = append(outputs, dummyOut600)
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform > 546 {
+	if feeAmountForPlatform >= 546 {
 		// add fee output: 5
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -760,7 +763,8 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
-		_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
 		dummyOutValue           = uint64(0)
 		newDummyOutValue uint64 = 600
@@ -833,7 +837,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 	}
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform > 546 {
+	if feeAmountForPlatform >= 546 {
 		// add fee output: 3
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -954,7 +958,8 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 		_, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
-		_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
+		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
 		dummyOutValue           = uint64(0)
 		newDummyOutValue uint64 = 600
@@ -1036,7 +1041,7 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 	}
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform > 546 {
+	if feeAmountForPlatform >= 546 {
 		// add fee output: 3
 		feeOut := Output{
 			Address: platformAddressReceiveFee,

@@ -9,6 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/godaddy-x/freego/utils/decimal"
 	"metaid-market-service/conf"
 	"metaid-market-service/service/own_service"
 	"strings"
@@ -223,4 +224,42 @@ func GetSegwitAddressFromPublicKey(netParams *chaincfg.Params, publicKeyHex stri
 		return "", err
 	}
 	return nativeSegwitAddress.EncodeAddress(), nil
+}
+
+func GetPlatformMrc20TradeServiceFee(tradeAmount int64) (int64, string) {
+	var (
+		serviceFee       int64  = 0
+		serviceFeeAmount int64  = GetPlatformServiceFeeConfigData().Mrc20TradeFee
+		serviceFeeRate   int64  = GetPlatformServiceFeeConfigData().Mrc20TradeFeeRate
+		serviceAddress   string = GetPlatformServiceFeeConfigData().ServiceAddress
+	)
+	if serviceFeeRate > 0 {
+		feeRateDe := decimal.New(int64(serviceFeeRate), -4)
+		serviceFee = decimal.New(int64(tradeAmount), 0).Mul(feeRateDe).IntPart()
+		if serviceFee < 2000 {
+			serviceFee = 2000
+		}
+	} else if serviceFeeAmount > 0 {
+		serviceFee = serviceFeeAmount
+	}
+	return serviceFee, serviceAddress
+}
+
+func GetPlatformPinTradeServiceFee(tradeAmount int64) (int64, string) {
+	var (
+		serviceFee       int64  = 0
+		serviceFeeAmount int64  = GetPlatformServiceFeeConfigData().PinTradeFee
+		serviceFeeRate   int64  = GetPlatformServiceFeeConfigData().PinTradeFeeRate
+		serviceAddress   string = GetPlatformServiceFeeConfigData().ServiceAddress
+	)
+	if serviceFeeRate > 0 {
+		feeRateDe := decimal.New(int64(serviceFeeRate), -4)
+		serviceFee = decimal.New(int64(tradeAmount), 0).Mul(feeRateDe).IntPart()
+		if serviceFee < 2000 {
+			serviceFee = 2000
+		}
+	} else if serviceFeeAmount > 0 {
+		serviceFee = serviceFeeAmount
+	}
+	return serviceFee, serviceAddress
 }

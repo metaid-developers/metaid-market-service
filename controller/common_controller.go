@@ -193,7 +193,7 @@ func FetchMrc20TickAddressShovels(c *gin.Context) {
 // @Description Fetch mrc20 tick info list
 // @Produce  json
 // @Tags Common
-// @Param orderBy query string false "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress"
+// @Param orderBy query string false "pinnumber/totalminted/holders/txcount/change24H/lastPrice/marketCap/totalSupply/progress/deployTime"
 // @Param searchTick query string false "searchTick"
 // @Param sortType query int false "-1/1, if orderBy is 'change24H/lastPrice/marketCap', it works, default '-1'"
 // @Param completed query bool false "true/false/null, default null"
