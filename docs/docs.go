@@ -80,6 +80,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/common/coin/price": {
+            "get": {
+                "description": "Fetch coin price",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch coin price",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FeeRecommended"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/common/fee/recommended": {
+            "get": {
+                "description": "Fetch rate",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch Fee recommendation",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FeeRecommended"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/common/mrc20/address/balance-list": {
             "get": {
                 "description": "Fetch address mrc20 balances",
@@ -259,6 +299,26 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/respond.Mrc20UtxoResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/common/mrc20/market/price-list": {
+            "get": {
+                "description": "Fetch mrc20 market price list",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Common"
+                ],
+                "summary": "Fetch mrc20 market price list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20TickMarketPriceListResp"
                         }
                     }
                 }
@@ -1901,6 +1961,109 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/api/v1/metaname/op/orders": {
+            "get": {
+                "description": "Fetch metaname op orders",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MetaName"
+                ],
+                "summary": "Fetch metaname op orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "address",
+                        "name": "address",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "default:10, max:50",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.FetchMetaNameOpOrdersResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/metaname/register/commit": {
+            "post": {
+                "description": "MetaName register commit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MetaName"
+                ],
+                "summary": "MetaName register commit",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.RegisterMetaNameCommitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.RegisterMetaNameCommitResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/metaname/register/pre": {
+            "post": {
+                "description": "MetaName register pre",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MetaName"
+                ],
+                "summary": "MetaName register pre",
+                "parameters": [
+                    {
+                        "description": "Request",
+                        "name": "Request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.RegisterMetaNamePreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.RegisterMetaNamePreResp"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2538,6 +2701,34 @@ const docTemplate = `{
                 }
             }
         },
+        "request.RegisterMetaNameCommitRequest": {
+            "type": "object",
+            "properties": {
+                "commitTxOutIndex": {
+                    "type": "integer"
+                },
+                "commitTxRaw": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.RegisterMetaNamePreRequest": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "metaName": {
+                    "type": "string"
+                },
+                "networkFeeRate": {
+                    "type": "integer"
+                }
+            }
+        },
         "request.TakeMrc20OrderReq": {
             "type": "object",
             "properties": {
@@ -2785,6 +2976,26 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.FeeRecommended": {
+            "type": "object",
+            "properties": {
+                "economyFee": {
+                    "type": "integer"
+                },
+                "fastestFee": {
+                    "type": "integer"
+                },
+                "halfHourFee": {
+                    "type": "integer"
+                },
+                "hourFee": {
+                    "type": "integer"
+                },
+                "minimumFee": {
+                    "type": "integer"
+                }
+            }
+        },
         "respond.FetchIdCoinsDeployCheckResp": {
             "type": "object",
             "properties": {
@@ -2817,6 +3028,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/respond.IdCoinsOpOrderInfoResp"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.FetchMetaNameOpOrdersResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.MetaNameOpOrderInfoResp"
                     }
                 },
                 "total": {
@@ -3232,6 +3457,51 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.MetaNameOpOrderInfoResp": {
+            "type": "object",
+            "properties": {
+                "blockHeight": {
+                    "type": "integer"
+                },
+                "confirmationState": {
+                    "$ref": "#/definitions/models.ConfirmationState"
+                },
+                "metaData": {
+                    "type": "string"
+                },
+                "metaName": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "opOrderType": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "receiveAddress": {
+                    "type": "string"
+                },
+                "registerAddress": {
+                    "type": "string"
+                },
+                "registerState": {
+                    "description": "0-pending, 1-success, 2-fail",
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "txId": {
+                    "type": "string"
+                }
+            }
+        },
         "respond.Mrc20BalanceInfo": {
             "type": "object",
             "properties": {
@@ -3439,6 +3709,9 @@ const docTemplate = `{
                 "feeRate": {
                     "type": "integer"
                 },
+                "feeRateStr": {
+                    "type": "string"
+                },
                 "orderId": {
                     "type": "string"
                 },
@@ -3601,6 +3874,9 @@ const docTemplate = `{
                 "supply": {
                     "type": "string"
                 },
+                "tag": {
+                    "type": "string"
+                },
                 "tick": {
                     "type": "string"
                 },
@@ -3631,6 +3907,40 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/respond.Mrc20TickInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20TickMarketPriceInfo": {
+            "type": "object",
+            "properties": {
+                "price": {
+                    "type": "string"
+                },
+                "priceUsd": {
+                    "type": "string"
+                },
+                "tick": {
+                    "type": "string"
+                },
+                "tickId": {
+                    "type": "string"
+                },
+                "tokenName": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.Mrc20TickMarketPriceListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20TickMarketPriceInfo"
                     }
                 },
                 "total": {
@@ -3932,6 +4242,9 @@ const docTemplate = `{
                 "feeRate": {
                     "type": "integer"
                 },
+                "feeRateStr": {
+                    "type": "string"
+                },
                 "holder": {
                     "$ref": "#/definitions/respond.UserInfo"
                 },
@@ -4057,6 +4370,58 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "refundAmount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.RegisterMetaNameCommitResp": {
+            "type": "object",
+            "properties": {
+                "commitTxId": {
+                    "type": "string"
+                },
+                "metaName": {
+                    "type": "string"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "pinId": {
+                    "type": "string"
+                },
+                "revealTxId": {
+                    "type": "string"
+                },
+                "txId": {
+                    "type": "string"
+                }
+            }
+        },
+        "respond.RegisterMetaNamePreResp": {
+            "type": "object",
+            "properties": {
+                "metaName": {
+                    "type": "string"
+                },
+                "minerFee": {
+                    "type": "integer"
+                },
+                "minerGas": {
+                    "type": "integer"
+                },
+                "minerOutValue": {
+                    "type": "integer"
+                },
+                "orderId": {
+                    "type": "string"
+                },
+                "receiveAddress": {
+                    "type": "string"
+                },
+                "serviceFee": {
+                    "type": "integer"
+                },
+                "totalFee": {
                     "type": "integer"
                 }
             }
@@ -4238,7 +4603,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "",
-	BasePath:         "/api-market-testnet",
+	BasePath:         "/api-market",
 	Schemes:          []string{"https"},
 	Title:            "MetaID-Market API Service",
 	Description:      "MetaID-Market API Service",

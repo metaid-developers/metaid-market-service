@@ -259,6 +259,7 @@ func FetchIdCoinsList(c *gin.Context) {
 			OrderBy:         c.DefaultQuery("orderBy", ""),
 			FollowerAddress: c.DefaultQuery("followerAddress", ""),
 			SearchTick:      c.DefaultQuery("searchTick", ""),
+			Completed:       c.DefaultQuery("completed", ""),
 		}
 	)
 	req.SortType, _ = strconv.Atoi(c.DefaultQuery("sortType", "-1"))

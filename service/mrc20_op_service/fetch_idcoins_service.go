@@ -164,6 +164,7 @@ func fetchIdCoinsListFromOrders(req *request.FetchIdCoinsListRequest, publicKey,
 			SortType:        req.SortType,
 			FollowerAddress: req.FollowerAddress,
 			SearchTick:      req.SearchTick,
+			Completed:       req.Completed,
 		}
 		respOrders *orders_exchange_service.FetchIdCoinsListResp
 		err        error

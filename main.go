@@ -50,12 +50,12 @@ func run() {
 // @termsOfService
 // @contact.name API Support
 // @schemes https
-// @BasePath /api-market-testnet
+// @BasePath /api-market
 func main() {
 	InitEnv()
 	InitAll()
 	//fix.FixMarketInfoForFloorPrice()
-	task.JobForCheckRecordConfirm()
+	//task.JobForCheckRecordConfirm()
 	go task.RunJob()
 	controller.Run()
 }

@@ -18,6 +18,7 @@ import (
 	"metaid-market-service/service/parse_service"
 	"metaid-market-service/tool"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -72,7 +73,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 		nowTime int64 = tool.MakeTimestamp()
 	)
 	serviceFee, serviceAddress = common.GetPlatformServiceFeeConfigData().DeployFee, common.GetPlatformServiceFeeConfigData().ServiceAddress
-	if serviceFee > 546 {
+	if serviceFee >= 546 {
 		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
 			Address: serviceAddress,
 			Amount:  serviceFee,
@@ -89,6 +90,10 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	tick = mrc20DeployData.Tick
 	if len(tick) > 24 || len(tick) < 2 {
 		return nil, errors.New("tick length error")
+	}
+
+	if strings.ToLower(tick) == "wukong" {
+		return nil, errors.New("tick error")
 	}
 
 	tickInfo, _ := common_service.GetMrc20TickInfo("", tick)
@@ -109,6 +114,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 		ChangeAddress:       changeAddress,
 		DeployPinOutAddress: deployPinOutAddress,
 		//DeployMrc20OutAddress: deployMrc20OutAddress,
+		OtherOuts: otherOuts,
 	}
 	if mrc20DeployData.PremineCount != "" {
 		mrc20OpRequest.DeployMrc20OutAddress = deployMrc20OutAddress

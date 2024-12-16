@@ -272,6 +272,28 @@ func FetchMrc20TickMarketPrice(c *gin.Context) {
 	return
 }
 
+// @Summary Fetch mrc20 market price list
+// @Description Fetch mrc20 market price list
+// @Produce  json
+// @Tags Common
+// @Success 200 {object} respond.Mrc20TickMarketPriceListResp ""
+// @Router /api/v1/common/mrc20/market/price-list [get]
+func FetchMrc20TickMarketPriceList(c *gin.Context) {
+	var (
+		t   int64                                     = tool.MakeTimestamp()
+		req *request.FetchMrc20TickMarketPriceListReq = &request.FetchMrc20TickMarketPriceListReq{}
+	)
+	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)
+	responseModel, err := common_service.FetchMrc20TickMarketPriceList(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}
+
 // @Summary Check Utxo Info
 // @Description Check Utxo Info
 // @Produce  json
@@ -294,4 +316,42 @@ func CheckUtxoInfo(c *gin.Context) {
 		return
 	}
 	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+}
+
+// @Summary Fetch Fee recommendation
+// @Description Fetch rate
+// @Produce  json
+// @Tags Common
+// @Success 200 {object} respond.FeeRecommended ""
+// @Router /api/v1/common/fee/recommended [get]
+func FetchFeeRecommended(c *gin.Context) {
+	var (
+		t int64 = tool.MakeTimestamp()
+	)
+	responseModel, err := common_service.GetFeeSummary()
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}
+
+// @Summary Fetch coin price
+// @Description Fetch coin price
+// @Produce  json
+// @Tags Common
+// @Success 200 {object} respond.FeeRecommended ""
+// @Router /api/v1/common/coin/price [get]
+func FetchCoinPrice(c *gin.Context) {
+	var (
+		t int64 = tool.MakeTimestamp()
+	)
+	responseModel, err := common_service.GetPriceFormMempoolSpace()
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
 }

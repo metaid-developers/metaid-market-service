@@ -92,6 +92,7 @@ type FetchIdCoinsListRequest struct {
 	SortType        int    `json:"sortType"`
 	FollowerAddress string `json:"followerAddress"`
 	SearchTick      string `json:"searchTick"`
+	Completed       string `json:"completed"`
 }
 
 type FetchOneIdCoinsRequest struct {

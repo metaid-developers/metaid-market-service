@@ -290,6 +290,7 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		resp                 *respond.Mrc20OrderInfo
 		takerPsbtRaw         string = ""
 		feeAmountForPlatform int64  = 0
+		feeRateStr           string = ""
 		psbtBuilder          *common.PsbtBuilder
 	)
 
@@ -320,7 +321,7 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 			"Please wait for the confirmation or select a different order. ")
 	}
 
-	feeAmountForPlatform, _ = common.GetPlatformMrc20TradeServiceFee(int64(entity.PriceAmount))
+	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformMrc20TradeServiceFee(int64(entity.PriceAmount))
 
 	//if entity.FeeRate > 0 {
 	//	feeRateDe := decimal.New(int64(entity.FeeRate), -2)
@@ -401,10 +402,11 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		PriceAmount:       entity.PriceAmount,
 		PriceDecimal:      entity.PriceDecimal,
 		PriceCoin:         entity.PriceCoin,
-		Fee:               entity.FeeAmount,
+		Fee:               feeAmountForPlatform,
 		//Fee:      feeAmountForPlatform,
-		FeeRate:  entity.FeeRate,
-		TakePsbt: takerPsbtRaw,
+		FeeRate:    entity.FeeRate,
+		FeeRateStr: feeRateStr,
+		TakePsbt:   takerPsbtRaw,
 	}
 	return resp, nil
 }
@@ -555,6 +557,10 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	entity.BuyerIp = ip
 	entity.OrderState = models.OrderStateFinish
 	entity.ConfirmationState = models.ConfirmationStateUnconfirmed
+
+	feeAmountForPlatform, feeRate, _, _ := common.GetPlatformMrc20TradeServiceFee(int64(entity.PriceAmount))
+	entity.FeeRate = feeRate
+	entity.FeeAmount = feeAmountForPlatform
 
 	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, buyerAddress)
 	if err != nil {

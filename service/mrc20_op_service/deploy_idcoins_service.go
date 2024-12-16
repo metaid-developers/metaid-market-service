@@ -18,9 +18,14 @@ import (
 	"metaid-market-service/service/orders_exchange_service"
 	"metaid-market-service/service/wallet_service"
 	"metaid-market-service/tool"
+	"strings"
 )
 
 func BuildIdCoinsPre(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {
+	if strings.ToLower(req.Tick) == "wukong" {
+		return nil, errors.New("tick error")
+	}
+
 	return buildIdCoinsPreFromOrders(req, publicKey, ip)
 }
 

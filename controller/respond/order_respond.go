@@ -41,6 +41,7 @@ type OrderInfo struct {
 	PinStatus         int64                    `json:"pinStatus"` //0:transfer-confirm, -9:transfer-unconfirm
 	Fee               int64                    `json:"fee"`
 	FeeRate           int64                    `json:"feeRate"`
+	FeeRateStr        string                   `json:"feeRateStr"`
 	Content           string                   `json:"content"`
 	Preview           string                   `json:"preview"`
 	Detail            interface{}              `json:"detail"`
@@ -135,6 +136,7 @@ type Mrc20OrderInfo struct {
 	PriceCoin         string                   `json:"priceCoin"`
 	Fee               int64                    `json:"fee"`
 	FeeRate           int64                    `json:"feeRate"`
+	FeeRateStr        string                   `json:"feeRateStr"`
 	TakePsbt          string                   `json:"takePsbt,omitempty"`
 	BlockHeight       int64                    `json:"blockHeight"`
 	ConfirmationState models.ConfirmationState `json:"confirmationState"`

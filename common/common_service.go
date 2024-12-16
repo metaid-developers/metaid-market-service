@@ -11,7 +11,9 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/godaddy-x/freego/utils/decimal"
 	"metaid-market-service/conf"
+	"metaid-market-service/service/orders_exchange_service"
 	"metaid-market-service/service/own_service"
+	"metaid-market-service/tool"
 	"strings"
 )
 
@@ -226,40 +228,93 @@ func GetSegwitAddressFromPublicKey(netParams *chaincfg.Params, publicKeyHex stri
 	return nativeSegwitAddress.EncodeAddress(), nil
 }
 
-func GetPlatformMrc20TradeServiceFee(tradeAmount int64) (int64, string) {
+func GetPlatformMrc20TradeServiceFee(tradeAmount int64) (int64, int64, string, string) {
 	var (
 		serviceFee       int64  = 0
 		serviceFeeAmount int64  = GetPlatformServiceFeeConfigData().Mrc20TradeFee
 		serviceFeeRate   int64  = GetPlatformServiceFeeConfigData().Mrc20TradeFeeRate
+		serviceFeeMin    int64  = GetPlatformServiceFeeConfigData().Mrc20TradeFeeMin
 		serviceAddress   string = GetPlatformServiceFeeConfigData().ServiceAddress
+		feeRateStr       string = "0"
 	)
 	if serviceFeeRate > 0 {
 		feeRateDe := decimal.New(int64(serviceFeeRate), -4)
+		feeRateStr = feeRateDe.Mul(decimal.New(100, 0)).StringFixed(2)
 		serviceFee = decimal.New(int64(tradeAmount), 0).Mul(feeRateDe).IntPart()
-		if serviceFee < 2000 {
-			serviceFee = 2000
+		if serviceFee < serviceFeeMin {
+			serviceFee = 0
 		}
 	} else if serviceFeeAmount > 0 {
 		serviceFee = serviceFeeAmount
 	}
-	return serviceFee, serviceAddress
+	return serviceFee, serviceFeeRate, feeRateStr, serviceAddress
 }
 
-func GetPlatformPinTradeServiceFee(tradeAmount int64) (int64, string) {
+func GetPlatformPinTradeServiceFee(tradeAmount int64) (int64, int64, string, string) {
 	var (
 		serviceFee       int64  = 0
 		serviceFeeAmount int64  = GetPlatformServiceFeeConfigData().PinTradeFee
 		serviceFeeRate   int64  = GetPlatformServiceFeeConfigData().PinTradeFeeRate
+		serviceFeeMin    int64  = GetPlatformServiceFeeConfigData().PinTradeFeeMin
 		serviceAddress   string = GetPlatformServiceFeeConfigData().ServiceAddress
+		feeRateStr       string = "0"
 	)
 	if serviceFeeRate > 0 {
 		feeRateDe := decimal.New(int64(serviceFeeRate), -4)
+		feeRateStr = feeRateDe.Mul(decimal.New(100, 0)).StringFixed(2)
 		serviceFee = decimal.New(int64(tradeAmount), 0).Mul(feeRateDe).IntPart()
-		if serviceFee < 2000 {
-			serviceFee = 2000
+		if serviceFee < serviceFeeMin {
+			serviceFee = 0
 		}
 	} else if serviceFeeAmount > 0 {
 		serviceFee = serviceFeeAmount
 	}
-	return serviceFee, serviceAddress
+	return serviceFee, serviceFeeRate, feeRateStr, serviceAddress
+}
+
+type MetaDataInfo struct {
+	TickSign string `json:"tickSign"`
+}
+
+func CheckIdCoins(tick, metaData string, deployTime int64) string {
+	var (
+		metaDataInfo  *MetaDataInfo
+		err           error
+		tickSign      string = ""
+		signPublic    string = conf.IdCoinsSignPublicKey
+		signTimestamp int64  = conf.IdCoinsSignTimestamp
+		verify        bool   = false
+	)
+	err = tool.JsonToObject(metaData, &metaDataInfo)
+	if err != nil {
+		return ""
+	}
+	tickSign = metaDataInfo.TickSign
+	if tickSign == "" {
+		return ""
+	}
+	if deployTime <= 0 {
+		return ""
+	}
+	if signTimestamp > 0 && deployTime <= signTimestamp {
+		idCoins, _ := orders_exchange_service.FetchOneIdCoinsInfo(&orders_exchange_service.FetchOneIdCoinsRequest{
+			TickId:        "",
+			Tick:          tick,
+			IssuerAddress: "",
+		}, nil)
+		if idCoins == nil {
+			return ""
+		}
+		return "id-coins"
+	}
+
+	verify, err = tool.VerifyTextSign(strings.ToUpper(tick), tickSign, signPublic)
+	if err != nil {
+		return ""
+	}
+	if !verify {
+		return ""
+	}
+
+	return "id-coins"
 }

@@ -1,4 +1,4 @@
-basePath: /api-market-testnet
+basePath: /api-market
 definitions:
   models.AskType:
     enum:
@@ -413,6 +413,24 @@ definitions:
       orderId:
         type: string
     type: object
+  request.RegisterMetaNameCommitRequest:
+    properties:
+      commitTxOutIndex:
+        type: integer
+      commitTxRaw:
+        type: string
+      orderId:
+        type: string
+    type: object
+  request.RegisterMetaNamePreRequest:
+    properties:
+      address:
+        type: string
+      metaName:
+        type: string
+      networkFeeRate:
+        type: integer
+    type: object
   request.TakeMrc20OrderReq:
     properties:
       networkFeeRate:
@@ -573,6 +591,19 @@ definitions:
       orderState:
         $ref: '#/definitions/models.OrderState'
     type: object
+  respond.FeeRecommended:
+    properties:
+      economyFee:
+        type: integer
+      fastestFee:
+        type: integer
+      halfHourFee:
+        type: integer
+      hourFee:
+        type: integer
+      minimumFee:
+        type: integer
+    type: object
   respond.FetchIdCoinsDeployCheckResp:
     properties:
       canDeploy:
@@ -594,6 +625,15 @@ definitions:
       list:
         items:
           $ref: '#/definitions/respond.IdCoinsOpOrderInfoResp'
+        type: array
+      total:
+        type: integer
+    type: object
+  respond.FetchMetaNameOpOrdersResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.MetaNameOpOrderInfoResp'
         type: array
       total:
         type: integer
@@ -871,6 +911,36 @@ definitions:
       processingTime:
         type: integer
     type: object
+  respond.MetaNameOpOrderInfoResp:
+    properties:
+      blockHeight:
+        type: integer
+      confirmationState:
+        $ref: '#/definitions/models.ConfirmationState'
+      metaData:
+        type: string
+      metaName:
+        type: string
+      name:
+        type: string
+      namespace:
+        type: string
+      opOrderType:
+        type: string
+      orderId:
+        type: string
+      receiveAddress:
+        type: string
+      registerAddress:
+        type: string
+      registerState:
+        description: 0-pending, 1-success, 2-fail
+        type: integer
+      timestamp:
+        type: integer
+      txId:
+        type: string
+    type: object
   respond.Mrc20BalanceInfo:
     properties:
       balance:
@@ -1007,6 +1077,8 @@ definitions:
         type: integer
       feeRate:
         type: integer
+      feeRateStr:
+        type: string
       orderId:
         type: string
       orderState:
@@ -1115,6 +1187,8 @@ definitions:
         type: string
       supply:
         type: string
+      tag:
+        type: string
       tick:
         type: string
       tokenName:
@@ -1135,6 +1209,28 @@ definitions:
       list:
         items:
           $ref: '#/definitions/respond.Mrc20TickInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  respond.Mrc20TickMarketPriceInfo:
+    properties:
+      price:
+        type: string
+      priceUsd:
+        type: string
+      tick:
+        type: string
+      tickId:
+        type: string
+      tokenName:
+        type: string
+    type: object
+  respond.Mrc20TickMarketPriceListResp:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/respond.Mrc20TickMarketPriceInfo'
         type: array
       total:
         type: integer
@@ -1338,6 +1434,8 @@ definitions:
         type: integer
       feeRate:
         type: integer
+      feeRateStr:
+        type: string
       holder:
         $ref: '#/definitions/respond.UserInfo'
       holderAddress:
@@ -1420,6 +1518,40 @@ definitions:
       refundAddress:
         type: string
       refundAmount:
+        type: integer
+    type: object
+  respond.RegisterMetaNameCommitResp:
+    properties:
+      commitTxId:
+        type: string
+      metaName:
+        type: string
+      orderId:
+        type: string
+      pinId:
+        type: string
+      revealTxId:
+        type: string
+      txId:
+        type: string
+    type: object
+  respond.RegisterMetaNamePreResp:
+    properties:
+      metaName:
+        type: string
+      minerFee:
+        type: integer
+      minerGas:
+        type: integer
+      minerOutValue:
+        type: integer
+      orderId:
+        type: string
+      receiveAddress:
+        type: string
+      serviceFee:
+        type: integer
+      totalFee:
         type: integer
     type: object
   respond.ShovelInfo:
@@ -1581,6 +1713,32 @@ paths:
       summary: Take Market order
       tags:
       - Market-Order
+  /api/v1/common/coin/price:
+    get:
+      description: Fetch coin price
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FeeRecommended'
+      summary: Fetch coin price
+      tags:
+      - Common
+  /api/v1/common/fee/recommended:
+    get:
+      description: Fetch rate
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FeeRecommended'
+      summary: Fetch Fee recommendation
+      tags:
+      - Common
   /api/v1/common/mrc20/address/balance-list:
     get:
       description: Fetch address mrc20 balances
@@ -1701,6 +1859,19 @@ paths:
           schema:
             $ref: '#/definitions/respond.Mrc20UtxoResp'
       summary: Fetch address mrc20 id-coins utxo
+      tags:
+      - Common
+  /api/v1/common/mrc20/market/price-list:
+    get:
+      description: Fetch mrc20 market price list
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20TickMarketPriceListResp'
+      summary: Fetch mrc20 market price list
       tags:
       - Common
   /api/v1/common/mrc20/market/price/info:
@@ -2774,6 +2945,73 @@ paths:
       summary: Fetch market orders
       tags:
       - Market-Order
+  /api/v1/metaname/op/orders:
+    get:
+      description: Fetch metaname op orders
+      parameters:
+      - description: address
+        in: query
+        name: address
+        required: true
+        type: string
+      - description: default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: default:10, max:50
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.FetchMetaNameOpOrdersResp'
+      summary: Fetch metaname op orders
+      tags:
+      - MetaName
+  /api/v1/metaname/register/commit:
+    post:
+      description: MetaName register commit
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RegisterMetaNameCommitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.RegisterMetaNameCommitResp'
+      summary: MetaName register commit
+      tags:
+      - MetaName
+  /api/v1/metaname/register/pre:
+    post:
+      description: MetaName register pre
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RegisterMetaNamePreRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.RegisterMetaNamePreResp'
+      summary: MetaName register pre
+      tags:
+      - MetaName
 schemes:
 - https
 swagger: "2.0"

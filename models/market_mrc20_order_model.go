@@ -453,13 +453,13 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 			lastPrice := marketTickInfo.LastPrice
 			if lastPrice != 0 {
 				lastPriceDe := decimal.NewFromFloat(lastPrice)
-				change24HDe := currentPriceDe.Sub(lastPriceDe).Div(lastPriceDe).Mul(decimal.New(100, 0))
-				if currentPriceDe.Sub(lastPriceDe).GreaterThan(decimal.Zero) {
+				change24HDe := currentPriceDe.Sub(lastPriceDe).Div(lastPriceDe).Mul(decimal.New(10000, 0))
+				if currentPriceDe.Sub(lastPriceDe).LessThan(decimal.Zero) {
 					change24HDe = change24HDe.Neg()
 				}
 				change24H = change24HDe.IntPart()
 			} else {
-				change24H = 0
+				change24H = 10000
 			}
 			if totalVolume != 0 {
 				marketTickInfo.TotalVolume = totalVolume
@@ -476,6 +476,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 				return err
 			}
 		} else {
+
 			marketTickInfo = &MarketMrc20InfoModel{
 				TickId:      q.TickId,
 				Tick:        q.Tick,
@@ -487,12 +488,15 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 				MarketCap:   marketCap,
 				LastPrice:   currentPrice,
 				FloorPrice:  floorPrice,
-				Change24H:   10000,
+				Change24H:   0,
 				Timestamp:   updateTime,
 				//Version:     0,
 				CreateTime: updateTime,
 				//UpdateTime:  0,
 				State: STATE_EXIST,
+			}
+			if currentPrice != 0 {
+				marketTickInfo.Change24H = 10000
 			}
 			if err := tx.Create(marketTickInfo).Error; err != nil {
 				return err

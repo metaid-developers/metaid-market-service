@@ -60,6 +60,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		extra map[string]interface{} = make(map[string]interface{})
 
 		tickInfo *common_service.TickInfo
+		//currentBlockHeight int64 = 0
 	)
 
 	if serviceFee > 546 {
@@ -84,6 +85,10 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		}
 		minerPayToAmount = payTo.Amount
 		payTos = append(payTos, payTo)
+	}
+
+	if tickInfo.BeginHeight != "" || tickInfo.EndHeight != "" {
+
 	}
 
 	mintCountDe, _ := decimal.NewFromString(tickInfo.MintCount)

@@ -1,0 +1,17 @@
+syntax = "proto3";
+option go_package = "./protobuf/common_service";
+
+package protobuf;
+
+message CommonCoinPriceReq {
+    string coin = 1;
+}
+message CommonCoinPriceResp {
+    double price = 2;
+    double priceUsd = 3;
+}
+
+
+service CommonService {
+    rpc FetchCommonCoinPrice(CommonCoinPriceReq) returns (CommonCoinPriceResp);
+}

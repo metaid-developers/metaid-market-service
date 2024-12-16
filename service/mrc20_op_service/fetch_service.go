@@ -10,6 +10,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/man_service"
+	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
@@ -66,6 +67,13 @@ func fetchMrc20DeployOrders(req *request.FetchMrc20OpOrdersRequest) (*respond.Fe
 			pinCheck = tool.AnyToStr(tickInfoMap[v.TickId].PinCheck)
 			payCheck = tool.AnyToStr(tickInfoMap[v.TickId].PayCheck)
 			holders = tickInfoMap[v.TickId].Holders
+		} else {
+			if v.Payload != "" {
+				mrc20DeployData := &mrc20_service.Mrc20DeployData{}
+				if err := tool.JsonToObject(v.Payload, &mrc20DeployData); err == nil {
+					metaData = mrc20DeployData.Metadata
+				}
+			}
 		}
 		if v.ConfirmationState == models.ConfirmationStateConfirmed {
 			if tickInfoMap[v.TickId] != nil {

@@ -42,6 +42,11 @@ type FetchMrc20TickMarketPriceResp struct {
 	TickId string `json:"tickId"`
 }
 
+type FetchMrc20TickMarketPriceListReq struct {
+	Cursor int64 `json:"cursor"`
+	Size   int64 `json:"size"`
+}
+
 type Mrc20IdCoinsAddressUtxosReq struct {
 	TickId  string `json:"tickId"`
 	Address string `json:"address"`

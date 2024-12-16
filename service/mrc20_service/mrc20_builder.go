@@ -437,6 +437,7 @@ func (m *Mrc20Builder) CalTransferRevealPsbtFee(feeRate int64) (int64, error) {
 
 	weight = int64(txBaseSize*3 + txTotalSize)
 	vSize = (weight + (blockchain.WitnessScaleFactor - 1)) / blockchain.WitnessScaleFactor
+	vSize = vSize + 1
 	txFee = vSize * feeRate
 	return txFee, nil
 }
@@ -536,9 +537,10 @@ func (m *Mrc20Builder) CalRevealPsbtFee(feeRate int64) int64 {
 
 	weight = int64(txBaseSize*3 + txTotalSize)
 	vSize = (weight + (blockchain.WitnessScaleFactor - 1)) / blockchain.WitnessScaleFactor
+	vSize = vSize + 1
 	txFee = vSize * feeRate
-	fmt.Printf("weight:%d, vSize:%d, txFee:%d\n", weight, vSize, txFee)
-	fmt.Printf("revealOutValues:%d, totalMinerFee:%d\n", revealOutValues, txFee+revealOutValues)
+	//fmt.Printf("weight:%d, vSize:%d, txFee:%d\n", weight, vSize, txFee)
+	//fmt.Printf("revealOutValues:%d, totalMinerFee:%d\n", revealOutValues, txFee+revealOutValues)
 	return txFee + revealOutValues
 }
 
@@ -741,18 +743,4 @@ func createMetaIdTxCtxData(net *chaincfg.Params, metaIdData *MetaIdData) (*inscr
 		recoveryPrivateKeyWIF:   recoveryPrivateKeyWIF.String(),
 		RecoveryPrivateKeyHex:   recoveryPrivateKeyHex,
 	}, nil
-}
-
-// address to pkScript
-func AddressToPkScript(net *chaincfg.Params, address string) (string, error) {
-	addr, err := btcutil.DecodeAddress(address, net)
-	if err != nil {
-		return "", err
-	}
-	pkScriptByte, err := txscript.PayToAddrScript(addr)
-	if err != nil {
-		return "", err
-	}
-	pkScript := hex.EncodeToString(pkScriptByte)
-	return pkScript, nil
 }

@@ -80,6 +80,8 @@ func Mrc20DeployBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, in
 		mrc20PinOutAddress:     opRep.DeployPinOutAddress,
 		mrc20PremineOutAddress: opRep.DeployMrc20OutAddress,
 		transferAddress:        opRep.TransferAddress,
+
+		OtherOuts: opRep.OtherOuts,
 	}
 
 	txCtxData, err := createMetaIdTxCtxData(opRep.Net, mrc20Builder.MetaIdData)

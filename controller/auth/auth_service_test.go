@@ -49,9 +49,9 @@ func TestVerifySign2(t *testing.T) {
 	//}
 	//fmt.Println(verified)
 
-	message := "706[6h1C2XjqoXHRegJNnmJqGDMt3rbAcrYLX4L995a087c101e7f4859bc463ab72839c698de114933454d460ecd00c4ce012a7a51C2XjqoXHRegJNnmJqGDMt3rbAcrYLX4L917191690258214498PayLike"
-	messageSign := "H6ZBvuEU/yI9OB+l3Zu0mmNn41kAy6Y2kkLYykB9CPLTNj3Bf4nE6gRQXXfpX5TqKGXXforasjd6HH4RrMx43cI="
-	publicKey := "02d7ca08e61d4b31d383bd6f43ae8251f81ffe3af13d636d44fa8fe34d64136ad3"
+	message := "TRYEE"
+	messageSign := "H814FMHYKwfkK5Azc3EHIA0CYPAkGLJXRmx7D516aMPMB+ijs89iaoN26IjsPArrlKp7k30gfORcm7IlHO6bMMU="
+	publicKey := "022f5ef2e3c610e1c4b3eb2ec55c5f12e3bc375cb6a16888eb720bdeb31ea7107e"
 	verified, err := VerifyTextSign(message, messageSign, publicKey)
 	if err != nil {
 		fmt.Println(err)

@@ -691,6 +691,7 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		resp                 *respond.OrderInfo
 		takerPsbtRaw         string = ""
 		feeAmountForPlatform int64  = 0
+		feeRateStr                  = ""
 		psbtBuilder          *common.PsbtBuilder
 	)
 
@@ -716,7 +717,7 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New("Order is closed. ")
 	}
 
-	feeAmountForPlatform, _ = common.GetPlatformMrc20TradeServiceFee(int64(entity.SellPriceAmount))
+	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformPinTradeServiceFee(int64(entity.SellPriceAmount))
 
 	//if entity.FeeRate > 0 {
 	//	feeRateDe := decimal.New(int64(entity.FeeRate), -2)
@@ -789,13 +790,14 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		SellPriceAmount:  entity.SellPriceAmount,
 		SellPriceDecimal: entity.SellPriceDecimal,
 		SellPriceCoin:    entity.SellPriceCoin,
-		Fee:              entity.FeeAmount,
+		Fee:              feeAmountForPlatform,
 		//Fee:      feeAmountForPlatform,
-		FeeRate:  entity.FeeRate,
-		Content:  entity.Content,
-		Preview:  entity.Preview,
-		Detail:   entity.Detail,
-		TakePsbt: takerPsbtRaw,
+		FeeRate:    entity.FeeRate,
+		FeeRateStr: feeRateStr,
+		Content:    entity.Content,
+		Preview:    entity.Preview,
+		Detail:     entity.Detail,
+		TakePsbt:   takerPsbtRaw,
 	}
 	return resp, nil
 }
@@ -927,6 +929,10 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	entity.BuyerIp = ip
 	entity.OrderState = models.OrderStateFinish
 	entity.ConfirmationState = models.ConfirmationStateUnconfirmed
+
+	feeAmountForPlatform, feeRate, _, _ := common.GetPlatformPinTradeServiceFee(int64(entity.SellPriceAmount))
+	entity.FeeAmount = feeAmountForPlatform
+	entity.FeeRate = feeRate
 
 	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, buyerAddress)
 	if err != nil {

@@ -49,6 +49,11 @@ type BitcoinPrice struct {
 	JPY  int64 `json:"JPY"`
 }
 
+var (
+	cachedPrice *BitcoinPrice
+	cachedTime  int64 = 0
+)
+
 func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
 	var (
 		url    string = "https://mempool.space/api/v1/prices"
@@ -56,6 +61,10 @@ func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
 		data   *BitcoinPrice
 		err    error
 	)
+	if cachedPrice != nil && (tool.MakeTimestamp()-cachedTime) <= 5*60*1000 {
+		return cachedPrice, nil
+	}
+
 	result, err = tool.GetUrl(url, nil, nil)
 	if err != nil {
 		return nil, errors.New("request err")
@@ -65,5 +74,7 @@ func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
 	if err = tool.JsonToObject(result, &data); err != nil {
 		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
 	}
+	cachedPrice = data
+	cachedTime = tool.MakeTimestamp()
 	return data, nil
 }

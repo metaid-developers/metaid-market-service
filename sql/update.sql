@@ -298,3 +298,45 @@ alter table tb_market_mrc20_order
     add askType int  default 0 not null AFTER `priceCoin`;
 alter table tb_market_mrc20_order
     add reason varchar(100)  default '' not null AFTER `askType`;
+
+
+
+create table tb_metaname_register_order
+(
+    id                  bigint auto_increment primary key,
+    orderId             varchar(80)    default '' not null,
+    inscribeState       int            default 0  not null comment '1-Pending,2-Paid,3-Finish',
+    registerAddress     varchar(80)    default '' not null,
+    receiveAddress      varchar(80)    default '' not null,
+    pinId               varchar(80)    default '' not null,
+    metaname            varchar(80)    default '' not null,
+    name                varchar(80)    default '' not null,
+    namespace           varchar(80)    default '' not null,
+    payload             varchar(512)   default '' not null,
+    chain               varchar(80)    default '' not null,
+    networkFeeRate      int            default 0  not null,
+    totalFee            bigint         default 0  not null,
+    minerFee            bigint         default 0  not null,
+    serviceFee          bigint         default 0  not null,
+    redeemScript        TEXT not null,
+    controlBlockWitness TEXT not null,
+    revealTxPrivateKey  varchar(80)  default '' not null,
+    revealTxAddress     varchar(80)    default '' not null,
+    revealInputIndex    bigint         default 0  not null,
+    revealPrePsbtRaw    TEXT  not null,
+    revealFinalPsbtRaw  TEXT  not null,
+    commitTxRaw         TEXT  not null,
+    revealTxRaw         TEXT  not null,
+    commitTxId          varchar(128)   default '' not null,
+    revealTxId          varchar(128)   default '' not null,
+    txId                varchar(128)   default '' not null,
+    blockHeight         bigint         default 0  not null,
+    confirmationState   int            default 0  not null comment '1-Unconfirmed, 2-Confirmed',
+    timestamp           bigint         default 0  not null,
+    version             int            default 0  not null,
+    createTime          bigint         default 0  not null,
+    updateTime          bigint         default 0  not null,
+    state               int            default 0  not null,
+    constraint tb_metaname_register_order_orderId_uindex
+        unique (orderId)
+);

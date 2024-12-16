@@ -248,6 +248,7 @@ func FetchIdCoinsList(req *FetchIdCoinsListRequest, headers map[string]string) (
 			"sortType":        fmt.Sprintf("%d", req.SortType),
 			"followerAddress": req.FollowerAddress,
 			"searchTick":      req.SearchTick,
+			"completed":       req.Completed,
 		}
 	)
 	headers = addHeaderKey(headers)

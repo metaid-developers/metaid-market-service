@@ -10,7 +10,8 @@ import (
 
 func GetMetaIdFlag() string {
 	if conf.Net == "testnet" {
-		return "testid"
+		//return "testid"
+		return "metaid"
 	}
 	return "metaid"
 }

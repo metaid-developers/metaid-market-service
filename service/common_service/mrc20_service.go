@@ -152,6 +152,7 @@ func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc2
 				Progress:         float64(v.Progress),
 			}
 
+			item.Tag = common.CheckIdCoins(v.Tick, v.Metadata, v.DeployTime)
 			list = append(list, item)
 		}
 		total = grpcResp.Total
@@ -269,7 +270,7 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 				Mintable:         mintable,
 				Remaining:        remaining,
 			}
-
+			item.Tag = common.CheckIdCoins(v.Tick, v.Metadata, v.DeployTime)
 			list = append(list, item)
 		}
 		total = mrc20Resp.Total
@@ -355,7 +356,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				mintable = true
 			}
 		}
-		fmt.Printf("Completed:%t, mintable:%t\n", req.Completed, mintable)
+		//fmt.Printf("Completed:%t, mintable:%t\n", req.Completed, mintable)
 		if req.Completed == "ture" && mintable {
 			continue
 		}
@@ -396,6 +397,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			Mintable:         mintable,
 			Remaining:        remaining,
 		}
+		item.Tag = common.CheckIdCoins(v.Tick, tickInfo.MetaData, tickInfo.DeployTime)
 		list = append(list, item)
 	}
 
@@ -507,7 +509,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				Mintable:         mintable,
 				Remaining:        remaining,
 			}
-
+			item.Tag = common.CheckIdCoins(v.Tick, v.Metadata, v.DeployTime)
 			list = append(list, item)
 		}
 		total = mrc20Resp.Total
@@ -596,6 +598,7 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		totalVolume = marketInfo.TotalVolume
 	}
 
+	tag := common.CheckIdCoins(mrc20Resp.Tick, mrc20Resp.Metadata, mrc20Resp.DeployTime)
 	return &respond.Mrc20TickInfo{
 		Tick:             mrc20Resp.Tick,
 		TokenName:        mrc20Resp.TokenName,
@@ -631,6 +634,7 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		Supply:           supply,
 		Mintable:         mintable,
 		Remaining:        remaining,
+		Tag:              tag,
 	}, nil
 }
 
@@ -980,6 +984,41 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 		PriceUsd:      priceUsd,
 		FloorPrice:    floorPrice,
 		FloorPriceUsd: floorPriceUsd,
+	}, nil
+}
+
+func FetchMrc20TickMarketPriceList(req *request.FetchMrc20TickMarketPriceListReq) (*respond.Mrc20TickMarketPriceListResp, error) {
+	var (
+		marketList []*models.MarketMrc20InfoModel
+
+		total int64                               = 0
+		list  []*respond.Mrc20TickMarketPriceInfo = make([]*respond.Mrc20TickMarketPriceInfo, 0)
+	)
+	btcUsd := GetPriceForUsd("BTC")
+	btcUsdDe, _ := decimal.NewFromString(btcUsd)
+	satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+	total, _ = models.MarketMrc20InfoModelDao().Count(&models.MarketMrc20InfoModel{})
+	marketList, _ = models.MarketMrc20InfoModelDao().GetAll(&models.MarketMrc20InfoModel{})
+	for _, v := range marketList {
+		price := "0"
+		priceUsd := "0.00"
+		price = strconv.FormatFloat(v.LastPrice, 'f', -1, 64)
+		priceDe, _ := decimal.NewFromString(price)
+		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		item := &respond.Mrc20TickMarketPriceInfo{
+			TickId:    v.TickId,
+			Tick:      v.Tick,
+			TokenName: v.TokenName,
+			Price:     price,
+			PriceUsd:  priceUsd,
+		}
+		list = append(list, item)
+	}
+
+	return &respond.Mrc20TickMarketPriceListResp{
+		Total: total,
+		List:  list,
 	}, nil
 }
 

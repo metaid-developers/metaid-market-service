@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/godaddy-x/freego/utils/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
@@ -90,6 +91,11 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 	}
 	outValue := int64(0)
 	for _, v := range req.Mrc20Outs {
+		mrc20AmountDe, _ := decimal.NewFromString(v.Amount)
+		if mrc20AmountDe.LessThanOrEqual(decimal.New(0, 0)) {
+			return nil, errors.New("transfer mrc20 parameter error")
+		}
+
 		mrc20Outs = append(mrc20Outs, &mrc20_service.Mrc20OutInfo{
 			Amount:   v.Amount,
 			Address:  v.Address,

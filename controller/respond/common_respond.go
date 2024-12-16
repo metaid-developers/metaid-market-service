@@ -36,6 +36,7 @@ type Mrc20TickInfo struct {
 	Mintable         bool        `json:"mintable"`
 	Remaining        string      `json:"remaining"`
 	Progress         float64     `json:"progress"`
+	Tag              string      `json:"tag"`
 }
 
 type Mrc20ShovelResp struct {
@@ -172,6 +173,19 @@ type Mrc20TickMarketPriceResp struct {
 	Progress      float64 `json:"progress"`
 }
 
+type Mrc20TickMarketPriceListResp struct {
+	Total int64                       `json:"total"`
+	List  []*Mrc20TickMarketPriceInfo `json:"list"`
+}
+
+type Mrc20TickMarketPriceInfo struct {
+	TickId    string `json:"tickId"`
+	Tick      string `json:"tick"`
+	TokenName string `json:"tokenName"`
+	Price     string `json:"price"`
+	PriceUsd  string `json:"priceUsd"`
+}
+
 type Mrc20TickHolderResp struct {
 	Total int64         `json:"total"`
 	List  []*HolderInfo `json:"list"`
@@ -186,4 +200,12 @@ type HolderInfo struct {
 	UserInfo   *UserInfo `json:"userInfo"`
 	Balance    string    `json:"balance"`
 	Proportion string    `json:"proportion"`
+}
+
+type FeeRecommended struct {
+	FastestFee  int64 `json:"fastestFee"`
+	HalfHourFee int64 `json:"halfHourFee"`
+	HourFee     int64 `json:"hourFee"`
+	EconomyFee  int64 `json:"economyFee"`
+	MinimumFee  int64 `json:"minimumFee"`
 }

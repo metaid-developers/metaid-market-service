@@ -85,7 +85,7 @@ func (_ *marketMrc20InfoModelDao) GetList(qo *MarketMrc20InfoModel, offset, limi
 
 func (_ *marketMrc20InfoModelDao) GetListByOrder(qo *MarketMrc20InfoModel, offset, limit int64, orderBy, sort string) ([]*MarketMrc20InfoModel, error) {
 	var models []*MarketMrc20InfoModel
-	tx := major.GetSqlDB().Where(qo).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", orderBy, sort)).Find(&models)
+	tx := major.GetSqlDB().Where(qo).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s, id asc", orderBy, sort)).Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
@@ -102,8 +102,8 @@ func (_ *marketMrc20InfoModelDao) Count(qo *MarketMrc20InfoModel) (int64, error)
 	return count, nil
 }
 
-func (_ *marketMrc20InfoModelDao) GetAll(qo *MarketMrc20InfoModel) ([]MarketMrc20InfoModel, error) {
-	var models []MarketMrc20InfoModel
+func (_ *marketMrc20InfoModelDao) GetAll(qo *MarketMrc20InfoModel) ([]*MarketMrc20InfoModel, error) {
+	var models []*MarketMrc20InfoModel
 	tx := major.GetSqlDB().Where(qo).Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error

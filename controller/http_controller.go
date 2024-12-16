@@ -78,6 +78,10 @@ func Run() {
 		v1.GET("/id-coins/coins-info", FetchOneIdCoinsInfo)
 		v1.GET("/id-coins/deploy/check/info", FetchIdCoinsDeployCheckInfo)
 
+		v1.POST("/metaname/register/pre", auth.AuthSignMiddleware(), RegisterMetaNamePre)
+		v1.POST("/metaname/register/commit", auth.AuthSignMiddleware(), RegisterMetaNameCommit)
+		v1.GET("/metaname/op/orders", FetchAddressMetaNameOrder)
+
 		v1.GET("/common/mrc20/tick/info-list", FetchMrc20TickList)
 		v1.GET("/common/mrc20/tick/info", FetchMrc20TickInfo)
 		v1.GET("/common/mrc20/address/balance-list", FetchMrc20TickAddressBalances)
@@ -86,7 +90,10 @@ func Run() {
 		v1.GET("/common/mrc20/address/shovel", FetchMrc20TickAddressShovels)
 		v1.GET("/common/mrc20/tick/holder-list", FetchMrc20Holders)
 		v1.GET("/common/mrc20/market/price/info", FetchMrc20TickMarketPrice)
+		v1.GET("/common/mrc20/market/price-list", FetchMrc20TickMarketPriceList)
 		v1.POST("/common/utxo/check/info", CheckUtxoInfo)
+		v1.GET("/common/fee/recommended", FetchFeeRecommended)
+		v1.GET("/common/coin/price", FetchCoinPrice)
 
 		v1.POST("/common/tx/broadcast", BroadcastTx)
 
