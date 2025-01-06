@@ -970,20 +970,21 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 
 	totalVolume = marketInfo.TotalVolume
 	return &respond.Mrc20TickMarketPriceResp{
-		TickId:        marketInfo.TickId,
-		Tick:          marketInfo.Tick,
-		TokenName:     marketInfo.TokenName,
-		Decimals:      marketInfo.Decimals,
-		Supply:        marketInfo.Supply,
-		TotalVolume:   totalVolume,
-		MarketCap:     marketCap,
-		MarketCapUsd:  marketCapUsd,
-		LastPrice:     price,
-		LastPriceUsd:  priceUsd,
-		Price:         price,
-		PriceUsd:      priceUsd,
-		FloorPrice:    floorPrice,
-		FloorPriceUsd: floorPriceUsd,
+		TickId:         marketInfo.TickId,
+		Tick:           marketInfo.Tick,
+		TokenName:      marketInfo.TokenName,
+		Decimals:       marketInfo.Decimals,
+		Supply:         marketInfo.Supply,
+		TotalVolume:    totalVolume,
+		MarketCap:      marketCap,
+		MarketCapUsd:   marketCapUsd,
+		LastPrice:      price,
+		LastPriceUsd:   priceUsd,
+		PriceChange24h: marketInfo.Change24H,
+		Price:          price,
+		PriceUsd:       priceUsd,
+		FloorPrice:     floorPrice,
+		FloorPriceUsd:  floorPriceUsd,
 	}, nil
 }
 

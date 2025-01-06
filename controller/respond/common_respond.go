@@ -156,21 +156,22 @@ type BroadcastTxResp struct {
 }
 
 type Mrc20TickMarketPriceResp struct {
-	TickId        string  `json:"tickId"`
-	Tick          string  `json:"tick"`
-	TokenName     string  `json:"tokenName"`
-	Decimals      int64   `json:"decimals"`
-	Supply        string  `json:"supply"`
-	TotalVolume   int64   `json:"totalVolume"`
-	MarketCap     string  `json:"marketCap"`
-	MarketCapUsd  string  `json:"marketCapUsd"`
-	LastPrice     string  `json:"lastPrice"`
-	LastPriceUsd  string  `json:"lastPriceUsd"`
-	Price         string  `json:"price"`
-	PriceUsd      string  `json:"priceUsd"`
-	FloorPrice    string  `json:"floorPrice"`
-	FloorPriceUsd string  `json:"floorPriceUsd"`
-	Progress      float64 `json:"progress"`
+	TickId         string  `json:"tickId"`
+	Tick           string  `json:"tick"`
+	TokenName      string  `json:"tokenName"`
+	Decimals       int64   `json:"decimals"`
+	Supply         string  `json:"supply"`
+	TotalVolume    int64   `json:"totalVolume"`
+	MarketCap      string  `json:"marketCap"`
+	MarketCapUsd   string  `json:"marketCapUsd"`
+	LastPrice      string  `json:"lastPrice"`
+	LastPriceUsd   string  `json:"lastPriceUsd"`
+	PriceChange24h int64   `json:"priceChange24h"`
+	Price          string  `json:"price"`
+	PriceUsd       string  `json:"priceUsd"`
+	FloorPrice     string  `json:"floorPrice"`
+	FloorPriceUsd  string  `json:"floorPriceUsd"`
+	Progress       float64 `json:"progress"`
 }
 
 type Mrc20TickMarketPriceListResp struct {

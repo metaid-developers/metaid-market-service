@@ -3975,6 +3975,9 @@ const docTemplate = `{
                 "price": {
                     "type": "string"
                 },
+                "priceChange24h": {
+                    "type": "integer"
+                },
                 "priceUsd": {
                     "type": "string"
                 },
