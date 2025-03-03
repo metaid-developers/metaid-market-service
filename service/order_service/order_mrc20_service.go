@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/godaddy-x/freego/utils/decimal"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"

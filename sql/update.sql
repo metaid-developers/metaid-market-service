@@ -340,3 +340,28 @@ create table tb_metaname_register_order
     constraint tb_metaname_register_order_orderId_uindex
         unique (orderId)
 );
+
+create table tb_market_auto_bridge_create
+(
+    id            bigint auto_increment primary key,
+    tickId        varchar(80)    default '' not null,
+    tick          varchar(80)    default '' not null,
+    tokenName     varchar(80)    default '' not null,
+    decimals      bigint         default 0  not null,
+    orderCount    bigint         default 0  not null,
+    marketCapSat  bigint         default 0  not null,
+    marketCapUsdt bigint         default 0  not null,
+    autoStatus    int            default 0  not null comment '1-create, 2-finish',
+    timestamp     bigint         default 0  not null,
+    version       int            default 0  not null,
+    createTime    bigint         default 0  not null,
+    updateTime    bigint         default 0  not null,
+    state         int            default 0  not null,
+    constraint tb_market_auto_bridge_create_tickId_uindex
+        unique (tickId)
+);
+alter table tb_market_mrc20_info
+    add autoStatus int  default 0 not null comment '1-create, 2-finish' AFTER `supply` ;
+alter table tb_market_mrc20_info
+    add orderCount bigint  default 0 not null AFTER `autoStatus` ;
+

@@ -3,7 +3,7 @@ package models
 import (
 	"errors"
 	"fmt"
-	"github.com/godaddy-x/freego/utils/decimal"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
@@ -287,6 +287,16 @@ func (_ *marketMrc20OrderModelDao) Update(q *MarketMrc20OrderModel) error {
 	return nil
 }
 
+func (_ *marketMrc20OrderModelDao) GetLastTenOrderListByTickId(qo *MarketMrc20OrderModel) ([]*MarketMrc20OrderModel, error) {
+	var models []*MarketMrc20OrderModel
+	filter := fmt.Sprintf("orderState = %d and dealTime > %d", OrderStateFinish, tool.MakeTimestamp()-24*60*60*1000)
+	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(10).Order("dealTime desc").Find(&models)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return models, nil
+}
+
 func (_ *marketMrc20OrderModelDao) UpdateForPushAndCancel(q *MarketMrc20OrderModel, supply string) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		if q == nil {
@@ -464,6 +474,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 			if totalVolume != 0 {
 				marketTickInfo.TotalVolume = totalVolume
 			}
+			marketTickInfo.OrderCount++
 			marketTickInfo.LastPrice = currentPrice
 			marketTickInfo.FloorPrice = floorPrice
 			marketTickInfo.Supply = supply
@@ -478,12 +489,13 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 		} else {
 
 			marketTickInfo = &MarketMrc20InfoModel{
-				TickId:      q.TickId,
-				Tick:        q.Tick,
-				TokenName:   q.TokenName,
-				Decimals:    q.Decimals,
-				Chain:       q.Chain,
-				Supply:      supply,
+				TickId:    q.TickId,
+				Tick:      q.Tick,
+				TokenName: q.TokenName,
+				Decimals:  q.Decimals,
+				Chain:     q.Chain,
+				Supply:    supply,
+				//OrderCount:  0,
 				TotalVolume: totalVolume,
 				MarketCap:   marketCap,
 				LastPrice:   currentPrice,
@@ -495,6 +507,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 				//UpdateTime:  0,
 				State: STATE_EXIST,
 			}
+			marketTickInfo.OrderCount++
 			if currentPrice != 0 {
 				marketTickInfo.Change24H = 10000
 			}

@@ -317,3 +317,42 @@ type BookMintOrderTakeCommitResp struct {
 	RevealTxId string `json:"revealTxId"`
 	TickId     string `json:"tickId"`
 }
+
+type AdminAddAutoBridgeReq struct {
+	Mrc20Id string `json:"mrc20Id"`
+}
+
+type AdminAddAutoBridgeResp struct {
+	Message string `json:"message"`
+	OrderId string `json:"orderId"`
+}
+
+type AdminAutoBridgeInfoReq struct {
+	Mrc20Id string `json:"mrc20Id"`
+}
+
+type BridgeBuildStatus int
+
+const (
+	BridgeBuildStatusInit BridgeBuildStatus = iota
+	BridgeBuildStatusSuccess
+	BridgeBuildStatusRechargeBridgeSuccess
+	BridgeBuildStatusBuildSwapPoolSuccess
+	BridgeBuildStatusUpdateSwapPoolSuccess
+	BridgeBuildStatusBuildSwapSpacePoolSuccess
+	BridgeBuildStatusUpdateSwapSpacePoolSuccess
+	BridgeBuildStatusFail
+	BridgeBuildStatusRechargeBridgeFail
+	BridgeBuildStatusBuildSwapPoolFail
+	BridgeBuildStatusUpdateSwapPoolFail
+	BridgeBuildStatusBuildSwapSpacePoolFail
+	BridgeBuildStatusUpdateSwapSpacePoolFail
+)
+
+type AdminAutoBridgeInfoResp struct {
+	OrderId           string            `json:"orderId"`
+	TickId            string            `json:"tickId"`
+	Protocol          string            `gorm:"column:protocol" json:"protocol"`
+	Tick              string            `gorm:"column:tick" json:"tick"`
+	BridgeBuildStatus BridgeBuildStatus `json:"bridgeBuildStatus"`
+}

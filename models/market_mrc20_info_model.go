@@ -9,23 +9,25 @@ import (
 )
 
 type MarketMrc20InfoModel struct {
-	Id          int64   `gorm:"column:id" json:"id"`
-	TickId      string  `gorm:"column:tickId" json:"tickId"`
-	Tick        string  `gorm:"column:tick" json:"tick"`
-	TokenName   string  `gorm:"column:tokenName" json:"tokenName"`
-	Decimals    int64   `gorm:"column:decimals" json:"decimals"`
-	Chain       string  `gorm:"column:chain" json:"chain"`
-	Supply      string  `gorm:"column:supply" json:"supply"`
-	TotalVolume int64   `gorm:"column:totalVolume" json:"totalVolume"`
-	MarketCap   int64   `gorm:"column:marketCap" json:"marketCap"`
-	LastPrice   float64 `gorm:"column:lastPrice" json:"lastPrice"`
-	FloorPrice  float64 `gorm:"column:floorPrice" json:"floorPrice"`
-	Change24H   int64   `gorm:"column:change24H" json:"change24H"`
-	Timestamp   int64   `gorm:"column:timestamp" json:"timestamp"`
-	Version     int64   `gorm:"column:version" json:"version"`
-	CreateTime  int64   `gorm:"column:createTime" json:"createTime"`
-	UpdateTime  int64   `gorm:"column:updateTime" json:"updateTime"`
-	State       int64   `gorm:"column:state" json:"state"`
+	Id          int64      `gorm:"column:id" json:"id"`
+	TickId      string     `gorm:"column:tickId" json:"tickId"`
+	Tick        string     `gorm:"column:tick" json:"tick"`
+	TokenName   string     `gorm:"column:tokenName" json:"tokenName"`
+	Decimals    int64      `gorm:"column:decimals" json:"decimals"`
+	Chain       string     `gorm:"column:chain" json:"chain"`
+	Supply      string     `gorm:"column:supply" json:"supply"`
+	AutoStatus  AutoStatus `gorm:"column:autoStatus" json:"autoStatus"`
+	OrderCount  int64      `gorm:"column:orderCount" json:"orderCount"`
+	TotalVolume int64      `gorm:"column:totalVolume" json:"totalVolume"`
+	MarketCap   int64      `gorm:"column:marketCap" json:"marketCap"`
+	LastPrice   float64    `gorm:"column:lastPrice" json:"lastPrice"`
+	FloorPrice  float64    `gorm:"column:floorPrice" json:"floorPrice"`
+	Change24H   int64      `gorm:"column:change24H" json:"change24H"`
+	Timestamp   int64      `gorm:"column:timestamp" json:"timestamp"`
+	Version     int64      `gorm:"column:version" json:"version"`
+	CreateTime  int64      `gorm:"column:createTime" json:"createTime"`
+	UpdateTime  int64      `gorm:"column:updateTime" json:"updateTime"`
+	State       int64      `gorm:"column:state" json:"state"`
 }
 
 func (MarketMrc20InfoModel) TableName() string {
@@ -86,6 +88,19 @@ func (_ *marketMrc20InfoModelDao) GetList(qo *MarketMrc20InfoModel, offset, limi
 func (_ *marketMrc20InfoModelDao) GetListByOrder(qo *MarketMrc20InfoModel, offset, limit int64, orderBy, sort string) ([]*MarketMrc20InfoModel, error) {
 	var models []*MarketMrc20InfoModel
 	tx := major.GetSqlDB().Where(qo).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s, id asc", orderBy, sort)).Find(&models)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return models, nil
+}
+
+func (_ *marketMrc20InfoModelDao) GetCanAutoBridgeList(qo *MarketMrc20InfoModel, orderCount, offset, limit int64) ([]*MarketMrc20InfoModel, error) {
+	var models []*MarketMrc20InfoModel
+	filter := "autoStatus == 0"
+	if orderCount > 0 {
+		filter = fmt.Sprintf("and orderCount >= %d", orderCount)
+	}
+	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order("timestamp asc").Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}

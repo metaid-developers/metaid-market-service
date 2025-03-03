@@ -44,6 +44,8 @@ var (
 	PopExtractCount int = 0
 
 	GrpcAssetBaseAddress string = ""
+
+	AutoBridgeRuleConfigData *AutoBridgeRuleConfig = &AutoBridgeRuleConfig{}
 )
 
 type ServiceFeeConfig struct {
@@ -58,6 +60,11 @@ type ServiceFeeConfig struct {
 	MintFee           int64  `json:"mint_fee"`
 	TransferFee       int64  `json:"transfer_fee"`
 	MetaIdInscribeFee int64  `json:"meta_id_inscribe_fee"`
+}
+
+type AutoBridgeRuleConfig struct {
+	OrderCountLimit    int64 `json:"order_count_limit"`
+	MarketCapUsdtLimit int64 `json:"market_cap_usdt_limit"`
 }
 
 func InitConfig() {
@@ -112,5 +119,10 @@ func InitConfig() {
 		DeployFee:         viper.GetInt64("platform.service_fee.deploy_fee"),
 		MintFee:           viper.GetInt64("platform.service_fee.mint_fee"),
 		TransferFee:       viper.GetInt64("platform.service_fee.transfer_fee"),
+	}
+
+	AutoBridgeRuleConfigData = &AutoBridgeRuleConfig{
+		OrderCountLimit:    viper.GetInt64("auto_bridge_rule.order_count_limit"),
+		MarketCapUsdtLimit: viper.GetInt64("auto_bridge_rule.market_cap_usdt_limit"),
 	}
 }

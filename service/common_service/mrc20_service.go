@@ -3,7 +3,7 @@ package common_service
 import (
 	"errors"
 	"fmt"
-	"github.com/godaddy-x/freego/utils/decimal"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
@@ -107,6 +107,11 @@ func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc2
 				btcUsd := GetPriceForUsd("BTC")
 				btcUsdDe, _ := decimal.NewFromString(btcUsd)
 				satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+				calPrice, err := CalMarketPrice(marketInfo)
+				if err == nil {
+					price = calPrice
+				}
 
 				priceDe, _ := decimal.NewFromString(price)
 				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
@@ -228,6 +233,11 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 				btcUsdDe, _ := decimal.NewFromString(btcUsd)
 				satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
 
+				calPrice, err := CalMarketPrice(marketInfo)
+				if err == nil {
+					price = calPrice
+				}
+
 				priceDe, _ := decimal.NewFromString(price)
 				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
 				marketCapDe, _ := decimal.NewFromString(marketCap)
@@ -319,6 +329,11 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 		btcUsd := GetPriceForUsd("BTC")
 		btcUsdDe, _ := decimal.NewFromString(btcUsd)
 		satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+		calPrice, err := CalMarketPrice(v)
+		if err == nil {
+			price = calPrice
+		}
 
 		priceDe, _ := decimal.NewFromString(price)
 		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
@@ -467,6 +482,11 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				btcUsdDe, _ := decimal.NewFromString(btcUsd)
 				satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
 
+				calPrice, err := CalMarketPrice(marketInfo)
+				if err == nil {
+					price = calPrice
+				}
+
 				priceDe, _ := decimal.NewFromString(price)
 				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
 				marketCapDe, _ := decimal.NewFromString(marketCap)
@@ -588,6 +608,11 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		btcUsd := GetPriceForUsd("BTC")
 		btcUsdDe, _ := decimal.NewFromString(btcUsd)
 		satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
+
+		calPrice, err := CalMarketPrice(marketInfo)
+		if err == nil {
+			price = calPrice
+		}
 
 		priceDe, _ := decimal.NewFromString(price)
 		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
@@ -961,6 +986,11 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 	btcUsdDe, _ := decimal.NewFromString(btcUsd)
 	satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
 
+	calPrice, err := CalMarketPrice(marketInfo)
+	if err == nil {
+		price = calPrice
+	}
+
 	priceDe, _ := decimal.NewFromString(price)
 	priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
 	floorPriceDe, _ := decimal.NewFromString(floorPrice)
@@ -969,6 +999,7 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 	marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
 
 	totalVolume = marketInfo.TotalVolume
+
 	return &respond.Mrc20TickMarketPriceResp{
 		TickId:         marketInfo.TickId,
 		Tick:           marketInfo.Tick,
@@ -1005,6 +1036,12 @@ func FetchMrc20TickMarketPriceList(req *request.FetchMrc20TickMarketPriceListReq
 		price := "0"
 		priceUsd := "0.00"
 		price = strconv.FormatFloat(v.LastPrice, 'f', -1, 64)
+
+		calPrice, err := CalMarketPrice(v)
+		if err == nil {
+			price = calPrice
+		}
+
 		priceDe, _ := decimal.NewFromString(price)
 		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
 		item := &respond.Mrc20TickMarketPriceInfo{

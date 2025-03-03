@@ -9,7 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/godaddy-x/freego/utils/decimal"
+	"github.com/shopspring/decimal"
 	"metaid-market-service/conf"
 	"metaid-market-service/service/orders_exchange_service"
 	"metaid-market-service/service/own_service"

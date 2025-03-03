@@ -1,7 +1,7 @@
 package mrc20_op_service
 
 import (
-	"github.com/godaddy-x/freego/utils/decimal"
+	"github.com/shopspring/decimal"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"

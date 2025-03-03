@@ -98,6 +98,7 @@ func Run() {
 		v1.POST("/common/tx/broadcast", BroadcastTx)
 
 		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
+		v1.POST("/admin/auto-bridge/create", AddAutoCreateBridge)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")

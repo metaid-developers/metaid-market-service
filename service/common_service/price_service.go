@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"metaid-market-service/models"
 	"metaid-market-service/tool"
+	"strconv"
+	"time"
 )
 
 func GetPriceForUsd(coin string) string {
@@ -77,4 +79,42 @@ func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
 	cachedPrice = data
 	cachedTime = tool.MakeTimestamp()
 	return data, nil
+}
+
+func CalMarketPrice(marketInfo *models.MarketMrc20InfoModel) (string, error) {
+	var (
+		orderList []*models.MarketMrc20OrderModel
+
+		transactionList []Transaction = make([]Transaction, 0)
+	)
+	orderList, _ = models.MarketMrc20OrderModelDao().GetLastTenOrderListByTickId(&models.MarketMrc20OrderModel{
+		TickId: marketInfo.TickId,
+	})
+	if len(orderList) > 0 {
+		for _, v := range orderList {
+			amountStr := strconv.FormatInt(v.Amount, 10)
+			amountF, _ := strconv.ParseFloat(amountStr, 64)
+
+			timestamp := time.Unix(v.Timestamp, 0)
+			transactionList = append(transactionList, Transaction{
+				Price:     v.TokenPriceRate,
+				Amount:    amountF,
+				Timestamp: timestamp,
+			})
+		}
+	}
+
+	priceParams := PriceParams{
+		LatestPrice:  marketInfo.LastPrice,
+		FloorPrice:   marketInfo.FloorPrice,
+		Transactions: transactionList,
+	}
+	calPrice, err := CalculateCurrentPrice(priceParams)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Printf("24hTxCount:%d, LastPrice:%f, FloorPrice:%f, CalPrice:%f\n", len(orderList), marketInfo.LastPrice, marketInfo.FloorPrice, calPrice)
+
+	return fmt.Sprintf("%.8f", calPrice), nil
 }

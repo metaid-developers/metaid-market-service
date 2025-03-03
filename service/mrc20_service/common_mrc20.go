@@ -2,7 +2,7 @@ package mrc20_service
 
 import (
 	"fmt"
-	"github.com/godaddy-x/freego/utils/decimal"
+	"github.com/shopspring/decimal"
 	"metaid-market-service/tool"
 	"strconv"
 )

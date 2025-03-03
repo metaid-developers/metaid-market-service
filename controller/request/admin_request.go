@@ -15,3 +15,7 @@ type ColdDownDummyUtxoRequest struct {
 	ChangeAddress string          `json:"changeAddress"`
 	FeeRate       int64           `json:"feeRate"`
 }
+
+type AddAutoCreateBridgeRequest struct {
+	TickId string `json:"tickId"`
+}
