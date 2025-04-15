@@ -33,6 +33,11 @@ func CalculateCurrentPrice(p PriceParams) (float64, error) {
 		volumeWeight = 1
 	}
 
+	// 交易少于3笔时，降低权重系数，防止单笔交易操纵价格
+	if len(p.Transactions) < 3 {
+		volumeWeight = volumeWeight * 0.2
+	}
+
 	// 步骤2：时间衰减因子（最新交易时间权重）
 	timeDecay := calculateTimeDecay(p.Transactions)
 
@@ -40,8 +45,8 @@ func CalculateCurrentPrice(p PriceParams) (float64, error) {
 	latestWeight := volumeWeight * timeDecay
 	floorWeight := 1 - latestWeight
 
-	// 步骤4：异常值过滤（最新价偏离中位数20%以上时使用中位数）
-	filteredLatest := filterOutliers(p.LatestPrice, p.Transactions)
+	// 步骤4：异常值过滤（使用增强版过滤逻辑）
+	filteredLatest := enhancedFilterOutliers(p.LatestPrice, p.Transactions, p.FloorPrice)
 
 	// 步骤5：加权计算
 	currentPrice := filteredLatest*latestWeight + p.FloorPrice*floorWeight
@@ -49,6 +54,12 @@ func CalculateCurrentPrice(p PriceParams) (float64, error) {
 	// 地板价保护：不低于地板价的90%
 	if currentPrice < p.FloorPrice*0.9 {
 		currentPrice = p.FloorPrice * 0.9
+	}
+
+	// 价格上限保护：增加最大涨幅限制，防止价格过度飙升
+	// 如果计算的价格超过地板价的10倍，则将其限制在地板价的10倍以内
+	if currentPrice > p.FloorPrice*10 {
+		currentPrice = p.FloorPrice * 10
 	}
 
 	return currentPrice, nil
@@ -91,21 +102,35 @@ func calculateTimeDecay(txs []Transaction) float64 {
 	return decay
 }
 
-// filterOutliers 异常值过滤（使用中位数法）
-func filterOutliers(latest float64, txs []Transaction) float64 {
-	// 提取最近10笔交易价格
+// 增强版异常值过滤，同时考虑地板价
+func enhancedFilterOutliers(latest float64, txs []Transaction, floorPrice float64) float64 {
+	// 如果最新价格是0，使用最新交易价格或地板价
+	if latest == 0 {
+		if len(txs) > 0 {
+			return txs[len(txs)-1].Price
+		}
+		return floorPrice
+	}
+
+	// 提取交易价格
 	var prices []float64
-	for i := len(txs) - 1; i >= 0 && len(prices) < 10; i-- {
-		prices = append(prices, txs[i].Price)
+	for _, tx := range txs {
+		// 过滤掉明显异常的价格（比如超过地板价100倍的价格）
+		if tx.Price <= floorPrice*100 {
+			prices = append(prices, tx.Price)
+		}
 	}
 
 	// 计算中位数
 	sort.Float64s(prices)
-	median := median(prices)
+	medianPrice := median(prices)
+	if medianPrice == 0 {
+		medianPrice = floorPrice
+	}
 
-	// 偏离超过20%时使用中位数
-	if abs(latest-median)/median > 0.2 {
-		return median
+	// 如果最新价格偏离中位数或地板价过大，则使用中位数
+	if abs(latest-medianPrice)/max(medianPrice, 1) > 0.5 || latest > floorPrice*20 {
+		return medianPrice
 	}
 	return latest
 }
@@ -127,4 +152,12 @@ func abs(x float64) float64 {
 		return -x
 	}
 	return x
+}
+
+// max 获取两个数的较大值
+func max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }

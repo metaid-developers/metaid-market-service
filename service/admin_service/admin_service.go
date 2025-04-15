@@ -5,6 +5,7 @@ import (
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"metaid-market-service/controller/request"
+	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/auto_service"
 	"metaid-market-service/service/common_service"
@@ -39,4 +40,31 @@ func AddAutoCreateBridge(req *request.AddAutoCreateBridgeRequest) (string, error
 		return "", err
 	}
 	return "success", nil
+}
+
+func GetMarketAutoBridgeCreateInfo(req *request.FetchAutoCreateBridgeInfoRequest) (*respond.FetchAutoCreateBridgeInfoRequest, error) {
+	var (
+		entity *models.MarketAutoBridgeCreateModel
+		err    error
+	)
+	entity, err = models.MarketAutoBridgeCreateModelDao().GetOne(&models.MarketAutoBridgeCreateModel{
+		TickId: req.TickId,
+	})
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if entity == nil {
+		return nil, errors.New("mrc20 not exists")
+	}
+
+	return &respond.FetchAutoCreateBridgeInfoRequest{
+		TickId:        entity.TickId,
+		Tick:          entity.Tick,
+		TokenName:     entity.TokenName,
+		Decimals:      entity.Decimals,
+		OrderCount:    entity.OrderCount,
+		MarketCapSat:  entity.MarketCapSat,
+		MarketCapUsdt: entity.MarketCapUsdt,
+		AutoStatus:    entity.AutoStatus,
+	}, nil
 }

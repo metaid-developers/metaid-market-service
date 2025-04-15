@@ -50,3 +50,19 @@ func AddAutoCreateBridge(c *gin.Context) {
 	}
 	c.JSONP(http.StatusInternalServerError, respond.RespErr(errors.New("error parameter"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
 }
+
+func GetMarketAutoBridgeCreateInfo(c *gin.Context) {
+	var (
+		t   int64                                     = tool.MakeTimestamp()
+		req *request.FetchAutoCreateBridgeInfoRequest = &request.FetchAutoCreateBridgeInfoRequest{
+			TickId: c.DefaultQuery("tickId", ""),
+		}
+	)
+	responseModel, err := admin_service.GetMarketAutoBridgeCreateInfo(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}

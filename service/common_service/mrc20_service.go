@@ -1040,6 +1040,8 @@ func FetchMrc20TickMarketPriceList(req *request.FetchMrc20TickMarketPriceListReq
 		calPrice, err := CalMarketPrice(v)
 		if err == nil {
 			price = calPrice
+		} else {
+			fmt.Printf("CalMarketPrice error: %v\n", err)
 		}
 
 		priceDe, _ := decimal.NewFromString(price)

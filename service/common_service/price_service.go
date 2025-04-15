@@ -114,7 +114,7 @@ func CalMarketPrice(marketInfo *models.MarketMrc20InfoModel) (string, error) {
 		return "", err
 	}
 
-	fmt.Printf("24hTxCount:%d, LastPrice:%f, FloorPrice:%f, CalPrice:%f\n", len(orderList), marketInfo.LastPrice, marketInfo.FloorPrice, calPrice)
+	fmt.Printf("[%s]24hTxCount:%d, LastPrice:%f, FloorPrice:%f, CalPrice:%f\n", marketInfo.Tick, len(orderList), marketInfo.LastPrice, marketInfo.FloorPrice, calPrice)
 
 	return fmt.Sprintf("%.8f", calPrice), nil
 }

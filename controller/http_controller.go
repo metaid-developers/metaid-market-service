@@ -99,6 +99,7 @@ func Run() {
 
 		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
 		v1.POST("/admin/auto-bridge/create", AddAutoCreateBridge)
+		v1.GET("/admin/auto-bridge/info", GetMarketAutoBridgeCreateInfo)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")

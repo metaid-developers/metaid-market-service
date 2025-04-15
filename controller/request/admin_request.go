@@ -19,3 +19,7 @@ type ColdDownDummyUtxoRequest struct {
 type AddAutoCreateBridgeRequest struct {
 	TickId string `json:"tickId"`
 }
+
+type FetchAutoCreateBridgeInfoRequest struct {
+	TickId string `json:"tickId"`
+}
