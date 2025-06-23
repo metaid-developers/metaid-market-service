@@ -158,3 +158,38 @@ type CancelMrc20OrderResp struct {
 	TickId     string            `json:"tickId"`
 	OrderState models.OrderState `json:"orderState"`
 }
+
+// 热门币种信息
+type Mrc20HotInfo struct {
+	TickId     string  `json:"tickId"`     // 币种ID
+	Tick       string  `json:"tick"`       // 币种符号
+	TokenName  string  `json:"tokenName"`  // 币种名称
+	MarketCap  int64   `json:"marketCap"`  // 市值
+	LastPrice  float64 `json:"lastPrice"`  // 最新价格
+	Change24H  int64   `json:"change24H"`  // 24小时涨跌幅（基点）
+	TradeCount int64   `json:"tradeCount"` // 交易数量
+}
+
+// 热门币种列表响应
+type Mrc20HotListResp struct {
+	TimeRange int64           `json:"timeRange"` // 查询的时间范围（毫秒）
+	Total     int64           `json:"total"`     // 总数
+	List      []*Mrc20HotInfo `json:"list"`      // 热门币种列表
+}
+
+// 最新交易币种信息
+type Mrc20NewestInfo struct {
+	TickId     string  `json:"tickId"`     // 币种ID
+	Tick       string  `json:"tick"`       // 币种符号
+	TokenName  string  `json:"tokenName"`  // 币种名称
+	MarketCap  int64   `json:"marketCap"`  // 市值
+	LastPrice  float64 `json:"lastPrice"`  // 最新价格
+	Change24H  int64   `json:"change24H"`  // 24小时涨跌幅（基点）
+	TradeCount int64   `json:"tradeCount"` // 交易数量
+}
+
+// 最新交易币种列表响应
+type Mrc20NewestListResp struct {
+	Total int64              `json:"total"` // 总数
+	List  []*Mrc20NewestInfo `json:"list"`  // 最新交易币种列表
+}

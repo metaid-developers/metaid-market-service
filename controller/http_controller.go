@@ -2,13 +2,14 @@ package controller
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/auth"
 	_ "metaid-market-service/docs"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func Run() {
@@ -52,6 +53,9 @@ func Run() {
 
 		v1.GET("/market/mrc20/orders", FetchMarketMrc20Orders)
 		v1.GET("/market/mrc20/order/detail", FetchMarketMrc20OneOrder)
+
+		v1.GET("/market/mrc20/hot-list", FetchMarketMrc20HotList)
+		v1.GET("/market/mrc20/newest-list", FetchMarketMrc20NewestList)
 
 		v1.POST("/inscribe/mrc20/mint/pre", auth.AuthSignMiddleware(), Mrc20MintPre)
 		v1.POST("/inscribe/mrc20/mint/commit", auth.AuthSignMiddleware(), Mrc20MintCommit)

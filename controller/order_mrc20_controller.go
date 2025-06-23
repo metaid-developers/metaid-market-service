@@ -2,7 +2,6 @@ package controller
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
@@ -10,6 +9,8 @@ import (
 	"metaid-market-service/tool"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 // @Summary Push Market mrc20 order
@@ -183,6 +184,71 @@ func FetchMarketMrc20OneOrder(c *gin.Context) {
 		}
 	)
 	resp, err := order_service.FetchMarketMrc20OneOrder(req, publicKey, c.ClientIP())
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
+	return
+}
+
+// @Summary Fetch market mrc20 hot list
+// @Description Fetch market mrc20 hot list
+// @Produce  json
+// @Tags Market-Order
+// @Param timeRange query int false "timeRange, default:24*60*60*1000"
+// @Param cursor query int false "cursor, default:0"
+// @Param size query int false "size, default:20, max:20"
+// @Success 200 {object} respond.Mrc20HotListResp ""
+// @Router /api/v1/market/mrc20/hot-list [get]
+func FetchMarketMrc20HotList(c *gin.Context) {
+	var (
+		t         int64                               = tool.MakeTimestamp()
+		publicKey                                     = getAuthParams(c)
+		req       *request.FetchMarketMrc20HotListReq = &request.FetchMarketMrc20HotListReq{
+			TimeRange: 0,
+			Cursor:    0,
+			Size:      0,
+		}
+	)
+	req.TimeRange, _ = strconv.ParseInt(c.DefaultQuery("timeRange", "0"), 10, 64)
+	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "20"), 10, 64)
+	if req.Size > 20 {
+		req.Size = 20
+	}
+	resp, err := order_service.FetchMarketMrc20HotList(req, publicKey, c.ClientIP())
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
+	return
+}
+
+// @Summary Fetch market mrc20 newest list
+// @Description Fetch market mrc20 newest list
+// @Produce  json
+// @Tags Market-Order
+// @Param cursor query int false "cursor, default:0"
+// @Param size query int false "size, default:20, max:20"
+// @Success 200 {object} respond.Mrc20NewestListResp ""
+// @Router /api/v1/market/mrc20/newest-list [get]
+func FetchMarketMrc20NewestList(c *gin.Context) {
+	var (
+		t         int64                                  = tool.MakeTimestamp()
+		publicKey                                        = getAuthParams(c)
+		req       *request.FetchMarketMrc20NewestListReq = &request.FetchMarketMrc20NewestListReq{
+			Cursor: 0,
+			Size:   0,
+		}
+	)
+	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "20"), 10, 64)
+	if req.Size > 20 {
+		req.Size = 20
+	}
+	resp, err := order_service.FetchMarketMrc20NewestList(req, publicKey, c.ClientIP())
 	if err != nil {
 		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
 		return

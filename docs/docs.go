@@ -1385,6 +1385,80 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/market/mrc20/hot-list": {
+            "get": {
+                "description": "Fetch market mrc20 hot list",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Fetch market mrc20 hot list",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "timeRange, default:24*60*60*1000",
+                        "name": "timeRange",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "cursor, default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size, default:20, max:20",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20HotListResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/market/mrc20/newest-list": {
+            "get": {
+                "description": "Fetch market mrc20 newest list",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Market-Order"
+                ],
+                "summary": "Fetch market mrc20 newest list",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "cursor, default:0",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "size, default:20, max:20",
+                        "name": "size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/respond.Mrc20NewestListResp"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/market/mrc20/order/cancel": {
             "post": {
                 "description": "Cancel Market mrc20 order",
@@ -3594,6 +3668,59 @@ const docTemplate = `{
                 }
             }
         },
+        "respond.Mrc20HotInfo": {
+            "type": "object",
+            "properties": {
+                "change24H": {
+                    "description": "24小时涨跌幅（基点）",
+                    "type": "integer"
+                },
+                "lastPrice": {
+                    "description": "最新价格",
+                    "type": "number"
+                },
+                "marketCap": {
+                    "description": "市值",
+                    "type": "integer"
+                },
+                "tick": {
+                    "description": "币种符号",
+                    "type": "string"
+                },
+                "tickId": {
+                    "description": "币种ID",
+                    "type": "string"
+                },
+                "tokenName": {
+                    "description": "币种名称",
+                    "type": "string"
+                },
+                "tradeCount": {
+                    "description": "交易数量",
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20HotListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "description": "热门币种列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20HotInfo"
+                    }
+                },
+                "timeRange": {
+                    "description": "查询的时间范围（毫秒）",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "总数",
+                    "type": "integer"
+                }
+            }
+        },
         "respond.Mrc20Info": {
             "type": "object",
             "properties": {
@@ -3660,6 +3787,55 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "totalFee": {
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20NewestInfo": {
+            "type": "object",
+            "properties": {
+                "change24H": {
+                    "description": "24小时涨跌幅（基点）",
+                    "type": "integer"
+                },
+                "lastPrice": {
+                    "description": "最新价格",
+                    "type": "number"
+                },
+                "marketCap": {
+                    "description": "市值",
+                    "type": "integer"
+                },
+                "tick": {
+                    "description": "币种符号",
+                    "type": "string"
+                },
+                "tickId": {
+                    "description": "币种ID",
+                    "type": "string"
+                },
+                "tokenName": {
+                    "description": "币种名称",
+                    "type": "string"
+                },
+                "tradeCount": {
+                    "description": "交易数量",
+                    "type": "integer"
+                }
+            }
+        },
+        "respond.Mrc20NewestListResp": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "description": "最新交易币种列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/respond.Mrc20NewestInfo"
+                    }
+                },
+                "total": {
+                    "description": "总数",
                     "type": "integer"
                 }
             }

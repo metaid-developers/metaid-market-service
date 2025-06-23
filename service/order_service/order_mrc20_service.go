@@ -5,9 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -18,6 +15,10 @@ import (
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
+
+	"github.com/btcsuite/btcd/wire"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) (*respond.PushMrc20OrderResp, error) {
@@ -764,4 +765,98 @@ func FetchMarketMrc20OneOrder(req *request.FetchMarketMrc20OneOrderReq, publicKe
 		}
 	}
 	return resp, nil
+}
+
+// get mrc20 market hot list
+func FetchMarketMrc20HotList(req *request.FetchMarketMrc20HotListReq, publicKey, ip string) (*respond.Mrc20HotListResp, error) {
+	var (
+		timeRange int64 = 24 * 60 * 60 * 1000 // 默认24小时
+		offset    int64 = 0
+		limit     int64 = 20
+	)
+
+	// 如果请求中指定了时间范围，使用请求中的值
+	if req.TimeRange > 0 {
+		timeRange = req.TimeRange
+	}
+
+	// 如果请求中指定了分页参数，使用请求中的值
+	if req.Cursor > 0 {
+		offset = req.Cursor
+	}
+	if req.Size > 0 && req.Size <= 50 {
+		limit = req.Size
+	} else if req.Size > 50 {
+		limit = 50
+	}
+
+	// 获取热门币种列表
+	hotList, err := models.MarketMrc20InfoModelDao().GetHotMrc20CoreInfo(timeRange, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为响应格式
+	var list []*respond.Mrc20HotInfo = make([]*respond.Mrc20HotInfo, 0)
+	for _, item := range hotList {
+		hotInfo := &respond.Mrc20HotInfo{
+			TickId:     item.TickId,
+			Tick:       item.Tick,
+			TokenName:  item.TokenName,
+			MarketCap:  item.MarketCap,
+			LastPrice:  item.LastPrice,
+			Change24H:  item.Change24H,
+			TradeCount: item.TradeCount,
+		}
+		list = append(list, hotInfo)
+	}
+
+	return &respond.Mrc20HotListResp{
+		TimeRange: timeRange,
+		Total:     int64(len(list)),
+		List:      list,
+	}, nil
+}
+
+// get mrc20 market newest list
+func FetchMarketMrc20NewestList(req *request.FetchMarketMrc20NewestListReq, publicKey, ip string) (*respond.Mrc20NewestListResp, error) {
+	var (
+		offset int64                      = 0
+		limit  int64                      = 20
+		list   []*respond.Mrc20NewestInfo = make([]*respond.Mrc20NewestInfo, 0)
+	)
+
+	if req.Cursor > 0 {
+		offset = req.Cursor
+	}
+	if req.Size > 0 && req.Size <= 50 {
+		limit = req.Size
+	} else if req.Size > 50 {
+		limit = 50
+	}
+
+	newestList, err := models.MarketMrc20InfoModelDao().GetLatestTradeMrc20CoreInfo(offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("FetchMarketMrc20NewestList: newestList: %v\n", newestList)
+
+	for _, item := range newestList {
+		fmt.Printf("FetchMarketMrc20NewestList: item: %+v\n", item)
+		newestInfo := &respond.Mrc20NewestInfo{
+			TickId:     item.TickId,
+			Tick:       item.Tick,
+			TokenName:  item.TokenName,
+			MarketCap:  item.MarketCap,
+			LastPrice:  item.LastPrice,
+			Change24H:  item.Change24H,
+			TradeCount: item.TradeCount,
+		}
+		list = append(list, newestInfo)
+	}
+
+	return &respond.Mrc20NewestListResp{
+		Total: int64(len(list)),
+		List:  list,
+	}, nil
 }

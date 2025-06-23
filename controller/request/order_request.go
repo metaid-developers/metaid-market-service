@@ -119,3 +119,16 @@ type FetchMarketMrc20OrdersReq struct {
 type FetchMarketMrc20OneOrderReq struct {
 	OrderId string `json:"orderId"`
 }
+
+// 获取热门币种列表请求
+type FetchMarketMrc20HotListReq struct {
+	TimeRange int64 `json:"timeRange"` // 时间范围（毫秒），例如 24小时 = 24*60*60*1000
+	Cursor    int64 `json:"cursor"`    // 分页偏移量
+	Size      int64 `json:"size"`      // 每页数量，最大50
+}
+
+// 获取最新交易币种列表请求
+type FetchMarketMrc20NewestListReq struct {
+	Cursor int64 `json:"cursor"` // 分页偏移量
+	Size   int64 `json:"size"`   // 每页数量，最大50
+}

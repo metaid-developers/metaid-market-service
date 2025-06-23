@@ -140,3 +140,90 @@ func (_ *marketMrc20InfoModelDao) Update(q *MarketMrc20InfoModel) error {
 	}
 	return nil
 }
+
+// HotMrc20CoreInfo 热门币种核心信息结构体
+type HotMrc20CoreInfo struct {
+	TickId     string  `json:"tickId" gorm:"column:tickId"`
+	Tick       string  `json:"tick" gorm:"column:tick"`
+	TokenName  string  `json:"tokenName" gorm:"column:tokenName"`
+	MarketCap  int64   `json:"marketCap" gorm:"column:marketCap"`
+	LastPrice  float64 `json:"lastPrice" gorm:"column:lastPrice"`
+	Change24H  int64   `json:"change24H" gorm:"column:change24H"`
+	TradeCount int64   `json:"tradeCount" gorm:"column:tradeCount"`
+}
+
+// GetHotMrc20CoreInfo 获取最近热门币种的核心信息列表
+// timeRange: 时间范围（毫秒），例如 24小时 = 24*60*60*1000
+// 如果指定时间范围内没有交易，则按 orderCount 排序返回活跃币种
+func (_ *marketMrc20InfoModelDao) GetHotMrc20CoreInfo(timeRange int64, offset, limit int64) ([]*HotMrc20CoreInfo, error) {
+	var results []*HotMrc20CoreInfo
+
+	// 计算时间范围
+	startTime := tool.MakeTimestamp() - timeRange
+
+	// 首先尝试按交易数排序查询
+	queryWithTrade := fmt.Sprintf(`
+		SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+		       COUNT(o.id) as tradeCount
+		FROM tb_market_mrc20_info i
+		LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
+			AND o.orderState = %d 
+			AND o.dealTime >= %d
+		WHERE i.state = %d
+		GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
+		HAVING tradeCount > 0
+		ORDER BY tradeCount DESC, i.lastPrice DESC
+		LIMIT %d OFFSET %d
+	`, OrderStateFinish, startTime, STATE_EXIST, limit, offset)
+
+	tx := major.GetSqlDB().Raw(queryWithTrade).Scan(&results)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	// 如果指定时间范围内没有交易记录，则按 orderCount 排序返回活跃币种
+	if len(results) == 0 {
+		queryByOrderCount := fmt.Sprintf(`
+			SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+			       0 as trade_count
+			FROM tb_market_mrc20_info i
+			WHERE i.state = %d AND i.orderCount > 0
+			ORDER BY i.orderCount DESC, i.lastPrice DESC
+			LIMIT %d OFFSET %d
+		`, STATE_EXIST, limit, offset)
+
+		tx = major.GetSqlDB().Raw(queryByOrderCount).Scan(&results)
+		if tx.Error != nil {
+			return nil, tx.Error
+		}
+	}
+
+	return results, nil
+}
+
+// GetLatestTradeMrc20CoreInfo 获取根据最新交易时间排序的币种核心信息列表
+// 返回按最新交易时间倒序排列的币种列表，包含交易时间信息
+func (_ *marketMrc20InfoModelDao) GetLatestTradeMrc20CoreInfo(offset, limit int64) ([]*HotMrc20CoreInfo, error) {
+	var results []*HotMrc20CoreInfo
+
+	// 查询按最新交易时间排序的币种信息
+	query := fmt.Sprintf(`
+		SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+		       COUNT(o.id) as tradeCount
+		FROM tb_market_mrc20_info i
+		LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
+			AND o.orderState = %d
+		WHERE i.state = %d
+		GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
+		HAVING tradeCount > 0
+		ORDER BY MAX(o.dealTime) DESC, i.lastPrice DESC
+		LIMIT %d OFFSET %d
+	`, OrderStateFinish, STATE_EXIST, limit, offset)
+
+	tx := major.GetSqlDB().Raw(query).Scan(&results)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	return results, nil
+}

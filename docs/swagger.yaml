@@ -1001,6 +1001,44 @@ definitions:
       tickId:
         type: string
     type: object
+  respond.Mrc20HotInfo:
+    properties:
+      change24H:
+        description: 24小时涨跌幅（基点）
+        type: integer
+      lastPrice:
+        description: 最新价格
+        type: number
+      marketCap:
+        description: 市值
+        type: integer
+      tick:
+        description: 币种符号
+        type: string
+      tickId:
+        description: 币种ID
+        type: string
+      tokenName:
+        description: 币种名称
+        type: string
+      tradeCount:
+        description: 交易数量
+        type: integer
+    type: object
+  respond.Mrc20HotListResp:
+    properties:
+      list:
+        description: 热门币种列表
+        items:
+          $ref: '#/definitions/respond.Mrc20HotInfo'
+        type: array
+      timeRange:
+        description: 查询的时间范围（毫秒）
+        type: integer
+      total:
+        description: 总数
+        type: integer
+    type: object
   respond.Mrc20Info:
     properties:
       amount:
@@ -1045,6 +1083,41 @@ definitions:
       serviceFee:
         type: integer
       totalFee:
+        type: integer
+    type: object
+  respond.Mrc20NewestInfo:
+    properties:
+      change24H:
+        description: 24小时涨跌幅（基点）
+        type: integer
+      lastPrice:
+        description: 最新价格
+        type: number
+      marketCap:
+        description: 市值
+        type: integer
+      tick:
+        description: 币种符号
+        type: string
+      tickId:
+        description: 币种ID
+        type: string
+      tokenName:
+        description: 币种名称
+        type: string
+      tradeCount:
+        description: 交易数量
+        type: integer
+    type: object
+  respond.Mrc20NewestListResp:
+    properties:
+      list:
+        description: 最新交易币种列表
+        items:
+          $ref: '#/definitions/respond.Mrc20NewestInfo'
+        type: array
+      total:
+        description: 总数
         type: integer
     type: object
   respond.Mrc20OrderInfo:
@@ -2569,6 +2642,54 @@ paths:
       summary: Fetch market asset detail
       tags:
       - Market-Asset
+  /api/v1/market/mrc20/hot-list:
+    get:
+      description: Fetch market mrc20 hot list
+      parameters:
+      - description: timeRange, default:24*60*60*1000
+        in: query
+        name: timeRange
+        type: integer
+      - description: cursor, default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: size, default:20, max:20
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20HotListResp'
+      summary: Fetch market mrc20 hot list
+      tags:
+      - Market-Order
+  /api/v1/market/mrc20/newest-list:
+    get:
+      description: Fetch market mrc20 newest list
+      parameters:
+      - description: cursor, default:0
+        in: query
+        name: cursor
+        type: integer
+      - description: size, default:20, max:20
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/respond.Mrc20NewestListResp'
+      summary: Fetch market mrc20 newest list
+      tags:
+      - Market-Order
   /api/v1/market/mrc20/order/cancel:
     post:
       description: Cancel Market mrc20 order
