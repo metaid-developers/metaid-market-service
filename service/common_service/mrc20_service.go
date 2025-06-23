@@ -58,7 +58,9 @@ func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc2
 		return nil, errors.New("grpc response is empty")
 	}
 
+	fmt.Printf("Grpc response\n")
 	if grpcResp != nil {
+		fmt.Printf("Length:%d, Total:%d\n", len(grpcResp.GetDetail()), grpcResp.Total)
 		for _, v := range grpcResp.GetDetail() {
 			totalSupply := "0"
 			mintable := false

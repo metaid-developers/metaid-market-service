@@ -46,6 +46,8 @@ var (
 	GrpcAssetBaseAddress string = ""
 
 	AutoBridgeRuleConfigData *AutoBridgeRuleConfig = &AutoBridgeRuleConfig{}
+
+	Host string = ""
 )
 
 type ServiceFeeConfig struct {
@@ -125,4 +127,6 @@ func InitConfig() {
 		OrderCountLimit:    viper.GetInt64("auto_bridge_rule.order_count_limit"),
 		MarketCapUsdtLimit: viper.GetInt64("auto_bridge_rule.market_cap_usdt_limit"),
 	}
+
+	Host = viper.GetString("host")
 }

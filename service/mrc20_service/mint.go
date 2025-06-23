@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
 	"metaid-market-service/common"
+	"metaid-market-service/conf"
 )
 
 type Mrc20OpRequest struct {
@@ -65,7 +66,13 @@ func Mrc20DeployBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, in
 			Version:     "",
 			ContentType: "application/json",
 		}
+
+		host string = conf.Host
 	)
+	if host != "" {
+		metaIdData.Path = fmt.Sprintf("%s:%s", host, path)
+	}
+
 	mrc20Builder = &Mrc20Builder{
 		Net:            opRep.Net,
 		MetaIdData:     metaIdData,
@@ -116,7 +123,12 @@ func Mrc20MintBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, int6
 			Version:     "",
 			ContentType: "application/json",
 		}
+		host string = conf.Host
 	)
+
+	if host != "" {
+		metaIdData.Path = fmt.Sprintf("%s:%s", host, path)
+	}
 	mrc20Builder = &Mrc20Builder{
 		Net:            opRep.Net,
 		MetaIdData:     metaIdData,
@@ -180,7 +192,11 @@ func Mrc20TransferBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, 
 			Version:     "",
 			ContentType: "application/json",
 		}
+		host string = conf.Host
 	)
+	if host != "" {
+		metaIdData.Path = fmt.Sprintf("%s:%s", host, path)
+	}
 	mrc20Builder = &Mrc20Builder{
 		Net:                opRep.Net,
 		MetaIdData:         metaIdData,
