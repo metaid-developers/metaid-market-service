@@ -3673,6 +3673,12 @@ const docTemplate = `{
             "properties": {
                 "change24H": {
                     "description": "24小时涨跌幅（基点）",
+                    "type": "string"
+                },
+                "deployerUserInfo": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "holders": {
                     "type": "integer"
                 },
                 "lastPrice": {
@@ -3682,6 +3688,12 @@ const docTemplate = `{
                 "marketCap": {
                     "description": "市值",
                     "type": "integer"
+                },
+                "metaData": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
                 },
                 "tick": {
                     "description": "币种符号",
@@ -3796,6 +3808,12 @@ const docTemplate = `{
             "properties": {
                 "change24H": {
                     "description": "24小时涨跌幅（基点）",
+                    "type": "string"
+                },
+                "deployerUserInfo": {
+                    "$ref": "#/definitions/respond.UserInfo"
+                },
+                "holders": {
                     "type": "integer"
                 },
                 "lastPrice": {
@@ -3805,6 +3823,12 @@ const docTemplate = `{
                 "marketCap": {
                     "description": "市值",
                     "type": "integer"
+                },
+                "metaData": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
                 },
                 "tick": {
                     "description": "币种符号",

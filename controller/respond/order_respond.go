@@ -161,13 +161,17 @@ type CancelMrc20OrderResp struct {
 
 // 热门币种信息
 type Mrc20HotInfo struct {
-	TickId     string  `json:"tickId"`     // 币种ID
-	Tick       string  `json:"tick"`       // 币种符号
-	TokenName  string  `json:"tokenName"`  // 币种名称
-	MarketCap  int64   `json:"marketCap"`  // 市值
-	LastPrice  float64 `json:"lastPrice"`  // 最新价格
-	Change24H  int64   `json:"change24H"`  // 24小时涨跌幅（基点）
-	TradeCount int64   `json:"tradeCount"` // 交易数量
+	TickId           string    `json:"tickId"`     // 币种ID
+	Tick             string    `json:"tick"`       // 币种符号
+	TokenName        string    `json:"tokenName"`  // 币种名称
+	MarketCap        int64     `json:"marketCap"`  // 市值
+	LastPrice        float64   `json:"lastPrice"`  // 最新价格
+	Change24H        string    `json:"change24H"`  // 24小时涨跌幅（基点）
+	TradeCount       int64     `json:"tradeCount"` // 交易数量
+	Holders          int64     `json:"holders"`
+	DeployerUserInfo *UserInfo `json:"deployerUserInfo"`
+	MetaData         string    `json:"metaData"`
+	Tag              string    `json:"tag"`
 }
 
 // 热门币种列表响应
@@ -179,13 +183,17 @@ type Mrc20HotListResp struct {
 
 // 最新交易币种信息
 type Mrc20NewestInfo struct {
-	TickId     string  `json:"tickId"`     // 币种ID
-	Tick       string  `json:"tick"`       // 币种符号
-	TokenName  string  `json:"tokenName"`  // 币种名称
-	MarketCap  int64   `json:"marketCap"`  // 市值
-	LastPrice  float64 `json:"lastPrice"`  // 最新价格
-	Change24H  int64   `json:"change24H"`  // 24小时涨跌幅（基点）
-	TradeCount int64   `json:"tradeCount"` // 交易数量
+	TickId           string    `json:"tickId"`     // 币种ID
+	Tick             string    `json:"tick"`       // 币种符号
+	TokenName        string    `json:"tokenName"`  // 币种名称
+	MarketCap        int64     `json:"marketCap"`  // 市值
+	LastPrice        float64   `json:"lastPrice"`  // 最新价格
+	Change24H        string    `json:"change24H"`  // 24小时涨跌幅（基点）
+	TradeCount       int64     `json:"tradeCount"` // 交易数量
+	Holders          int64     `json:"holders"`
+	DeployerUserInfo *UserInfo `json:"deployerUserInfo"`
+	MetaData         string    `json:"metaData"`
+	Tag              string    `json:"tag"`
 }
 
 // 最新交易币种列表响应

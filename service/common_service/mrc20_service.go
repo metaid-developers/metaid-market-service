@@ -18,6 +18,7 @@ import (
 	"metaid-market-service/service/orders_exchange_service"
 	"metaid-market-service/service/own_service"
 	"metaid-market-service/service/ticket_service"
+	"metaid-market-service/tool"
 	"strconv"
 	"strings"
 )
@@ -1223,4 +1224,61 @@ func CheckUtxoInfo(req *request.CheckUtxoInfoReq) (map[string]*own_service.OwnUt
 		return nil, errors.New("utxo not found")
 	}
 	return utxoInfo, nil
+}
+
+type Mrc20TickCacheInfo struct {
+	Holders          int64             `json:"holders"`
+	TxCount          int64             `json:"txCount"`
+	DeployerMetaId   string            `json:"deployerMetaId"`
+	DeployerAddress  string            `json:"deployerAddress"`
+	DeployerUserInfo *respond.UserInfo `json:"deployerUserInfo"`
+	DeployTime       int64             `json:"deployTime"`
+	MetaData         string            `json:"metaData"`
+	Tag              string            `json:"tag"`
+	UpdateTime       int64             `json:"updateTime"`
+}
+
+var (
+	mrc20TickCache = make(map[string]*Mrc20TickCacheInfo)
+)
+
+func GetCacheMrc20TickInfo(tickId string) *Mrc20TickCacheInfo {
+	var (
+		now       int64 = tool.MakeTimestamp()
+		mrc20Resp *man_service.Mrc20TickInfo
+		err       error
+		cacheInfo *Mrc20TickCacheInfo
+	)
+	if tickId == "" {
+		return nil
+	}
+	if info, ok := mrc20TickCache[tickId]; ok {
+		if info.UpdateTime > now-1000*60*5 { // 5 minutes
+			return info
+		}
+	}
+	// Fetch from database if not in cache or cache is expired
+	mrc20Resp, err = man_service.FetchMrc20TickInfo(tickId, "")
+	if err != nil {
+		fmt.Printf("[Cache]Error fetching Mrc20TickInfo: %v\n", err)
+		return nil
+	}
+	if mrc20Resp == nil {
+		fmt.Printf("[Cache]Mrc20TickInfo not found for tickId: %s\n", tickId)
+		return nil
+	}
+	cacheInfo = &Mrc20TickCacheInfo{
+		Holders:          mrc20Resp.Holders,
+		TxCount:          mrc20Resp.TxCount,
+		DeployerMetaId:   mrc20Resp.MetaId,
+		DeployerAddress:  mrc20Resp.Address,
+		DeployerUserInfo: common.FetchMetaIDUserInfo(mrc20Resp.Address),
+		DeployTime:       mrc20Resp.DeployTime,
+		MetaData:         mrc20Resp.Metadata,
+		Tag:              common.CheckIdCoins(mrc20Resp.Tick, mrc20Resp.Metadata, mrc20Resp.DeployTime),
+		UpdateTime:       now,
+	}
+	mrc20TickCache[tickId] = cacheInfo
+	fmt.Printf("[Cache]Mrc20TickCache updated for tickId: %s\n", tickId)
+	return cacheInfo
 }

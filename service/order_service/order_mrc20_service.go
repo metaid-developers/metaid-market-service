@@ -799,14 +799,25 @@ func FetchMarketMrc20HotList(req *request.FetchMarketMrc20HotListReq, publicKey,
 	// 转换为响应格式
 	var list []*respond.Mrc20HotInfo = make([]*respond.Mrc20HotInfo, 0)
 	for _, item := range hotList {
+		change24h := "+0.00%"
+		change24HDe := decimal.New(item.Change24H, 0)
+		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		cacheTickInfo := common_service.GetCacheMrc20TickInfo(item.TickId)
+
 		hotInfo := &respond.Mrc20HotInfo{
 			TickId:     item.TickId,
 			Tick:       item.Tick,
 			TokenName:  item.TokenName,
 			MarketCap:  item.MarketCap,
 			LastPrice:  item.LastPrice,
-			Change24H:  item.Change24H,
+			Change24H:  change24h,
 			TradeCount: item.TradeCount,
+		}
+		if cacheTickInfo != nil {
+			hotInfo.Holders = cacheTickInfo.Holders
+			hotInfo.DeployerUserInfo = cacheTickInfo.DeployerUserInfo
+			hotInfo.MetaData = cacheTickInfo.MetaData
+			hotInfo.Tag = cacheTickInfo.Tag
 		}
 		list = append(list, hotInfo)
 	}
@@ -842,15 +853,26 @@ func FetchMarketMrc20NewestList(req *request.FetchMarketMrc20NewestListReq, publ
 	fmt.Printf("FetchMarketMrc20NewestList: newestList: %v\n", newestList)
 
 	for _, item := range newestList {
-		fmt.Printf("FetchMarketMrc20NewestList: item: %+v\n", item)
+		//fmt.Printf("FetchMarketMrc20NewestList: item: %+v\n", item)
+		change24h := "+0.00%"
+		change24HDe := decimal.New(item.Change24H, 0)
+		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		cacheTickInfo := common_service.GetCacheMrc20TickInfo(item.TickId)
+
 		newestInfo := &respond.Mrc20NewestInfo{
 			TickId:     item.TickId,
 			Tick:       item.Tick,
 			TokenName:  item.TokenName,
 			MarketCap:  item.MarketCap,
 			LastPrice:  item.LastPrice,
-			Change24H:  item.Change24H,
+			Change24H:  change24h,
 			TradeCount: item.TradeCount,
+		}
+		if cacheTickInfo != nil {
+			newestInfo.Holders = cacheTickInfo.Holders
+			newestInfo.DeployerUserInfo = cacheTickInfo.DeployerUserInfo
+			newestInfo.MetaData = cacheTickInfo.MetaData
+			newestInfo.Tag = cacheTickInfo.Tag
 		}
 		list = append(list, newestInfo)
 	}
