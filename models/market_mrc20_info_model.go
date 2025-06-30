@@ -155,6 +155,7 @@ type HotMrc20CoreInfo struct {
 // GetHotMrc20CoreInfo 获取最近热门币种的核心信息列表
 // timeRange: 时间范围（毫秒），例如 24小时 = 24*60*60*1000
 // 如果指定时间范围内没有交易，则按 orderCount 排序返回活跃币种
+// 确保返回至少5个结果
 func (_ *marketMrc20InfoModelDao) GetHotMrc20CoreInfo(timeRange int64, offset, limit int64) ([]*HotMrc20CoreInfo, error) {
 	var results []*HotMrc20CoreInfo
 
@@ -181,20 +182,48 @@ func (_ *marketMrc20InfoModelDao) GetHotMrc20CoreInfo(timeRange int64, offset, l
 		return nil, tx.Error
 	}
 
-	// 如果指定时间范围内没有交易记录，则按 orderCount 排序返回活跃币种
-	if len(results) == 0 {
-		queryByOrderCount := fmt.Sprintf(`
-			SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
-			       0 as trade_count
-			FROM tb_market_mrc20_info i
-			WHERE i.state = %d AND i.orderCount > 0
-			ORDER BY i.orderCount DESC, i.lastPrice DESC
-			LIMIT %d OFFSET %d
-		`, STATE_EXIST, limit, offset)
+	// 如果结果少于5个，需要补充数据
+	if len(results) < 5 {
+		// 获取已经查询到的tickId列表，用于排除
+		existingTickIds := make(map[string]bool)
+		for _, result := range results {
+			existingTickIds[result.TickId] = true
+		}
 
-		tx = major.GetSqlDB().Raw(queryByOrderCount).Scan(&results)
-		if tx.Error != nil {
-			return nil, tx.Error
+		// 构建排除条件
+		excludeCondition := ""
+		if len(existingTickIds) > 0 {
+			tickIdList := ""
+			for tickId := range existingTickIds {
+				if tickIdList != "" {
+					tickIdList += ","
+				}
+				tickIdList += fmt.Sprintf("'%s'", tickId)
+			}
+			excludeCondition = fmt.Sprintf("AND i.tickId NOT IN (%s)", tickIdList)
+		}
+
+		// 计算还需要补充的数量
+		needMore := 5 - len(results)
+		if needMore > 0 {
+			// 按orderCount排序查询补充数据
+			queryByOrderCount := fmt.Sprintf(`
+				SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+				       0 as tradeCount
+				FROM tb_market_mrc20_info i
+				WHERE i.state = %d AND i.orderCount > 0 %s
+				ORDER BY i.orderCount DESC, i.lastPrice DESC
+				LIMIT %d
+			`, STATE_EXIST, excludeCondition, needMore)
+
+			var additionalResults []*HotMrc20CoreInfo
+			tx = major.GetSqlDB().Raw(queryByOrderCount).Scan(&additionalResults)
+			if tx.Error != nil {
+				return nil, tx.Error
+			}
+
+			// 将补充的结果添加到原有结果中
+			results = append(results, additionalResults...)
 		}
 	}
 

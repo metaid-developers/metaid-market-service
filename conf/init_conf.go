@@ -15,6 +15,7 @@ var (
 	RdsMaxIgleConns int    = 0
 
 	ManDomain            = ""
+	ManBaseDomain        = ""
 	OwnDomain            = ""
 	WalletDomain         = ""
 	OrdersExchangeDomain = ""
@@ -83,6 +84,7 @@ func InitConfig() {
 	RdsMaxIgleConns = viper.GetInt("rds.max_igle_conns")
 
 	ManDomain = viper.GetString("man.domain")
+	ManBaseDomain = viper.GetString("man.base")
 	OwnDomain = viper.GetString("own.domain")
 	WalletDomain = viper.GetString("wallet_node.domain")
 	OrdersExchangeDomain = viper.GetString("orders_exchange.domain")

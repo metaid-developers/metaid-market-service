@@ -770,7 +770,7 @@ func FetchMarketMrc20OneOrder(req *request.FetchMarketMrc20OneOrderReq, publicKe
 // get mrc20 market hot list
 func FetchMarketMrc20HotList(req *request.FetchMarketMrc20HotListReq, publicKey, ip string) (*respond.Mrc20HotListResp, error) {
 	var (
-		timeRange int64 = 24 * 60 * 60 * 1000 // 默认24小时
+		timeRange int64 = 7 * 24 * 60 * 60 * 1000 // 默认7天
 		offset    int64 = 0
 		limit     int64 = 20
 	)

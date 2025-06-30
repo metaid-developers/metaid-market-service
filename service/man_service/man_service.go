@@ -97,7 +97,8 @@ func FetchMetaIDUserInfoInfo(net, address string) (*MetaIDUserInfo, error) {
 		err    error
 	)
 	query := map[string]string{}
-	url = fmt.Sprintf("%s/api/info/address/%s", conf.ManDomain, address)
+	//url = fmt.Sprintf("%s/api/info/address/%s", conf.ManDomain, address)
+	url = fmt.Sprintf("%s/api/info/address/%s", conf.ManBaseDomain, address)
 	//if net == "testnet" {
 	//	url = fmt.Sprintf("%s/api/pin/%s", conf.ManTestDomain, pinId)
 	//} else if net == "regtest" {
