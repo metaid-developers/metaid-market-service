@@ -152,6 +152,46 @@ type HotMrc20CoreInfo struct {
 	TradeCount int64   `json:"tradeCount" gorm:"column:tradeCount"`
 }
 
+// GetFixedTopThreeMrc20CoreInfo 获取固定的前三个币种核心信息
+func (_ *marketMrc20InfoModelDao) GetFixedTopThreeMrc20CoreInfo() ([]*HotMrc20CoreInfo, error) {
+	var results []*HotMrc20CoreInfo
+
+	// 固定的前三个tickId
+	fixedTickIds := []string{
+		"5fad846577a9a9645162c8c5e9dc7db65bccaee38b8e641a579a10dc2448f333i0",
+		"8ce590918a3d493631ab9d9e3bbc89e322f3dd08354af87f97c07218818b78f4i0",
+		"644dba0433aced0ec4cecef9baa951eccabb1751f222d48d33e7a309738ff0d2i0",
+	}
+
+	// 构建查询条件
+	tickIdList := ""
+	for i, tickId := range fixedTickIds {
+		if i > 0 {
+			tickIdList += ","
+		}
+		tickIdList += fmt.Sprintf("'%s'", tickId)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+		       COUNT(o.id) as tradeCount
+		FROM tb_market_mrc20_info i
+		LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
+			AND o.orderState = %d
+		WHERE i.state = %d AND i.tickId IN (%s)
+		GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
+		ORDER BY FIELD(i.tickId, %s)
+	`, OrderStateFinish, STATE_EXIST, tickIdList, tickIdList)
+
+	tx := major.GetSqlDB().Raw(query).Scan(&results)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	fmt.Printf("GetFixedTopThreeMrc20CoreInfo: results: %+v\n", results)
+
+	return results, nil
+}
+
 // GetHotMrc20CoreInfo 获取最近热门币种的核心信息列表
 // timeRange: 时间范围（毫秒），例如 24小时 = 24*60*60*1000
 // 如果指定时间范围内没有交易，则按 orderCount 排序返回活跃币种
@@ -159,71 +199,100 @@ type HotMrc20CoreInfo struct {
 func (_ *marketMrc20InfoModelDao) GetHotMrc20CoreInfo(timeRange int64, offset, limit int64) ([]*HotMrc20CoreInfo, error) {
 	var results []*HotMrc20CoreInfo
 
+	// 首先获取固定的前三个币种
+	fixedResults, err := _marketMrc20InfoModelManager.GetFixedTopThreeMrc20CoreInfo()
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, fixedResults...)
+
 	// 计算时间范围
 	startTime := tool.MakeTimestamp() - timeRange
 
-	// 首先尝试按交易数排序查询
-	queryWithTrade := fmt.Sprintf(`
-		SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
-		       COUNT(o.id) as tradeCount
-		FROM tb_market_mrc20_info i
-		LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
-			AND o.orderState = %d 
-			AND o.dealTime >= %d
-		WHERE i.state = %d
-		GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
-		HAVING tradeCount > 0
-		ORDER BY tradeCount DESC, i.lastPrice DESC
-		LIMIT %d OFFSET %d
-	`, OrderStateFinish, startTime, STATE_EXIST, limit, offset)
-
-	tx := major.GetSqlDB().Raw(queryWithTrade).Scan(&results)
-	if tx.Error != nil {
-		return nil, tx.Error
+	// 获取已经查询到的tickId列表，用于排除
+	existingTickIds := make(map[string]bool)
+	for _, result := range results {
+		existingTickIds[result.TickId] = true
 	}
 
-	// 如果结果少于5个，需要补充数据
-	if len(results) < 5 {
-		// 获取已经查询到的tickId列表，用于排除
-		existingTickIds := make(map[string]bool)
-		for _, result := range results {
-			existingTickIds[result.TickId] = true
+	// 构建排除条件
+	excludeCondition := ""
+	if len(existingTickIds) > 0 {
+		tickIdList := ""
+		for tickId := range existingTickIds {
+			if tickIdList != "" {
+				tickIdList += ","
+			}
+			tickIdList += fmt.Sprintf("'%s'", tickId)
+		}
+		excludeCondition = fmt.Sprintf("AND i.tickId NOT IN (%s)", tickIdList)
+	}
+
+	// 计算还需要补充的数量
+	needMore := limit - int64(len(results))
+	if needMore > 0 {
+		// 首先尝试按交易数排序查询
+		queryWithTrade := fmt.Sprintf(`
+			SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+			       COUNT(o.id) as tradeCount
+			FROM tb_market_mrc20_info i
+			LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
+				AND o.orderState = %d 
+				AND o.dealTime >= %d
+			WHERE i.state = %d AND i.tickId != '49d049501fad03efdd0ace2fe862c3cbe7e99fd82c7d0bad7b4f3f3c22d157e3i0' %s
+			GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
+			HAVING tradeCount > 0
+			ORDER BY tradeCount DESC, i.lastPrice DESC
+			LIMIT %d
+		`, OrderStateFinish, startTime, STATE_EXIST, excludeCondition, needMore)
+
+		var tradeResults []*HotMrc20CoreInfo
+		tx := major.GetSqlDB().Raw(queryWithTrade).Scan(&tradeResults)
+		if tx.Error != nil {
+			return nil, tx.Error
 		}
 
-		// 构建排除条件
-		excludeCondition := ""
-		if len(existingTickIds) > 0 {
-			tickIdList := ""
-			for tickId := range existingTickIds {
-				if tickIdList != "" {
-					tickIdList += ","
+		results = append(results, tradeResults...)
+
+		// 如果结果仍然不够，按orderCount排序查询补充数据
+		if len(results) < int(limit) {
+			// 更新已存在的tickId列表
+			for _, result := range tradeResults {
+				existingTickIds[result.TickId] = true
+			}
+
+			// 重新构建排除条件
+			excludeCondition = ""
+			if len(existingTickIds) > 0 {
+				tickIdList := ""
+				for tickId := range existingTickIds {
+					if tickIdList != "" {
+						tickIdList += ","
+					}
+					tickIdList += fmt.Sprintf("'%s'", tickId)
 				}
-				tickIdList += fmt.Sprintf("'%s'", tickId)
-			}
-			excludeCondition = fmt.Sprintf("AND i.tickId NOT IN (%s)", tickIdList)
-		}
-
-		// 计算还需要补充的数量
-		needMore := 5 - len(results)
-		if needMore > 0 {
-			// 按orderCount排序查询补充数据
-			queryByOrderCount := fmt.Sprintf(`
-				SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
-				       0 as tradeCount
-				FROM tb_market_mrc20_info i
-				WHERE i.state = %d AND i.orderCount > 0 %s
-				ORDER BY i.orderCount DESC, i.lastPrice DESC
-				LIMIT %d
-			`, STATE_EXIST, excludeCondition, needMore)
-
-			var additionalResults []*HotMrc20CoreInfo
-			tx = major.GetSqlDB().Raw(queryByOrderCount).Scan(&additionalResults)
-			if tx.Error != nil {
-				return nil, tx.Error
+				excludeCondition = fmt.Sprintf("AND i.tickId NOT IN (%s)", tickIdList)
 			}
 
-			// 将补充的结果添加到原有结果中
-			results = append(results, additionalResults...)
+			needMore = limit - int64(len(results))
+			if needMore > 0 {
+				queryByOrderCount := fmt.Sprintf(`
+					SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+					       0 as tradeCount
+					FROM tb_market_mrc20_info i
+					WHERE i.state = %d AND i.orderCount > 0 AND i.tickId != '49d049501fad03efdd0ace2fe862c3cbe7e99fd82c7d0bad7b4f3f3c22d157e3i0' %s
+					ORDER BY i.orderCount DESC, i.lastPrice DESC
+					LIMIT %d
+				`, STATE_EXIST, excludeCondition, needMore)
+
+				var additionalResults []*HotMrc20CoreInfo
+				tx = major.GetSqlDB().Raw(queryByOrderCount).Scan(&additionalResults)
+				if tx.Error != nil {
+					return nil, tx.Error
+				}
+
+				results = append(results, additionalResults...)
+			}
 		}
 	}
 
@@ -235,23 +304,56 @@ func (_ *marketMrc20InfoModelDao) GetHotMrc20CoreInfo(timeRange int64, offset, l
 func (_ *marketMrc20InfoModelDao) GetLatestTradeMrc20CoreInfo(offset, limit int64) ([]*HotMrc20CoreInfo, error) {
 	var results []*HotMrc20CoreInfo
 
-	// 查询按最新交易时间排序的币种信息
-	query := fmt.Sprintf(`
-		SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
-		       COUNT(o.id) as tradeCount
-		FROM tb_market_mrc20_info i
-		LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
-			AND o.orderState = %d
-		WHERE i.state = %d
-		GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
-		HAVING tradeCount > 0
-		ORDER BY MAX(o.dealTime) DESC, i.lastPrice DESC
-		LIMIT %d OFFSET %d
-	`, OrderStateFinish, STATE_EXIST, limit, offset)
+	// 首先获取固定的前三个币种
+	fixedResults, err := _marketMrc20InfoModelManager.GetFixedTopThreeMrc20CoreInfo()
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, fixedResults...)
 
-	tx := major.GetSqlDB().Raw(query).Scan(&results)
-	if tx.Error != nil {
-		return nil, tx.Error
+	// 获取已经查询到的tickId列表，用于排除
+	existingTickIds := make(map[string]bool)
+	for _, result := range results {
+		existingTickIds[result.TickId] = true
+	}
+
+	// 构建排除条件
+	excludeCondition := ""
+	if len(existingTickIds) > 0 {
+		tickIdList := ""
+		for tickId := range existingTickIds {
+			if tickIdList != "" {
+				tickIdList += ","
+			}
+			tickIdList += fmt.Sprintf("'%s'", tickId)
+		}
+		excludeCondition = fmt.Sprintf("AND i.tickId NOT IN (%s)", tickIdList)
+	}
+
+	// 计算还需要补充的数量
+	needMore := limit - int64(len(results))
+	if needMore > 0 {
+		// 查询按最新交易时间排序的币种信息
+		query := fmt.Sprintf(`
+			SELECT i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H,
+			       COUNT(o.id) as tradeCount
+			FROM tb_market_mrc20_info i
+			LEFT JOIN tb_market_mrc20_order o ON i.tickId = o.tickId 
+				AND o.orderState = %d
+			WHERE i.state = %d AND i.tickId != '49d049501fad03efdd0ace2fe862c3cbe7e99fd82c7d0bad7b4f3f3c22d157e3i0' %s
+			GROUP BY i.tickId, i.tick, i.tokenName, i.marketCap, i.lastPrice, i.change24H
+			HAVING tradeCount > 0
+			ORDER BY MAX(o.dealTime) DESC, i.lastPrice DESC
+			LIMIT %d
+		`, OrderStateFinish, STATE_EXIST, excludeCondition, needMore)
+
+		var additionalResults []*HotMrc20CoreInfo
+		tx := major.GetSqlDB().Raw(query).Scan(&additionalResults)
+		if tx.Error != nil {
+			return nil, tx.Error
+		}
+
+		results = append(results, additionalResults...)
 	}
 
 	return results, nil
