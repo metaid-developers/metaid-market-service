@@ -790,19 +790,25 @@ func FetchMarketMrc20HotList(req *request.FetchMarketMrc20HotListReq, publicKey,
 		limit = 50
 	}
 
+	t := tool.MakeTimestamp()
 	// 获取热门币种列表
 	hotList, err := models.MarketMrc20InfoModelDao().GetHotMrc20CoreInfo(timeRange, offset, limit)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Printf("FetchMarketMrc20HotList:get time %d\n", tool.MakeTimestamp()-t)
+
 	// 转换为响应格式
 	var list []*respond.Mrc20HotInfo = make([]*respond.Mrc20HotInfo, 0)
+	t = tool.MakeTimestamp()
 	for _, item := range hotList {
 		change24h := "+0.00%"
 		change24HDe := decimal.New(item.Change24H, 0)
 		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		t2 := tool.MakeTimestamp()
 		cacheTickInfo := common_service.GetCacheMrc20TickInfo(item.TickId)
+		fmt.Printf("FetchMarketMrc20HotList: cacheTickInfo time[%s] %d\n", item.TickId, tool.MakeTimestamp()-t2)
 
 		hotInfo := &respond.Mrc20HotInfo{
 			TickId:     item.TickId,
@@ -821,6 +827,7 @@ func FetchMarketMrc20HotList(req *request.FetchMarketMrc20HotListReq, publicKey,
 		}
 		list = append(list, hotInfo)
 	}
+	fmt.Printf("FetchMarketMrc20HotList: deal list %d, time %d\n", len(list), tool.MakeTimestamp()-t)
 
 	return &respond.Mrc20HotListResp{
 		TimeRange: timeRange,
