@@ -158,8 +158,8 @@ func (_ *marketMrc20InfoModelDao) GetFixedTopThreeMrc20CoreInfo() ([]*HotMrc20Co
 
 	// 固定的前三个tickId
 	fixedTickIds := []string{
-		"5fad846577a9a9645162c8c5e9dc7db65bccaee38b8e641a579a10dc2448f333i0",
 		"8ce590918a3d493631ab9d9e3bbc89e322f3dd08354af87f97c07218818b78f4i0",
+		"5fad846577a9a9645162c8c5e9dc7db65bccaee38b8e641a579a10dc2448f333i0",
 		"644dba0433aced0ec4cecef9baa951eccabb1751f222d48d33e7a309738ff0d2i0",
 	}
 
