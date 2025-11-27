@@ -3,8 +3,6 @@ package common_service
 import (
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -21,6 +19,10 @@ import (
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
@@ -1239,7 +1241,8 @@ type Mrc20TickCacheInfo struct {
 }
 
 var (
-	mrc20TickCache = make(map[string]*Mrc20TickCacheInfo)
+	mrc20TickCache     = make(map[string]*Mrc20TickCacheInfo)
+	mrc20TickCacheLock sync.RWMutex
 )
 
 func GetCacheMrc20TickInfo(tickId string) *Mrc20TickCacheInfo {
@@ -1252,12 +1255,17 @@ func GetCacheMrc20TickInfo(tickId string) *Mrc20TickCacheInfo {
 	if tickId == "" {
 		return nil
 	}
-	if info, ok := mrc20TickCache[tickId]; ok {
-		if info.UpdateTime > now-1000*60*5 { // 5 minutes
-			return info
-		}
+
+	// use read lock to check cache
+	mrc20TickCacheLock.RLock()
+	info, ok := mrc20TickCache[tickId]
+	mrc20TickCacheLock.RUnlock()
+
+	if ok && info.UpdateTime > now-1000*60*5 { // 5 minutes cache
+		return info
 	}
-	// Fetch from database if not in cache or cache is expired
+
+	// fetch from database if not in cache or cache is expired
 	mrc20Resp, err = man_service.FetchMrc20TickInfo(tickId, "")
 	if err != nil {
 		fmt.Printf("[Cache]Error fetching Mrc20TickInfo: %v\n", err)
@@ -1278,7 +1286,12 @@ func GetCacheMrc20TickInfo(tickId string) *Mrc20TickCacheInfo {
 		Tag:              common.CheckIdCoins(mrc20Resp.Tick, mrc20Resp.Metadata, mrc20Resp.DeployTime),
 		UpdateTime:       now,
 	}
+
+	// use write lock to update cache
+	mrc20TickCacheLock.Lock()
 	mrc20TickCache[tickId] = cacheInfo
+	mrc20TickCacheLock.Unlock()
+
 	fmt.Printf("[Cache]Mrc20TickCache updated for tickId: %s\n", tickId)
 	return cacheInfo
 }
