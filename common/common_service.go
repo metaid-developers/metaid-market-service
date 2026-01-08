@@ -4,17 +4,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"metaid-market-service/conf"
+	"metaid-market-service/service/grpc_service"
+	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/own_service"
+	"metaid-market-service/tool"
+	"strings"
+
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/shopspring/decimal"
-	"metaid-market-service/conf"
-	"metaid-market-service/service/orders_exchange_service"
-	"metaid-market-service/service/own_service"
-	"metaid-market-service/tool"
-	"strings"
 )
 
 func GetNetParams(net string) *chaincfg.Params {
@@ -124,11 +126,66 @@ func CheckAddressClass(net *chaincfg.Params, address string) (txscript.ScriptCla
 }
 
 func GetUtxoInfo(net, txId string, txIndex int64) *own_service.OwnUtxoInfo {
-	var (
-		infoMap   map[string]*own_service.OwnUtxoInfo
-		outPoints []string = []string{
-			fmt.Sprintf("%s:%d", txId, txIndex),
+	outPoints := []string{
+		fmt.Sprintf("%s:%d", txId, txIndex),
+	}
+
+	// 使用 grpc 的 CheckUtxoInfo 替换 own_service.CheckUtxoInfo
+	client, err := grpc_service.GetBtcBaseConn()
+	if err != nil {
+		return nil
+	}
+	grpcResp, err := client.CheckUtxoInfo(outPoints)
+	if err != nil {
+		return nil
+	}
+	if grpcResp == nil || grpcResp.GetUtxoInfos() == nil {
+		return nil
+	}
+
+	// 转换 grpc 响应到 own_service.OwnUtxoInfo
+	grpcUtxoInfos := grpcResp.GetUtxoInfos()
+	if len(grpcUtxoInfos) == 0 {
+		return nil
+	}
+
+	outPointKey := fmt.Sprintf("%s:%d", txId, txIndex)
+	grpcUtxoInfo, ok := grpcUtxoInfos[outPointKey]
+	if !ok {
+		return nil
+	}
+
+	// 转换 btc_service.UtxoInfo 到 own_service.OwnUtxoInfo
+	ownUtxoInfo := &own_service.OwnUtxoInfo{
+		IsExist:     grpcUtxoInfo.GetIsExist(),
+		TxConfirm:   grpcUtxoInfo.GetTxConfirm(),
+		SpendStatus: grpcUtxoInfo.GetSpendStatus(),
+		Height:      grpcUtxoInfo.GetHeight(),
+		Date:        grpcUtxoInfo.GetDate(),
+		Value:       grpcUtxoInfo.GetValue(),
+		Where:       grpcUtxoInfo.GetWhere(),
+		Address:     grpcUtxoInfo.GetAddress(),
+	}
+
+	if grpcUtxoInfo.GetSpendInfo() != nil {
+		ownUtxoInfo.SpendInfo = struct {
+			SpendTx string `json:"spendTx"`
+			Height  int64  `json:"height"`
+			Date    int64  `json:"date"`
+			Where   string `json:"where"`
+		}{
+			SpendTx: grpcUtxoInfo.GetSpendInfo().GetSpendTx(),
+			Height:  grpcUtxoInfo.GetSpendInfo().GetHeight(),
+			Date:    grpcUtxoInfo.GetSpendInfo().GetDate(),
+			Where:   grpcUtxoInfo.GetSpendInfo().GetWhere(),
 		}
+	}
+
+	return ownUtxoInfo
+
+	/* 旧的 own_service.CheckUtxoInfo 实现（已注释）
+	var (
+		infoMap map[string]*own_service.OwnUtxoInfo
 	)
 	infoMap, err := own_service.CheckUtxoInfo(net, outPoints)
 	if err != nil {
@@ -141,6 +198,7 @@ func GetUtxoInfo(net, txId string, txIndex int64) *own_service.OwnUtxoInfo {
 		return nil
 	}
 	return infoMap[fmt.Sprintf("%s:%d", txId, txIndex)]
+	*/
 }
 
 func BroadcastTx(txRaw string) (string, error) {

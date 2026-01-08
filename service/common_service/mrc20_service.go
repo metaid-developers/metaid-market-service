@@ -1216,8 +1216,60 @@ func FetchMrc20Holders(req *request.Mrc20TickHoldersRequest) (*respond.Mrc20Tick
 func CheckUtxoInfo(req *request.CheckUtxoInfoReq) (map[string]*own_service.OwnUtxoInfo, error) {
 	var (
 		err      error
-		utxoInfo map[string]*own_service.OwnUtxoInfo
+		utxoInfo map[string]*own_service.OwnUtxoInfo = make(map[string]*own_service.OwnUtxoInfo)
 	)
+
+	// 使用 grpc 的 CheckUtxoInfo 替换 own_service.CheckUtxoInfo
+	client, err := grpc_service.GetBtcBaseConn()
+	if err != nil {
+		return nil, err
+	}
+	grpcResp, err := client.CheckUtxoInfo(req.OutPoints)
+	if err != nil {
+		return nil, err
+	}
+	if grpcResp == nil || grpcResp.GetUtxoInfos() == nil {
+		return nil, errors.New("utxo not found")
+	}
+
+	// 转换 grpc 响应到 own_service.OwnUtxoInfo
+	grpcUtxoInfos := grpcResp.GetUtxoInfos()
+	if len(grpcUtxoInfos) == 0 {
+		return nil, errors.New("utxo not found")
+	}
+
+	for outPoint, grpcUtxoInfo := range grpcUtxoInfos {
+		ownUtxoInfo := &own_service.OwnUtxoInfo{
+			IsExist:     grpcUtxoInfo.GetIsExist(),
+			TxConfirm:   grpcUtxoInfo.GetTxConfirm(),
+			SpendStatus: grpcUtxoInfo.GetSpendStatus(),
+			Height:      grpcUtxoInfo.GetHeight(),
+			Date:        grpcUtxoInfo.GetDate(),
+			Value:       grpcUtxoInfo.GetValue(),
+			Where:       grpcUtxoInfo.GetWhere(),
+			Address:     grpcUtxoInfo.GetAddress(),
+		}
+
+		if grpcUtxoInfo.GetSpendInfo() != nil {
+			ownUtxoInfo.SpendInfo = struct {
+				SpendTx string `json:"spendTx"`
+				Height  int64  `json:"height"`
+				Date    int64  `json:"date"`
+				Where   string `json:"where"`
+			}{
+				SpendTx: grpcUtxoInfo.GetSpendInfo().GetSpendTx(),
+				Height:  grpcUtxoInfo.GetSpendInfo().GetHeight(),
+				Date:    grpcUtxoInfo.GetSpendInfo().GetDate(),
+				Where:   grpcUtxoInfo.GetSpendInfo().GetWhere(),
+			}
+		}
+
+		utxoInfo[outPoint] = ownUtxoInfo
+	}
+
+	return utxoInfo, nil
+
+	/* 旧的 own_service.CheckUtxoInfo 实现（已注释）
 	utxoInfo, err = own_service.CheckUtxoInfo("", req.OutPoints)
 	if err != nil {
 		return nil, err
@@ -1226,6 +1278,7 @@ func CheckUtxoInfo(req *request.CheckUtxoInfoReq) (map[string]*own_service.OwnUt
 		return nil, errors.New("utxo not found")
 	}
 	return utxoInfo, nil
+	*/
 }
 
 type Mrc20TickCacheInfo struct {

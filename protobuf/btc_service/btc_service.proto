@@ -1,0 +1,203 @@
+syntax = "proto3";
+option go_package = "./protobuf/btc_service";
+
+package protobuf;
+
+message FetchTxRawReq {
+    string txId = 1;
+}
+message FetchTxRawResp {
+    string rawTx = 1;
+}
+
+message CheckUtxoInfoReq {
+    repeated string outPoints = 1;
+}
+
+message CheckUtxoInfoResp {
+    map<string, UtxoInfo> utxoInfos = 1;
+}
+
+message UtxoInfo {
+    bool isExist = 1;
+    bool txConfirm = 2;
+    string spendStatus = 3;
+    int64 height = 4;
+    int64 date = 5;
+    int64 value = 6;
+    string where = 7;
+    string address = 8;
+    SpendInfo spendInfo = 9;
+}
+
+message SpendInfo {
+    string spendTx = 1;
+    int64 height = 2;
+    int64 date = 3;
+    string where = 4;
+}
+
+
+message BtcBroadcastTxReq {
+    string rawTx = 1;
+}
+
+message BtcBroadcastTxResp {
+    string txId = 1;
+    string message = 2;
+}
+
+message BtcCheckTxInfoReq {
+    string txId = 1;
+}
+
+message BtcCheckTxInfoResp {
+    string txHash = 1;
+    repeated string address = 2;
+    repeated int64 value = 3;
+    repeated string input = 4;
+    int64 height = 5;
+    int64 date = 6;
+    bool confirmed = 7;
+}
+
+message FetchBtcUtxoReq {
+    string address = 1;
+    string order = 2;
+    string unconfirmed = 3;
+}
+
+message FetchBtcUtxoResp {
+    repeated FetchUtxoItem utxos = 1;
+}
+message FetchUtxoItem {
+    bool confirmed = 1;
+    string inscriptions = 2;
+    int64 satoshi = 3;
+    string txId = 4;
+    int64 vout = 5;
+    int64 outputIndex = 6;
+    int64 satoshis = 7;
+}
+
+message FetchBtcBalanceReq {
+    string address = 1;
+}
+
+message FetchBtcBalanceResp {
+    int64 totalSatoshi = 1;
+    int64 btcSatoshi = 2;
+    int64 btcPendingSatoshi = 3;
+    int64 inscriptionSatoshi = 4;
+    int64 inscriptionPendingSatoshi = 5;
+    int64 pinSatoshi = 6;
+    int64 pinPendingSatoshi = 7;
+    int64 mrc20Satoshi = 8;
+    int64 mrc20PendingSatoshi = 9;
+    int64 runeSatoshi = 10;
+    int64 runePendingSatoshi = 11;
+}
+
+// New BTC APIs (aligned with Doge semantics)
+message BtcAddressBalanceReq {
+    string address = 1;
+    string source = 2;
+}
+
+message BtcAddressBalanceResp {
+    string address = 1;
+    uint64 confirmed = 2;
+    int64 unconfirmed = 3;
+    int32 utxoCount = 4;
+}
+
+message BtcAddressUtxoReq {
+    string address = 1;
+    string flag = 2;
+    string source = 3;
+}
+
+message BtcAddressUtxoResp {
+    repeated BtcUtxo utxos = 1;
+    int64 total = 2;
+}
+
+message BtcUtxo {
+    string flag = 1;
+    string txid = 2;
+    int32 outIndex = 3;
+    string value = 4;
+    int64 height = 5;
+    string address = 6;
+}
+
+message BtcAddressTxReq {
+    string address = 1;
+    int64 limit = 2;
+    string flag = 3;
+    bool confirmed = 4;
+    string source = 5;
+}
+
+message BtcAddressTxResp {
+    repeated BtcAddressTx txs = 1;
+    int64 total = 2;
+}
+
+message BtcAddressTx {
+    string txid = 1;
+    int64 time = 2;
+    int64 height = 3;
+    string address = 4;
+    string flag = 5;
+    int64 income = 6;
+    int64 outcome = 7;
+    string genesis = 8;
+    string createAt = 9;
+}
+
+message BtcAddressTxCountReq {
+    string address = 1;
+    string source = 2;
+}
+
+message BtcAddressTxCountResp {
+    int64 txCount = 1;
+}
+
+message BtcTxRawReq {
+    string txId = 1;
+    string source = 2;
+}
+
+message BtcTxRawResp {
+    string txRaw = 1;
+}
+
+message BtcFeeRateReq {
+}
+
+message BtcFeeRateItem {
+    string title = 1;
+    string desc = 2;
+    int64 feeRate = 3;
+}
+
+message BtcFeeRateResp {
+    repeated BtcFeeRateItem list = 1;
+}
+
+service BtcService {
+    rpc CheckUtxoInfo(CheckUtxoInfoReq) returns (CheckUtxoInfoResp) {}
+    rpc FetchTxRaw(FetchTxRawReq) returns (FetchTxRawResp) {}
+    rpc BtcBroadcastTx(BtcBroadcastTxReq) returns (BtcBroadcastTxResp) {}
+    rpc BtcCheckTxInfo(BtcCheckTxInfoReq) returns (BtcCheckTxInfoResp) {}
+    rpc FetchBtcUtxo(FetchBtcUtxoReq) returns (FetchBtcUtxoResp) {}
+    rpc FetchBtcBalance(FetchBtcBalanceReq) returns (FetchBtcBalanceResp) {}
+    rpc GetBtcAddressBalance(BtcAddressBalanceReq) returns (BtcAddressBalanceResp) {}
+    rpc GetBtcAddressUtxo(BtcAddressUtxoReq) returns (BtcAddressUtxoResp) {}
+    rpc GetBtcAddressTx(BtcAddressTxReq) returns (BtcAddressTxResp) {}
+    rpc GetBtcAddressTxCount(BtcAddressTxCountReq) returns (BtcAddressTxCountResp) {}
+    rpc GetBtcTxRaw(BtcTxRawReq) returns (BtcTxRawResp) {}
+    rpc GetBtcFeeRate(BtcFeeRateReq) returns (BtcFeeRateResp) {}
+}
