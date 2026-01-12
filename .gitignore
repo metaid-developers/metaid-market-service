@@ -24,3 +24,5 @@ go.sum
 .idea
 conf/conf*
 fix
+
+log/*
