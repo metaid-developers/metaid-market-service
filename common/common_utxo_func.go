@@ -4,12 +4,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/btcutil"
-	"github.com/btcsuite/btcd/txscript"
 	"metaid-market-service/conf"
 	"metaid-market-service/models"
 	"metaid-market-service/redis"
 	"sync"
+
+	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/txscript"
 )
 
 const (
@@ -21,7 +22,7 @@ var (
 	saveUtxoLock       *sync.RWMutex = new(sync.RWMutex)
 )
 
-func GetUnoccupiedUtxoList(limit int64, utxoType models.UtxoType) ([]*models.MarketUtxoModel, error) {
+func GetUnoccupiedUtxoList(chain string, limit int64, utxoType models.UtxoType) ([]*models.MarketUtxoModel, error) {
 	var (
 		redisKeyPrefix     string                    = ""
 		sortIndexList      []int                     = make([]int, 0)
@@ -63,7 +64,7 @@ func GetUnoccupiedUtxoList(limit int64, utxoType models.UtxoType) ([]*models.Mar
 		ConfirmStatus: confirmStatus,
 		UtxoType:      utxoType,
 		UsedState:     models.UsedNo,
-	}, 0, maxLimit)
+	}, chain, 0, maxLimit)
 	if len(utxoList) == 0 {
 		return nil, errors.New("Unoccupied-Utxo: Empty utxo list. Please contact customer service and wait for the platform to add UTXO. ")
 	}
@@ -86,7 +87,7 @@ func GetUnoccupiedUtxoList(limit int64, utxoType models.UtxoType) ([]*models.Mar
 	}
 	unoccupiedUtxoList = unoccupiedUtxoList[:limit]
 	for _, v := range unoccupiedUtxoList {
-		addr, err := btcutil.DecodeAddress(v.Address, GetNetParams(conf.Net))
+		addr, err := btcutil.DecodeAddress(v.Address, GetNetParams(conf.Net, chain))
 		if err != nil {
 			return nil, err
 		}

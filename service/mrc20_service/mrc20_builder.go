@@ -4,6 +4,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"metaid-market-service/common"
+	"metaid-market-service/conf"
+
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -12,12 +15,11 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"metaid-market-service/common"
-	"metaid-market-service/conf"
 )
 
 type Mrc20Builder struct {
 	Net                *chaincfg.Params
+	Chain              string
 	MetaIdData         *MetaIdData
 	MintPins           []*MintPin
 	TransferMrc20s     []*TransferMrc20
@@ -372,7 +374,7 @@ func (m *Mrc20Builder) buildEmptyTransferRevealPsbt() error {
 		//	return errors.New("redeemScript is empty")
 		//}
 	}
-	pkScript, err := common.AddressToPkScript(conf.Net, m.mrc20PremineOutAddress)
+	pkScript, err := common.AddressToPkScript(conf.Net, m.Chain, m.mrc20PremineOutAddress)
 	if err != nil {
 		return err
 	}

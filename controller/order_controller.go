@@ -2,7 +2,6 @@ package controller
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
@@ -10,6 +9,8 @@ import (
 	"metaid-market-service/tool"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 // @Summary Push Market order
@@ -53,6 +54,7 @@ func FetchOrderPsbt(c *gin.Context) {
 		publicKey                                       = getAuthParams(c)
 		buyerChangeAmountStr string                     = c.DefaultQuery("buyerChangeAmount", "0")
 		req                  *request.FetchOrderPsbtReq = &request.FetchOrderPsbtReq{
+			Chain:             c.DefaultQuery("chain", ""),
 			OrderId:           c.DefaultQuery("orderId", ""),
 			BuyerAddress:      c.DefaultQuery("buyerAddress", ""),
 			BuyerChangeAmount: 0,

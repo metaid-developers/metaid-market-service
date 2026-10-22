@@ -3,21 +3,23 @@ package parse_service
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 )
 
 func ParseTxPin(txRaw string) (bool, *PersonalInformationNode, []*wire.TxOut, error) {
 	var (
+		chain     string = "btc"
 		pin       *PersonalInformationNode
 		outputs   []*wire.TxOut
 		err       error
 		txRawByte []byte
 		tx        *wire.MsgTx = wire.NewMsgTx(2)
 		indexer               = &Indexer{
-			ChainParams: common.GetNetParams(conf.Net),
+			ChainParams: common.GetNetParams(conf.Net, chain),
 			Block:       nil,
 		}
 	)

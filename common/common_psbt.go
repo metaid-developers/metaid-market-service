@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
@@ -356,7 +357,7 @@ func (s *PsbtBuilder) UpdateAndSignInput(signIns []*InputSign) error {
 	}
 
 	for _, v := range signIns {
-		if v.PkScript != "" {
+		if v.PkScript != "" && v.UtxoType != NonWitness {
 			pkScript, err := hex.DecodeString(v.PkScript)
 			if err != nil {
 				return err
@@ -412,7 +413,7 @@ func (s *PsbtBuilder) UpdateAndSignInput(signIns []*InputSign) error {
 			if err != nil {
 				return err
 			}
-
+			s.PsbtUpdater.Upsbt.Inputs[v.Index].WitnessUtxo = nil
 			sigScript, err = txscript.RawTxInSignature(s.PsbtUpdater.Upsbt.UnsignedTx, v.Index, s.PsbtUpdater.Upsbt.Inputs[v.Index].NonWitnessUtxo.TxOut[s.PsbtUpdater.Upsbt.UnsignedTx.TxIn[v.Index].PreviousOutPoint.Index].PkScript, v.SighashType, privateKey)
 			if err != nil {
 				return err

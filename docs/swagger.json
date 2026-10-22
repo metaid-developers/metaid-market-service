@@ -77,7 +77,7 @@
         },
         "/api/v1/common/coin/price": {
             "get": {
-                "description": "Fetch coin price",
+                "description": "Fetch coin price, 统一返回 BitcoinPrice 格式（USD 为重点）",
                 "produces": [
                     "application/json"
                 ],
@@ -85,11 +85,19 @@
                     "Common"
                 ],
                 "summary": "Fetch coin price",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "coin，默认 btc",
+                        "name": "coin",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/respond.FeeRecommended"
+                            "$ref": "#/definitions/common_service.BitcoinPrice"
                         }
                     }
                 }
@@ -143,6 +151,12 @@
                         "type": "integer",
                         "description": "size：max=50",
                         "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "source（如 mrc20-v2）",
+                        "name": "source",
                         "in": "query"
                     }
                 ],
@@ -239,6 +253,12 @@
                         "type": "integer",
                         "description": "size：max=50",
                         "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "source（如 mrc20-v2）",
+                        "name": "source",
                         "in": "query"
                     }
                 ],
@@ -2136,6 +2156,48 @@
         }
     },
     "definitions": {
+        "common.SignMode": {
+            "type": "string",
+            "enum": [
+                "segwit",
+                "taproot",
+                "legacy"
+            ],
+            "x-enum-varnames": [
+                "SignModeSegwit",
+                "SignModeTaproot",
+                "SignModeLegacy"
+            ]
+        },
+        "common_service.BitcoinPrice": {
+            "type": "object",
+            "properties": {
+                "AUD": {
+                    "type": "integer"
+                },
+                "CAD": {
+                    "type": "integer"
+                },
+                "CHF": {
+                    "type": "integer"
+                },
+                "EUR": {
+                    "type": "integer"
+                },
+                "GBP": {
+                    "type": "integer"
+                },
+                "JPY": {
+                    "type": "integer"
+                },
+                "USD": {
+                    "type": "integer"
+                },
+                "time": {
+                    "type": "integer"
+                }
+            }
+        },
         "models.AskType": {
             "type": "integer",
             "enum": [
@@ -2162,6 +2224,7 @@
         },
         "models.ConfirmationState": {
             "type": "integer",
+            "format": "int64",
             "enum": [
                 1,
                 2
@@ -2173,6 +2236,7 @@
         },
         "models.OrderState": {
             "type": "integer",
+            "format": "int64",
             "enum": [
                 1,
                 2,
@@ -2278,6 +2342,9 @@
                         }
                     ]
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "psbtRaw": {
                     "type": "string"
                 }
@@ -2363,6 +2430,9 @@
         "request.BroadcastTxReq": {
             "type": "object",
             "properties": {
+                "chain": {
+                    "type": "string"
+                },
                 "txHex": {
                     "type": "string"
                 }
@@ -2453,6 +2523,9 @@
                 "amount": {
                     "type": "integer"
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "changeAddress": {
                     "type": "string"
                 },
@@ -2473,6 +2546,9 @@
                 },
                 "priKeyHex": {
                     "type": "string"
+                },
+                "signMode": {
+                    "$ref": "#/definitions/common.SignMode"
                 },
                 "txId": {
                     "type": "string"
@@ -2710,6 +2786,9 @@
                         }
                     ]
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "coinAmountStr": {
                     "description": "if askType is preTransfer, this field is required",
                     "type": "string"
@@ -2742,6 +2821,9 @@
                             "$ref": "#/definitions/models.AssetType"
                         }
                     ]
+                },
+                "chain": {
+                    "type": "string"
                 },
                 "psbtRaw": {
                     "type": "string"
@@ -2790,6 +2872,9 @@
                 "address": {
                     "type": "string"
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "metaName": {
                     "type": "string"
                 },
@@ -2830,6 +2915,9 @@
             "type": "object",
             "properties": {
                 "address": {
+                    "type": "string"
+                },
+                "chain": {
                     "type": "string"
                 }
             }
@@ -3017,6 +3105,9 @@
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "orderId": {
                     "type": "string"
                 },
@@ -3036,6 +3127,9 @@
                 },
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
+                },
+                "chain": {
+                    "type": "string"
                 },
                 "orderId": {
                     "type": "string"
@@ -4424,6 +4518,9 @@
                 "buyerAddress": {
                     "type": "string"
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "confirmationState": {
                     "$ref": "#/definitions/models.ConfirmationState"
                 },
@@ -4510,6 +4607,9 @@
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "orderId": {
                     "type": "string"
                 },
@@ -4529,6 +4629,9 @@
                 },
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
+                },
+                "chain": {
+                    "type": "string"
                 },
                 "orderId": {
                     "type": "string"
@@ -4749,6 +4852,9 @@
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
                 },
+                "chain": {
+                    "type": "string"
+                },
                 "orderId": {
                     "type": "string"
                 },
@@ -4771,6 +4877,9 @@
                 },
                 "assetType": {
                     "$ref": "#/definitions/models.AssetType"
+                },
+                "chain": {
+                    "type": "string"
                 },
                 "orderId": {
                     "type": "string"

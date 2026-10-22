@@ -7,7 +7,6 @@ import (
 	"metaid-market-service/controller"
 	"metaid-market-service/major"
 	"metaid-market-service/redis"
-	"metaid-market-service/service/fix"
 	"metaid-market-service/service/task"
 )
 
@@ -56,8 +55,8 @@ func main() {
 	InitEnv()
 	InitAll()
 	//fix.FixMarketInfoForFloorPrice()
-	fix.FixMarketInfoForOrderCount()
-	//task.JobForCheckRecordConfirm()
+	// fix.FixMarketInfoForOrderCount()
+	task.JobForCheckAssetConfirm()
 	go task.RunJob()
 	controller.Run()
 }

@@ -2,10 +2,11 @@ package models
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"sync"
+
+	"gorm.io/gorm"
 )
 
 type DeployType string
@@ -163,7 +164,7 @@ func (_ *idCoinsDeployOrderModelDao) Update(q *IdCoinsDeployOrderModel) error {
 	return nil
 }
 
-func (_ *idCoinsDeployOrderModelDao) UpdateEntityForInscribing(model *IdCoinsDeployOrderModel, txRawList []string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *idCoinsDeployOrderModelDao) UpdateEntityForInscribing(chain string, model *IdCoinsDeployOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		if model == nil {
 			return errors.New("model is nil")
@@ -180,7 +181,7 @@ func (_ *idCoinsDeployOrderModelDao) UpdateEntityForInscribing(model *IdCoinsDep
 		}
 
 		for _, txRaw := range txRawList {
-			_, err := jobFunc(txRaw)
+			_, err := jobFunc(chain, txRaw)
 			if err != nil {
 				return err
 			}

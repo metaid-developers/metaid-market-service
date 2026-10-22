@@ -109,6 +109,8 @@ message BtcAddressBalanceResp {
     uint64 confirmed = 2;
     int64 unconfirmed = 3;
     int32 utxoCount = 4;
+    int64 unsafeFeeSatoshi = 5;
+    double unsafeFee = 6;
 }
 
 message BtcAddressUtxoReq {
@@ -187,6 +189,16 @@ message BtcFeeRateResp {
     repeated BtcFeeRateItem list = 1;
 }
 
+message BtcTxInfoReq {
+    string txId = 1;
+}
+
+message BtcTxInfoResp {
+    uint64 height = 1;
+    bool confirmed = 2;
+    string txHash = 3;
+}
+
 service BtcService {
     rpc CheckUtxoInfo(CheckUtxoInfoReq) returns (CheckUtxoInfoResp) {}
     rpc FetchTxRaw(FetchTxRawReq) returns (FetchTxRawResp) {}
@@ -200,4 +212,5 @@ service BtcService {
     rpc GetBtcAddressTxCount(BtcAddressTxCountReq) returns (BtcAddressTxCountResp) {}
     rpc GetBtcTxRaw(BtcTxRawReq) returns (BtcTxRawResp) {}
     rpc GetBtcFeeRate(BtcFeeRateReq) returns (BtcFeeRateResp) {}
+    rpc GetTxInfo(BtcTxInfoReq) returns (BtcTxInfoResp) {}
 }

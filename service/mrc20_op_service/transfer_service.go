@@ -5,10 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -16,6 +12,11 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/tool"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string) (*respond.Mrc20TransferPreResp, error) {
@@ -23,6 +24,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		orderId       string = ""
 		transferOrder *models.Mrc20TransferOrderModel
 		err           error
+		chain         string = "btc"
 
 		totalFee       int64  = 0
 		minerFee       int64  = 0
@@ -72,12 +74,12 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 			Mrc20Amount:   v.Amount,
 			Mrc20TickerId: v.TickerId,
 		}
-		addressClass, err := common.CheckAddressClass(common.GetNetParams(conf.Net), v.Address)
+		addressClass, err := common.CheckAddressClass(common.GetNetParams(conf.Net, chain), v.Address)
 		if err != nil {
 			return nil, err
 		}
 		if addressClass == txscript.PubKeyHashTy {
-			transferMrc20.OutRaw, err = common.FetchTxHex(v.UtxoTxId)
+			transferMrc20.OutRaw, err = common.FetchTxHex(chain, v.UtxoTxId)
 			if err != nil {
 				return nil, err
 			}
@@ -110,7 +112,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		return nil, err
 	}
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
-		Net:                 common.GetNetParams(conf.Net),
+		Net:                 common.GetNetParams(conf.Net, chain),
 		MetaIdFlag:          common.GetMetaIdFlag(),
 		Op:                  "transfer",
 		OpPayload:           payload,
@@ -134,7 +136,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 	if err != nil {
 		return nil, err
 	}
-	revealAddress, err = common.PkScriptToAddress(conf.Net, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
+	revealAddress, err = common.PkScriptToAddress(conf.Net, chain, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +163,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 	}
 	if transferOrder == nil {
 		transferOrder = &models.Mrc20TransferOrderModel{
+			Chain:               chain,
 			OrderId:             orderId,
 			Payload:             payload,
 			InscribeState:       models.InscribeStatePending,
@@ -233,6 +236,7 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 		revealTxRaw  string = ""
 		prePsbtRaw   string = req.RevealPrePsbtRaw
 		finalPsbtRaw string = ""
+		chain        string = ""
 
 		address string = ""
 
@@ -265,6 +269,7 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 	if transferOrder.InscribeState != models.InscribeStatePending {
 		return nil, errors.New("transfer order state error")
 	}
+	chain = transferOrder.Chain
 	txRawByte, _ = hex.DecodeString(commitTxRaw)
 	err = commitTx.Deserialize(bytes.NewReader(txRawByte))
 	if err != nil {
@@ -276,17 +281,17 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 	}
 
 	txIn := commitTx.TxIn[0]
-	utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	if utxoInfo == nil {
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
 	address = utxoInfo.Address
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), prePsbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
 	if err != nil {
 		return nil, err
 	}
-	pkScript, err = common.AddressToPkScript(conf.Net, transferOrder.RevealTxAddress)
+	pkScript, err = common.AddressToPkScript(conf.Net, chain, transferOrder.RevealTxAddress)
 	taprootInSigner = &common.InputSign{
 		UtxoType: common.Taproot,
 		Index:    int(transferOrder.RevealInputIndex),
@@ -334,7 +339,12 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 		return nil, err
 	}
 
-	err = models.Mrc20TransferOrderModelDao().UpdateEntityListForInscribing(transferOrder, []string{commitTxRaw, revealTxRaw}, common.BroadcastTx)
+	err = models.Mrc20TransferOrderModelDao().UpdateEntityListForInscribing(
+		chain,
+		transferOrder,
+		[]string{commitTxRaw, revealTxRaw},
+		common.BroadcastTx,
+	)
 	if err != nil {
 		return nil, err
 	}

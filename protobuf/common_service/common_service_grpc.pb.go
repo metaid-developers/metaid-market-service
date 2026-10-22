@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	CommonService_FetchCommonCoinPrice_FullMethodName = "/protobuf.CommonService/FetchCommonCoinPrice"
+	CommonService_FetchCommonCoinPrice_FullMethodName      = "/protobuf.CommonService/FetchCommonCoinPrice"
+	CommonService_FetchCommonMrc20CoinPrice_FullMethodName = "/protobuf.CommonService/FetchCommonMrc20CoinPrice"
 )
 
 // CommonServiceClient is the client API for CommonService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CommonServiceClient interface {
 	FetchCommonCoinPrice(ctx context.Context, in *CommonCoinPriceReq, opts ...grpc.CallOption) (*CommonCoinPriceResp, error)
+	FetchCommonMrc20CoinPrice(ctx context.Context, in *CommonMrc20CoinPriceReq, opts ...grpc.CallOption) (*CommonMrc20CoinPriceResp, error)
 }
 
 type commonServiceClient struct {
@@ -46,11 +48,21 @@ func (c *commonServiceClient) FetchCommonCoinPrice(ctx context.Context, in *Comm
 	return out, nil
 }
 
+func (c *commonServiceClient) FetchCommonMrc20CoinPrice(ctx context.Context, in *CommonMrc20CoinPriceReq, opts ...grpc.CallOption) (*CommonMrc20CoinPriceResp, error) {
+	out := new(CommonMrc20CoinPriceResp)
+	err := c.cc.Invoke(ctx, CommonService_FetchCommonMrc20CoinPrice_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CommonServiceServer is the server API for CommonService service.
 // All implementations must embed UnimplementedCommonServiceServer
 // for forward compatibility
 type CommonServiceServer interface {
 	FetchCommonCoinPrice(context.Context, *CommonCoinPriceReq) (*CommonCoinPriceResp, error)
+	FetchCommonMrc20CoinPrice(context.Context, *CommonMrc20CoinPriceReq) (*CommonMrc20CoinPriceResp, error)
 	mustEmbedUnimplementedCommonServiceServer()
 }
 
@@ -60,6 +72,9 @@ type UnimplementedCommonServiceServer struct {
 
 func (UnimplementedCommonServiceServer) FetchCommonCoinPrice(context.Context, *CommonCoinPriceReq) (*CommonCoinPriceResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FetchCommonCoinPrice not implemented")
+}
+func (UnimplementedCommonServiceServer) FetchCommonMrc20CoinPrice(context.Context, *CommonMrc20CoinPriceReq) (*CommonMrc20CoinPriceResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchCommonMrc20CoinPrice not implemented")
 }
 func (UnimplementedCommonServiceServer) mustEmbedUnimplementedCommonServiceServer() {}
 
@@ -92,6 +107,24 @@ func _CommonService_FetchCommonCoinPrice_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CommonService_FetchCommonMrc20CoinPrice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommonMrc20CoinPriceReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CommonServiceServer).FetchCommonMrc20CoinPrice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CommonService_FetchCommonMrc20CoinPrice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CommonServiceServer).FetchCommonMrc20CoinPrice(ctx, req.(*CommonMrc20CoinPriceReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CommonService_ServiceDesc is the grpc.ServiceDesc for CommonService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -102,6 +135,10 @@ var CommonService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FetchCommonCoinPrice",
 			Handler:    _CommonService_FetchCommonCoinPrice_Handler,
+		},
+		{
+			MethodName: "FetchCommonMrc20CoinPrice",
+			Handler:    _CommonService_FetchCommonMrc20CoinPrice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

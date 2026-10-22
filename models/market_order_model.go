@@ -3,11 +3,12 @@ package models
 import (
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"strings"
 	"sync"
+
+	"gorm.io/gorm"
 )
 
 type AssetType string
@@ -34,6 +35,7 @@ const (
 
 type MarketOrderModel struct {
 	Id                int64             `gorm:"column:id" json:"id"`
+	Chain             string            `gorm:"column:chain" json:"chain"`
 	OrderId           string            `gorm:"column:orderId" json:"orderId"`
 	UtxoId            string            `gorm:"column:utxoId" json:"utxoId"`
 	OutValue          int64             `gorm:"column:outValue" json:"outValue"`
@@ -239,7 +241,7 @@ func (_ *marketOrderModelDao) BatchSaveList(list []*MarketOrderModel) error {
 	return nil
 }
 
-func (_ *marketOrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketOrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, txRaw string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *marketOrderModelDao) UpdateOrderEntityListForJobFunc(chain string, q *MarketOrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, txRaw string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
 
@@ -270,7 +272,7 @@ func (_ *marketOrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketOrderMode
 			}
 		}
 
-		_, err := jobFunc(txRaw)
+		_, err := jobFunc(chain, txRaw)
 		if err != nil {
 			return err
 		}
@@ -282,7 +284,7 @@ func (_ *marketOrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketOrderMode
 	return nil
 }
 
-func (_ *marketOrderModelDao) BatchUpdateOrderEntityListForJobFunc(qList []*MarketOrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, txRaw string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *marketOrderModelDao) BatchUpdateOrderEntityListForJobFunc(chain string, qList []*MarketOrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, txRaw string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
 
@@ -315,7 +317,7 @@ func (_ *marketOrderModelDao) BatchUpdateOrderEntityListForJobFunc(qList []*Mark
 			}
 		}
 
-		_, err := jobFunc(txRaw)
+		_, err := jobFunc(chain, txRaw)
 		if err != nil {
 			return err
 		}

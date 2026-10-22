@@ -5,9 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -19,6 +16,10 @@ import (
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"gorm.io/gorm"
 )
 
 const (
@@ -51,6 +52,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 		entity          *models.Mrc20DeployOrderModel
 		err             error
 		tick            string = ""
+		chain           string = "btc"
 
 		mrc20OpRequest        *mrc20_service.Mrc20OpRequest
 		mrc20Builder          *mrc20_service.Mrc20Builder
@@ -102,7 +104,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	}
 
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
-		Net:                 common.GetNetParams(conf.Net),
+		Net:                 common.GetNetParams(conf.Net, chain),
 		MetaIdFlag:          common.GetMetaIdFlag(),
 		Op:                  "deploy",
 		OpPayload:           payload,
@@ -128,7 +130,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	if err != nil {
 		return nil, err
 	}
-	revealAddress, err = common.PkScriptToAddress(conf.Net, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
+	revealAddress, err = common.PkScriptToAddress(conf.Net, chain, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +155,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	}
 	if entity == nil {
 		entity = &models.Mrc20DeployOrderModel{
+			Chain:               chain,
 			OrderId:             orderId,
 			InscribeState:       models.InscribeStatePending,
 			Address:             address,
@@ -167,7 +170,6 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 			EndBlockHeight:      mrc20DeployData.EndHeight,
 			Qual:                tool.AnyToStr(mrc20DeployData.PayCheck),
 			Payload:             payload,
-			Chain:               "BTC",
 			NetworkFeeRate:      networkFeeRate,
 			TotalFee:            totalFee,
 			MinerFee:            minerFee,
@@ -206,7 +208,7 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 		entity.StartBlockHeight = mrc20DeployData.BeginHeight
 		entity.EndBlockHeight = mrc20DeployData.EndHeight
 		entity.Qual = tool.AnyToStr(mrc20DeployData.PinCheck)
-		entity.Chain = "BTC"
+		entity.Chain = chain
 		entity.NetworkFeeRate = networkFeeRate
 		entity.TotalFee = totalFee
 		entity.MinerFee = minerFee
@@ -242,6 +244,7 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 		commitTxId   string = ""
 		revealTxRaw  string = ""
 		finalPsbtRaw string = ""
+		chain        string = ""
 
 		txId        string = ""
 		deployOrder *models.Mrc20DeployOrderModel
@@ -274,6 +277,7 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 	if deployOrder.InscribeState != models.InscribeStatePending {
 		return nil, errors.New("deploy order state error")
 	}
+	chain = deployOrder.Chain
 	txRawByte, _ = hex.DecodeString(commitTxRaw)
 	err = commitTx.Deserialize(bytes.NewReader(txRawByte))
 	if err != nil {
@@ -285,7 +289,7 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 	}
 
 	//txIn := commitTx.TxIn[0]
-	//utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	//utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	//if utxoInfo == nil {
 	//	return nil, errors.New("commitTx utxoInfo not exists")
 	//}
@@ -299,7 +303,7 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 		return nil, errors.New("prePsbtRaw is empty")
 	}
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), prePsbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +312,7 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 	commitPreOutPoint := wire.NewOutPoint(&txHash, uint32(commitTxOutIndex))
 	psbtBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxIn[deployOrder.RevealInputIndex].PreviousOutPoint = *commitPreOutPoint
 
-	pkScript, err = common.AddressToPkScript(conf.Net, deployOrder.RevealTxAddress)
+	pkScript, err = common.AddressToPkScript(conf.Net, chain, deployOrder.RevealTxAddress)
 	taprootInSigner = &common.InputSign{
 		UtxoType: common.Taproot,
 		Index:    int(deployOrder.RevealInputIndex),
@@ -353,7 +357,11 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 	deployOrder.UpdateTime = nowTime
 	deployOrder.TickId = fmt.Sprintf("%si0", txId)
 
-	err = models.Mrc20DeployOrderModelDao().SaveEntityForInscribing(deployOrder, txRawList, common.BroadcastTx)
+	err = models.Mrc20DeployOrderModelDao().SaveEntityForInscribing(
+		chain,
+		deployOrder,
+		txRawList,
+		common.BroadcastTx)
 	if err != nil {
 		return nil, err
 	}
@@ -369,6 +377,7 @@ func Mrc20Deploy(req *request.Mrc20DeployRequest, publicKey, ip string) (*respon
 		orderId string = ""
 		entity  *models.Mrc20DeployOrderModel
 		err     error
+		chain   string = "btc"
 
 		address string = ""
 
@@ -393,7 +402,7 @@ func Mrc20Deploy(req *request.Mrc20DeployRequest, publicKey, ip string) (*respon
 	}
 
 	txIn := commitTx.TxIn[0]
-	utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	if utxoInfo == nil {
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
@@ -449,7 +458,7 @@ func Mrc20Deploy(req *request.Mrc20DeployRequest, publicKey, ip string) (*respon
 		EndBlockHeight:    data.EndHeight,
 		Qual:              tool.AnyToStr(data.Qual),
 		Payload:           payload,
-		Chain:             "BTC",
+		Chain:             chain,
 		CommitTxRaw:       req.CommitTxRaw,
 		RevealTxRaw:       req.RevealTxRaw,
 		CommitTxId:        commitTx.TxHash().String(),
@@ -463,7 +472,11 @@ func Mrc20Deploy(req *request.Mrc20DeployRequest, publicKey, ip string) (*respon
 		UpdateTime:        0,
 		State:             models.STATE_EXIST,
 	}
-	err = models.Mrc20DeployOrderModelDao().SaveEntityForInscribing(entity, txRawList, common.BroadcastTx)
+	err = models.Mrc20DeployOrderModelDao().SaveEntityForInscribing(
+		chain,
+		entity,
+		txRawList,
+		common.BroadcastTx)
 	if err != nil {
 		return nil, err
 	}

@@ -235,3 +235,19 @@ func (c *BtcBaseConn) GetBtcFeeRate(req *btc_service.BtcFeeRateReq) (*btc_servic
 	defer c.clientConn.Close()
 	return resp, err
 }
+
+// tx info service
+func (c *BtcBaseConn) GetTxInfo(req *btc_service.BtcTxInfoReq) (*btc_service.BtcTxInfoResp, error) {
+	client := btc_service.NewBtcServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	resp, err := client.GetTxInfo(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	defer c.clientConn.Close()
+	return resp, err
+}

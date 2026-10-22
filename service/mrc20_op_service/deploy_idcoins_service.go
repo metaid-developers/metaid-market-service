@@ -5,9 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/auth"
@@ -19,6 +16,10 @@ import (
 	"metaid-market-service/service/wallet_service"
 	"metaid-market-service/tool"
 	"strings"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"gorm.io/gorm"
 )
 
 func BuildIdCoinsPre(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {
@@ -103,6 +104,7 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 		err           error
 		orderId       string = ""
 		nowTime       int64  = tool.MakeTimestamp()
+		chain         string = "btc"
 
 		totalFee   int64 = 0
 		minerFee   int64 = 0
@@ -157,7 +159,7 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 		tick, tokenName, issuerMetaId, tool.AnyToStr(metaDataMap), payToAddress, followersNum, amountPerMint, liquidityPerMint)
 
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
-		Net:                 common.GetNetParams(conf.Net),
+		Net:                 common.GetNetParams(conf.Net, chain),
 		MetaIdFlag:          common.GetMetaIdFlag(),
 		Op:                  "deploy",
 		OpPayload:           payload,
@@ -178,7 +180,7 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 	if err != nil {
 		return nil, err
 	}
-	revealAddress, err = common.PkScriptToAddress(conf.Net, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
+	revealAddress, err = common.PkScriptToAddress(conf.Net, chain, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +221,7 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 			PayCheckAddress:     payToAddress,
 			PayCheckAmount:      liquidityPerMint,
 			Payload:             tool.AnyToStr(mrc20DeployData),
-			Chain:               "btc",
+			Chain:               chain,
 			TotalFee:            totalFee,
 			MinerFee:            minerFee,
 			ServiceFee:          serviceFee,
@@ -293,6 +295,7 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		commitTxId   string = ""
 		revealTxRaw  string = ""
 		finalPsbtRaw string = ""
+		chain        string = "btc"
 
 		address string = ""
 
@@ -327,6 +330,7 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 	if idCoinsDeploy.InscribeState != models.InscribeStatePending {
 		return nil, errors.New("deploy order state error")
 	}
+	chain = idCoinsDeploy.Chain
 	txRawByte, _ = hex.DecodeString(commitTxRaw)
 	err = commitTx.Deserialize(bytes.NewReader(txRawByte))
 	if err != nil {
@@ -338,7 +342,7 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 	}
 
 	txIn := commitTx.TxIn[0]
-	utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	if utxoInfo == nil {
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
@@ -352,7 +356,7 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		return nil, errors.New("prePsbtRaw is empty")
 	}
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), prePsbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +365,7 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 	commitPreOutPoint := wire.NewOutPoint(&txHash, uint32(commitTxOutIndex))
 	psbtBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxIn[idCoinsDeploy.RevealInputIndex].PreviousOutPoint = *commitPreOutPoint
 
-	pkScript, err = common.AddressToPkScript(conf.Net, idCoinsDeploy.RevealTxAddress)
+	pkScript, err = common.AddressToPkScript(conf.Net, chain, idCoinsDeploy.RevealTxAddress)
 	taprootInSigner = &common.InputSign{
 		UtxoType: common.Taproot,
 		Index:    int(idCoinsDeploy.RevealInputIndex),
@@ -410,7 +414,11 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		return nil, err
 	}
 
-	err = models.IdCoinsDeployOrderModelDao().UpdateEntityForInscribing(idCoinsDeploy, txRawList, common.BroadcastTx)
+	err = models.IdCoinsDeployOrderModelDao().UpdateEntityForInscribing(
+		chain,
+		idCoinsDeploy,
+		txRawList,
+		common.BroadcastTx)
 	if err != nil {
 		return nil, err
 	}
@@ -430,10 +438,11 @@ func getIdCoinsPoolKeyAndAddress(tick string) (string, string, error) {
 		protocol      string = "idCoins"
 		btcPubblicKey string = ""
 		btcAddress    string = ""
+		chain         string = "btc"
 	)
 
 	res, err := wallet_service.FetchPoolKey("", tick, protocol, nil)
-	btcAddress, err = common.GetSegwitAddressFromPublicKey(common.GetNetParams(conf.Net), res.Btc)
+	btcAddress, err = common.GetSegwitAddressFromPublicKey(common.GetNetParams(conf.Net, chain), res.Btc)
 	if err != nil {
 		return "", "", err
 	}

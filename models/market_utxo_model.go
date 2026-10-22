@@ -2,10 +2,11 @@ package models
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"sync"
+
+	"gorm.io/gorm"
 )
 
 type UtxoType int
@@ -34,6 +35,7 @@ const (
 
 type MarketUtxoModel struct {
 	Id             int64         `gorm:"column:id" json:"id"`
+	Chain          string        `gorm:"column:chain" json:"chain"`
 	UtxoId         string        `gorm:"column:utxoId" json:"utxoId"` //txId_index
 	UtxoType       UtxoType      `gorm:"column:utxoType" json:"utxoType"`
 	Amount         uint64        `gorm:"column:amount" json:"amount"`
@@ -112,9 +114,9 @@ func (_ *marketUtxoModelDao) GetListUnconfirmed(qo *MarketUtxoModel, offset, lim
 	return models, nil
 }
 
-func (_ *marketUtxoModelDao) GetDummyList(qo *MarketUtxoModel, offset, limit int64) ([]*MarketUtxoModel, error) {
+func (_ *marketUtxoModelDao) GetDummyList(qo *MarketUtxoModel, chain string, offset, limit int64) ([]*MarketUtxoModel, error) {
 	var models []*MarketUtxoModel
-	tx := major.GetSqlDB().Where(qo).Limit(int(limit)).Offset(int(offset)).Order("timestamp asc").Find(&models)
+	tx := major.GetSqlDB().Where(qo).Where("chain = ?", chain).Limit(int(limit)).Offset(int(offset)).Order("timestamp asc").Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
@@ -153,7 +155,7 @@ func (_ *marketUtxoModelDao) Update(q *MarketUtxoModel) error {
 	}
 	return nil
 }
-func (_ *marketUtxoModelDao) ColdDownUtxoEntityListForJobFunc(utxoList []*MarketUtxoModel, txRaw string, jobFunc func(rawTx string) (string, error)) (string, error) {
+func (_ *marketUtxoModelDao) ColdDownUtxoEntityListForJobFunc(chain string, utxoList []*MarketUtxoModel, txRaw string, jobFunc func(chain, rawTx string) (string, error)) (string, error) {
 	realTxId := ""
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		for _, utxo := range utxoList {
@@ -162,7 +164,7 @@ func (_ *marketUtxoModelDao) ColdDownUtxoEntityListForJobFunc(utxoList []*Market
 			}
 		}
 
-		txId, err := jobFunc(txRaw)
+		txId, err := jobFunc(chain, txRaw)
 		if err != nil {
 			return err
 		}

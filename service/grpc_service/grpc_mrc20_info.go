@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc"
 	"metaid-market-service/conf"
 	"metaid-market-service/protobuf/mrc20_holders_service"
 	"metaid-market-service/protobuf/mrc20_utxo_service"
 	"time"
+
+	"google.golang.org/grpc"
 )
 
 type Mrc20BaseConn struct {
@@ -63,7 +64,7 @@ func (c *Mrc20BaseConn) FetchMrc20TickHolders(tickId string, cursor, limit int64
 	return resp, err
 }
 
-func (c *Mrc20BaseConn) FetchMrc20AddressBalanceList(tickIds []string, address string, cursor, limit int64) (*mrc20_utxo_service.Mrc20BalanceListResponse, error) {
+func (c *Mrc20BaseConn) FetchMrc20AddressBalanceList(tickIds []string, address, source string, cursor, limit int64) (*mrc20_utxo_service.Mrc20BalanceListResponse, error) {
 	//t := tool.MakeTimestamp()
 	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
 	if client == nil {
@@ -75,6 +76,7 @@ func (c *Mrc20BaseConn) FetchMrc20AddressBalanceList(tickIds []string, address s
 		TickIds: tickIds,
 		Offset:  cursor,
 		Limit:   limit,
+		Source:  source,
 	}
 	resp, err := client.FetchMrc20AddressBalanceList(context.Background(), req)
 	if err != nil {
@@ -86,7 +88,7 @@ func (c *Mrc20BaseConn) FetchMrc20AddressBalanceList(tickIds []string, address s
 	return resp, err
 }
 
-func (c *Mrc20BaseConn) FetchMrc20AddressUtxoList(tickIds []string, address string, cursor, limit int64) (*mrc20_utxo_service.Mrc20UtxoResponse, error) {
+func (c *Mrc20BaseConn) FetchMrc20AddressUtxoList(tickIds []string, address, source string, cursor, limit int64) (*mrc20_utxo_service.Mrc20UtxoResponse, error) {
 	//t := tool.MakeTimestamp()
 	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
 	if client == nil {
@@ -98,6 +100,7 @@ func (c *Mrc20BaseConn) FetchMrc20AddressUtxoList(tickIds []string, address stri
 		TickIds: tickIds,
 		Offset:  cursor,
 		Limit:   limit,
+		Source:  source,
 	}
 	resp, err := client.FetchMrc20AddressUtxoList(context.Background(), req)
 	if err != nil {
@@ -130,6 +133,149 @@ func (c *Mrc20BaseConn) FetchMrc20DeployList(tick string, completed, order, orde
 	}
 
 	//fmt.Printf("[GRPC] :%d\n", tool.MakeTimestamp()-t)
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20AddressHistory(address, tickId, source string, cursor, size int64) (*mrc20_utxo_service.Mrc20AddressHistoryResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.Mrc20AddressHistoryRequest{
+		Address: address,
+		TickId:  tickId,
+		Cursor:  cursor,
+		Size:    size,
+		Source:  source,
+	}
+	resp, err := client.FetchMrc20AddressHistory(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20AddressTxList(address, tickId, source string, offset, limit int64) (*mrc20_utxo_service.Mrc20TxListResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.AddressMrc20TxRequest{
+		Address: address,
+		TickId:  tickId,
+		Offset:  offset,
+		Limit:   limit,
+		Source:  source,
+	}
+	resp, err := client.FetchMrc20AddressTxList(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20UtxoTxPoint(txId, source string, vout, offset, limit int64) (*mrc20_utxo_service.Mrc20DbUtxoResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.Mrc20UtxoTxPointRequest{
+		TxId:   txId,
+		Vout:   vout,
+		Offset: offset,
+		Limit:  limit,
+		Source: source,
+	}
+	resp, err := client.FetchMrc20UtxoTxPoint(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20UtxoTickBlock(tickId, mrcOption, address, source string, blockHeight, offset, limit int64) (*mrc20_utxo_service.Mrc20DbUtxoResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.Mrc20UtxoTickBlockRequest{
+		TickId:      tickId,
+		BlockHeight: blockHeight,
+		MrcOption:   mrcOption,
+		Address:     address,
+		Offset:      offset,
+		Limit:       limit,
+		Source:      source,
+	}
+	resp, err := client.FetchMrc20UtxoTickBlock(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20CheckBlock(source string) (*mrc20_utxo_service.Mrc20CheckBlockInfoResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.Mrc20CheckBlockRequest{
+		Source: source,
+	}
+	resp, err := client.FetchMrc20CheckBlock(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20MempoolUtxoTxPoint(txId, source string, vout, offset, limit int64) (*mrc20_utxo_service.Mrc20MempoolDbUtxoResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.Mrc20MempoolUtxoTxPointRequest{
+		TxId:   txId,
+		Vout:   vout,
+		Offset: offset,
+		Limit:  limit,
+		Source: source,
+	}
+	resp, err := client.FetchMrc20MempoolUtxoTxPoint(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer c.clientConn.Close()
+	return resp, err
+}
+
+func (c *Mrc20BaseConn) FetchMrc20TickInfo(tick, tickId, source string) (*mrc20_utxo_service.Mrc20TickInfoResponse, error) {
+	client := mrc20_utxo_service.NewMrc20UtxoServiceClient(c.clientConn)
+	if client == nil {
+		return nil, errors.New("grpc client connect err")
+	}
+
+	req := &mrc20_utxo_service.Mrc20TickInfoReq{
+		Tick:   tick,
+		TickId: tickId,
+		Source: source,
+	}
+	resp, err := client.FetchMrc20TickInfo(context.Background(), req)
+	if err != nil {
+		fmt.Println(err)
+	}
 	defer c.clientConn.Close()
 	return resp, err
 }

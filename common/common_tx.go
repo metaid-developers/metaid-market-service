@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -41,6 +42,7 @@ type SignMode string
 const (
 	SignModeSegwit  SignMode = "segwit"
 	SignModeTaproot SignMode = "taproot"
+	SignModeLegacy  SignMode = "legacy"
 )
 
 type TxInputUtxo struct {
@@ -57,10 +59,21 @@ type TxOutput struct {
 	Amount  int64
 }
 
+var (
+	emptylegacySignature = make([]byte, 107)
+	emptySegwitWitenss   = wire.TxWitness{make([]byte, 71), make([]byte, 33)}
+	emptyNestSignature   = make([]byte, 23)
+	emptyTaprootWitness  = wire.TxWitness{make([]byte, 64)}
+)
+
 func BuildCommonTx(netParam *chaincfg.Params, ins []*TxInputUtxo, outs []*TxOutput, changeAddress string, fee int64, isUnSign bool) (*wire.MsgTx, error) {
 	tx := wire.NewMsgTx(2)
 	totalAmount := int64(0)
 	outAmount := int64(0)
+	changeValLimit := int64(600)
+	if netParam == &DogeMainNetParams {
+		changeValLimit = int64(1000000)
+	}
 	for _, out := range outs {
 		addr, err := btcutil.DecodeAddress(out.Address, netParam)
 		if err != nil {
@@ -94,8 +107,28 @@ func BuildCommonTx(netParam *chaincfg.Params, ins []*TxInputUtxo, outs []*TxOutp
 		multiPrevOutputFetcher.AddPrevOut(outPoint, txOut)
 	}
 
+	//add pre change output
+	addr, err := btcutil.DecodeAddress(changeAddress, netParam)
+	if err != nil {
+		return nil, err
+	}
+	pkScript, err := txscript.PayToAddrScript(addr)
+	if err != nil {
+		return nil, err
+	}
+	tx.AddTxOut(wire.NewTxOut(0, pkScript))
+
 	txSize := tx.SerializeSize() + SpendSize*len(tx.TxIn)
-	//txSize := tx.SerializeSize()
+
+	for _, in := range ins {
+		if in.SignMode == SignModeLegacy {
+			txSize += 40 + wire.VarIntSerializeSize(uint64(len(emptylegacySignature))) + len(emptylegacySignature)
+		} else if in.SignMode == SignModeSegwit {
+			txSize += emptySegwitWitenss.SerializeSize()
+		} else if in.SignMode == SignModeTaproot {
+			txSize += emptyTaprootWitness.SerializeSize()
+		}
+	}
 
 	reqFee := btcutil.Amount(txSize * int(fee))
 	fmt.Printf("txSize:%d, txSizeOnly:%d, reqFee:%d, feeRate:%d, totalAmount:%d, outAmount:%d\n", txSize, tx.SerializeSize(), reqFee, fee, totalAmount, outAmount)
@@ -104,16 +137,10 @@ func BuildCommonTx(netParam *chaincfg.Params, ins []*TxInputUtxo, outs []*TxOutp
 	}
 
 	changeVal := totalAmount - outAmount - int64(reqFee)
-	if changeVal >= 600 && changeAddress != "" {
-		addr, err := btcutil.DecodeAddress(changeAddress, netParam)
-		if err != nil {
-			return nil, err
-		}
-		pkScript, err := txscript.PayToAddrScript(addr)
-		if err != nil {
-			return nil, err
-		}
-		tx.AddTxOut(wire.NewTxOut(changeVal, pkScript))
+	if changeVal >= changeValLimit && changeAddress != "" {
+		tx.TxOut[len(tx.TxOut)-1].Value = changeVal
+	} else {
+		tx.TxOut = tx.TxOut[:len(tx.TxOut)-1]
 	}
 
 	if !isUnSign {
@@ -139,6 +166,16 @@ func BuildCommonTx(netParam *chaincfg.Params, ins []*TxInputUtxo, outs []*TxOutp
 					fmt.Println(err)
 					return nil, err
 				}
+				tx.TxIn[i].Witness = witnessScript
+
+			} else if in.SignMode == SignModeLegacy {
+				var sigScript []byte
+				sigScript, err = txscript.SignatureScript(tx, i, pkScriptByte, txscript.SigHashAll, privateKey, true)
+				if err != nil {
+					fmt.Println(err)
+					return nil, err
+				}
+				tx.TxIn[i].SignatureScript = sigScript
 			} else {
 				prevOutputFetcher := NewPrevOutputFetcher(pkScriptByte, int64(in.Amount))
 				sigHashes := txscript.NewTxSigHashes(tx, prevOutputFetcher)
@@ -150,11 +187,10 @@ func BuildCommonTx(netParam *chaincfg.Params, ins []*TxInputUtxo, outs []*TxOutp
 					fmt.Println(err)
 					return nil, err
 				}
+				tx.TxIn[i].Witness = witnessScript
 
 			}
 
-			//tx.TxIn[i].SignatureScript = sigScript
-			tx.TxIn[i].Witness = witnessScript
 		}
 	}
 

@@ -1,34 +1,82 @@
 package common_service
 
 import (
+	"fmt"
+	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/man_service"
 	"strconv"
 	"strings"
 )
 
-func FetchTxPointInfo(txId string, index, cursor, size int64) ([]*man_service.Mrc20Utxo, int64, error) {
+func FetchTxPointInfo(chain, txId string, index, cursor, size int64) ([]*man_service.Mrc20Utxo, int64, error) {
 	var (
-		txPointInfo *man_service.Mrc20UtxoResp
-		err         error
-		list        []*man_service.Mrc20Utxo = make([]*man_service.Mrc20Utxo, 0)
-		total       int64                    = 0
+		list  []*man_service.Mrc20Utxo = make([]*man_service.Mrc20Utxo, 0)
+		total int64                    = 0
 	)
-	txPointInfo, err = man_service.FetchMrc20txPointList(txId, index, cursor, size)
+	// 原 man_service 实现，已改为 gRPC
+	//txPointInfo, err := man_service.FetchMrc20txPointList(txId, index, cursor, size)
+	//if err != nil && !strings.Contains(err.Error(), "no data found") {
+	//	return nil, 0, err
+	//}
+	//if txPointInfo != nil {
+	//	total = txPointInfo.Total
+	//	for _, v := range txPointInfo.List {
+	//		if !v.Verify {
+	//			total--
+	//			continue
+	//		}
+	//		if v.AmtChange == "0" || v.AmtChange == "" {
+	//			total--
+	//			continue
+	//		}
+	//		list = append(list, v)
+	//	}
+	//}
+
+	conn, err := grpc_service.GetMrc20BaseConn()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	source := ""
+	if chain == "doge" || chain == "mrc20-v2" {
+		source = "mrc20-v2"
+	}
+	fmt.Printf("FetchTxPointInfo source:%s\n", source)
+	grpcResp, err := conn.FetchMrc20UtxoTxPoint(txId, source, index, cursor, size)
 	if err != nil && !strings.Contains(err.Error(), "no data found") {
 		return nil, 0, err
 	}
-	if txPointInfo != nil {
-		total = txPointInfo.Total
-		for _, v := range txPointInfo.List {
-			if !v.Verify {
+	if grpcResp != nil {
+		total = grpcResp.Total
+		for _, v := range grpcResp.GetDetail() {
+			if !v.GetVerify() {
 				total--
 				continue
 			}
-			if v.AmtChange == "0" || v.AmtChange == "" {
+			if v.GetAmtChange() == "0" || v.GetAmtChange() == "" {
 				total--
 				continue
 			}
-			list = append(list, v)
+			list = append(list, &man_service.Mrc20Utxo{
+				Tick:        v.GetTick(),
+				Mrc20Id:     v.GetMrc20Id(),
+				TxPoint:     v.GetTxPoint(),
+				PinId:       v.GetPinId(),
+				PinContent:  v.GetPinContent(),
+				Verify:      v.GetVerify(),
+				BlockHeight: v.GetBlockHeight(),
+				MrcOption:   v.GetMrcOption(),
+				FromAddress: v.GetFromAddress(),
+				ToAddress:   v.GetToAddress(),
+				ErrorMsg:    v.GetMsg(),
+				AmtChange:   v.GetAmtChange(),
+				Status:      v.GetStatus(),
+				Chain:       v.GetChain(),
+				Index:       v.GetIndex(),
+				Timestamp:   v.GetTimestamp(),
+				PointValue:  v.GetPointValue(),
+			})
 		}
 	}
 	return list, total, nil

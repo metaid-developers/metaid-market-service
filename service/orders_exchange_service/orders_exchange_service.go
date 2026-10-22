@@ -19,7 +19,7 @@ func addHeaderKey(headers map[string]string) map[string]string {
 	if headers == nil {
 		headers = make(map[string]string)
 	}
-	headers["X-Meta-Id-Market-Key"] = conf.OrdersExchangeKey
+	headers["X-Meta-Id-Market-Key"] = conf.IdCoinServiceKey
 	return headers
 }
 
@@ -33,7 +33,7 @@ func BuildIdCoinsPre(req *BuildIdCoinsPreRequest, headers map[string]string) (*B
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/deploy/pre", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/deploy/pre", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -66,7 +66,7 @@ func BuildIdCoinsCommit(req *BuildIdCoinsCommitRequest, headers map[string]strin
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/deploy/commit", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/deploy/commit", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -99,7 +99,7 @@ func IdCoinsMintPre(req *IdCoinsMintPreRequest, headers map[string]string) (*IdC
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/mint/pre", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/mint/pre", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -132,7 +132,7 @@ func IdCoinsMintCommit(req *IdCoinsMintCommitRequest, headers map[string]string)
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/mint/commit", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/mint/commit", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -173,7 +173,7 @@ func FetchIdCoinsOpOrders(req *FetchIdCoinsOpOrdersRequest, headers map[string]s
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/inscribe/orders", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/inscribe/orders", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {
@@ -210,7 +210,7 @@ func FetchIdCoinsAddressMintOrder(req *FetchIdCoinsMintOrderRequest, headers map
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/address/mint/order", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/address/mint/order", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {
@@ -253,7 +253,7 @@ func FetchIdCoinsList(req *FetchIdCoinsListRequest, headers map[string]string) (
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/coins-list", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/coins-list", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {
@@ -292,7 +292,7 @@ func FetchOneIdCoinsInfo(req *FetchOneIdCoinsRequest, headers map[string]string)
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/coins-info", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/coins-info", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {
@@ -326,7 +326,7 @@ func FetchIdCoinsTickIds(headers map[string]string) (*FetchIdCoinsTickIdsResp, e
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/tick-ids", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/tick-ids", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {
@@ -362,7 +362,7 @@ func FetchIdCoinsDeployCheckInfo(req *FetchIdCoinsDeployCheckRequest, headers ma
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/deploy/check/info", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/deploy/check/info", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.GetUrl(url, query, headers)
 	if err != nil {
@@ -395,7 +395,7 @@ func RefundIdCoinsInvalidLpPre(req *RefundIdCoinsValidPreRequest, headers map[st
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/invalid/refund/pre", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/invalid/refund/pre", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -428,7 +428,7 @@ func RefundIdCoinsInvalidLpCommit(req *RefundIdCoinsValidCommitRequest, headers 
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/id-coins/invalid/refund/commit", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/id-coins/invalid/refund/commit", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -461,7 +461,7 @@ func BookOrderTakeMintBidPreview(req *BookTakeMintBidPreviewReq, headers map[str
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/book/bid-mint-take/preview", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/book/bid-mint-take/preview", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -494,7 +494,7 @@ func BookOrderTakeMintBidPre(req *BookTakeMintBidPreReq, headers map[string]stri
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/book/bid-mint-take/pre", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/book/bid-mint-take/pre", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {
@@ -527,7 +527,7 @@ func BookOrderTakeMintBidCommit(req *BookTakeMintBidCommitReq, headers map[strin
 	)
 	headers = addHeaderKey(headers)
 
-	url = fmt.Sprintf("%s/book/bid-mint-take/commit", conf.OrdersExchangeDomain)
+	url = fmt.Sprintf("%s/book/bid-mint-take/commit", conf.IdCoinServiceDomain)
 	//fmt.Println(url)
 	result, err = tool.PostUrl(url, req, headers)
 	if err != nil {

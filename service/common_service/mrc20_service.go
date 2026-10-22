@@ -13,7 +13,6 @@ import (
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/man_service"
 	"metaid-market-service/service/mvcscan_service"
-	"metaid-market-service/service/orders_exchange_service"
 	"metaid-market-service/service/own_service"
 	"metaid-market-service/service/ticket_service"
 	"metaid-market-service/tool"
@@ -25,7 +24,14 @@ import (
 	"gorm.io/gorm"
 )
 
+func isMrc20V2Source(source string) bool {
+	return strings.EqualFold(source, "mrc20-v2")
+}
+
 func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
+	if req.Tag == "id-coins" {
+		return FetchIdCoinsTickList(req)
+	}
 	if req.SearchTick != "" || req.OrderBy == "totalSupply" || req.OrderBy == "progress" || req.OrderBy == "deployTime" {
 		return FetchMrc20TickListByGrpc(req)
 	}
@@ -731,6 +737,34 @@ func FetchMrc20TickAddressShovels(req *request.Mrc20AddressShovelsReq) (*respond
 }
 
 func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respond.Mrc20BalanceInfoResp, error) {
+	if isMrc20V2Source(req.Source) {
+		client, err := grpc_service.GetMrc20BaseConn()
+		if err != nil {
+			return nil, err
+		}
+		grpcResp, err := client.FetchMrc20AddressBalanceList(nil, req.Address, req.Source, req.Cursor, req.Size)
+		if err != nil {
+			return nil, err
+		}
+		if grpcResp == nil {
+			return nil, errors.New("grpc response is empty")
+		}
+		list := make([]*respond.Mrc20BalanceInfo, 0, len(grpcResp.GetDetail()))
+		for _, v := range grpcResp.GetDetail() {
+			list = append(list, &respond.Mrc20BalanceInfo{
+				Tick:      v.GetTick(),
+				TokenName: v.GetTokenName(),
+				Mrc20Id:   v.GetTickId(),
+				Balance:   v.GetBalance(),
+				Decimals:  strconv.FormatInt(v.GetDecimals(), 10),
+			})
+		}
+		return &respond.Mrc20BalanceInfoResp{
+			Total: grpcResp.Total,
+			List:  list,
+		}, nil
+	}
+
 	var (
 		mrc20Resp *man_service.Mrc20BalanceResp
 		err       error
@@ -769,6 +803,72 @@ func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respo
 }
 
 func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc20UtxoResp, error) {
+	if isMrc20V2Source(req.Source) {
+		tickIds := []string{}
+		if req.TickId != "" {
+			tickIds = []string{req.TickId}
+		}
+		tag := ""
+		if common.IsIdCoinsTickId(req.TickId) {
+			tag = "id-coins"
+		}
+
+		client, err := grpc_service.GetMrc20BaseConn()
+		if err != nil {
+			return nil, err
+		}
+		grpcResp, err := client.FetchMrc20AddressUtxoList(tickIds, req.Address, req.Source, req.Cursor, req.Size)
+		if err != nil {
+			return nil, err
+		}
+		if grpcResp == nil {
+			return nil, errors.New("grpc response is empty")
+		}
+
+		list := make([]*respond.Mrc20Utxo, 0, len(grpcResp.GetDetail()))
+		for _, v := range grpcResp.GetDetail() {
+			mrc20InfoList := make([]*respond.Mrc20Info, 0, len(v.GetMrc20S()))
+			for _, m := range v.GetMrc20S() {
+				mrc20InfoList = append(mrc20InfoList, &respond.Mrc20Info{
+					Tick:     m.GetTick(),
+					Mrc20Id:  m.GetMrc20Id(),
+					TxPoint:  m.GetTxPoint(),
+					Amount:   m.GetAmount(),
+					Decimals: m.GetDecimals(),
+				})
+			}
+			item := &respond.Mrc20Utxo{
+				Chain:       v.GetChain(),
+				BlockHeight: v.GetBlockHeight(),
+				Address:     v.GetAddress(),
+				Satoshi:     v.GetSatoshi(),
+				Satoshis:    v.GetSatoshis(),
+				ScriptPk:    v.GetScriptPk(),
+				TxId:        v.GetTxId(),
+				Vout:        v.GetVout(),
+				OutputIndex: v.GetOutputIndex(),
+				Mrc20s:      mrc20InfoList,
+				Timestamp:   v.GetTimestamp(),
+				OrderId:     "",
+				Tag:         tag,
+			}
+			utxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
+			orderEntity, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
+				UtxoId:        utxoId,
+				SellerAddress: req.Address,
+				OrderState:    models.OrderStateCreate,
+			})
+			if orderEntity != nil {
+				item.OrderId = orderEntity.OrderId
+			}
+			list = append(list, item)
+		}
+		return &respond.Mrc20UtxoResp{
+			Total: grpcResp.Total,
+			List:  list,
+		}, nil
+	}
+
 	var (
 		tickInfo  *man_service.Mrc20TickInfo
 		mrc20Resp *man_service.Mrc20UtxoResp
@@ -785,12 +885,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 		return nil, errors.New("mrc20 not found")
 	}
 
-	idCoins, _ := orders_exchange_service.FetchOneIdCoinsInfo(&orders_exchange_service.FetchOneIdCoinsRequest{
-		TickId:        req.TickId,
-		Tick:          "",
-		IssuerAddress: "",
-	}, nil)
-	if idCoins != nil {
+	if common.IsIdCoinsTickId(req.TickId) {
 		tag = "id-coins"
 	}
 
@@ -826,7 +921,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				txId = txPointStrs[0]
 				vout, _ = strconv.ParseInt(txPointStrs[1], 10, 64)
 			}
-			pkScript, _ := common.AddressToPkScript(conf.Net, address)
+			pkScript, _ := common.AddressToPkScript(conf.Net, v.Chain, address)
 			satoshi := int64(546)
 			if v.PointValue > 0 {
 				satoshi = v.PointValue
@@ -841,7 +936,7 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				Decimals: tickInfo.Decimals,
 			})
 
-			txPointInfo, txPointTotal, err := FetchTxPointInfo(txId, vout, 0, 100)
+			txPointInfo, txPointTotal, err := FetchTxPointInfo(req.Source, txId, vout, 0, 100)
 			if err != nil {
 				return nil, err
 			}
@@ -1079,17 +1174,14 @@ func FetchMrc20IdCoinsTickAddressUtxos(req *request.Mrc20IdCoinsAddressUtxosReq)
 	if req.TickId != "" {
 		idCoinsTickIds = append(idCoinsTickIds, req.TickId)
 	} else {
-		respOrders, _ := orders_exchange_service.FetchIdCoinsTickIds(nil)
-		if respOrders != nil {
-			idCoinsTickIds = respOrders.TickIds
-		}
+		idCoinsTickIds = common.IdCoinsTickIdList()
 	}
 
 	client, err := grpc_service.GetMrc20BaseConn()
 	if err != nil {
 		return nil, err
 	}
-	grpcResp, err = client.FetchMrc20AddressUtxoList(idCoinsTickIds, req.Address, req.Cursor, req.Size)
+	grpcResp, err = client.FetchMrc20AddressUtxoList(idCoinsTickIds, req.Address, req.Source, req.Cursor, req.Size)
 	if err != nil {
 		return nil, err
 	}

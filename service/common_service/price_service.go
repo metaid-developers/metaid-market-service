@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"metaid-market-service/models"
+	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/tool"
 	"strconv"
 	"time"
@@ -21,7 +22,7 @@ func GetPriceForUsd(coin string) string {
 	if marketPrice != nil && (nowTime-marketPrice.UpdateTime) <= 5*60*1000 {
 		return fmt.Sprintf("%d", marketPrice.Usd)
 	}
-	price, _ = GetPriceFormMempoolSpace()
+	price, _ = FetchCoinPrice("btc")
 	if price != nil {
 		if marketPrice != nil {
 			marketPrice.Usd = price.USD
@@ -55,6 +56,32 @@ var (
 	cachedPrice *BitcoinPrice
 	cachedTime  int64 = 0
 )
+
+// FetchCoinPrice 统一获取币价，返回 BitcoinPrice 格式（USD 为重点字段）
+// coin=btc 从 mempool.space 获取，其他币种通过 gRPC FetchCommonCoinPrice 获取
+func FetchCoinPrice(coin string) (*BitcoinPrice, error) {
+	if coin == "btc" {
+		return GetPriceFormMempoolSpace()
+	}
+	conn, err := grpc_service.GetAssetBaseConn()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := conn.FetchCommonCoinPrice(coin)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, errors.New("grpc coin price response is empty")
+	}
+	nowTime := tool.MakeTimestamp()
+	// gRPC 返回 PriceUsd 为 float64（美元），转为 int64 与 mempool 返回格式一致
+	usd := int64(resp.GetPriceUsd())
+	return &BitcoinPrice{
+		Time: nowTime,
+		USD:  usd,
+	}, nil
+}
 
 func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
 	var (

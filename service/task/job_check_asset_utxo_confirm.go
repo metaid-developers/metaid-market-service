@@ -2,9 +2,8 @@ package task
 
 import (
 	"fmt"
-	"metaid-market-service/conf"
 	"metaid-market-service/models"
-	"metaid-market-service/service/own_service"
+	"metaid-market-service/service/common_service"
 )
 
 func JobForCheckAssetConfirm() {
@@ -39,12 +38,13 @@ func jobForCheckAssetConfirm() {
 		}
 
 		// check confirm
-		txInfo, err := own_service.GetTxInfo(conf.Net, entity.TxId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.UtxoId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
+		fmt.Printf("[JOB][%s][%s][%s] txInfo: %+v\n", jobName, entity.Chain, entity.UtxoId, txInfo)
+		if txInfo.Confirmed {
 			entity.ConfirmStatus = models.Confirmed
 			err := models.MarketUtxoModelDao().Update(entity)
 			if err != nil {

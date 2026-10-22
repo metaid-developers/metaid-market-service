@@ -1,5 +1,34 @@
 basePath: /api-market
 definitions:
+  common.SignMode:
+    enum:
+    - segwit
+    - taproot
+    - legacy
+    type: string
+    x-enum-varnames:
+    - SignModeSegwit
+    - SignModeTaproot
+    - SignModeLegacy
+  common_service.BitcoinPrice:
+    properties:
+      AUD:
+        type: integer
+      CAD:
+        type: integer
+      CHF:
+        type: integer
+      EUR:
+        type: integer
+      GBP:
+        type: integer
+      JPY:
+        type: integer
+      USD:
+        type: integer
+      time:
+        type: integer
+    type: object
   models.AskType:
     enum:
     - 0
@@ -22,6 +51,7 @@ definitions:
     enum:
     - 1
     - 2
+    format: int64
     type: integer
     x-enum-varnames:
     - ConfirmationStateUnconfirmed
@@ -31,6 +61,7 @@ definitions:
     - 1
     - 2
     - 3
+    format: int64
     type: integer
     x-enum-varnames:
     - OrderStateCreate
@@ -97,6 +128,8 @@ definitions:
         allOf:
         - $ref: '#/definitions/models.AssetType'
         description: pins/ordinals
+      chain:
+        type: string
       psbtRaw:
         type: string
     type: object
@@ -152,6 +185,8 @@ definitions:
     type: object
   request.BroadcastTxReq:
     properties:
+      chain:
+        type: string
       txHex:
         type: string
     type: object
@@ -210,6 +245,8 @@ definitions:
         type: string
       amount:
         type: integer
+      chain:
+        type: string
       changeAddress:
         type: string
       count:
@@ -224,6 +261,8 @@ definitions:
         type: string
       priKeyHex:
         type: string
+      signMode:
+        $ref: '#/definitions/common.SignMode'
       txId:
         type: string
       utxoType:
@@ -375,6 +414,8 @@ definitions:
         allOf:
         - $ref: '#/definitions/models.AssetType'
         description: pins/ordinals
+      chain:
+        type: string
       coinAmountStr:
         description: if askType is preTransfer, this field is required
         type: string
@@ -396,6 +437,8 @@ definitions:
         allOf:
         - $ref: '#/definitions/models.AssetType'
         description: pins/ordinals
+      chain:
+        type: string
       psbtRaw:
         type: string
     type: object
@@ -426,6 +469,8 @@ definitions:
     properties:
       address:
         type: string
+      chain:
+        type: string
       metaName:
         type: string
       networkFeeRate:
@@ -452,6 +497,8 @@ definitions:
   request.TestAuthReq:
     properties:
       address:
+        type: string
+      chain:
         type: string
     type: object
   request.TransferMrc20Utxo:
@@ -573,6 +620,8 @@ definitions:
     properties:
       assetType:
         $ref: '#/definitions/models.AssetType'
+      chain:
+        type: string
       orderId:
         type: string
       orderState:
@@ -586,6 +635,8 @@ definitions:
         type: string
       assetType:
         $ref: '#/definitions/models.AssetType'
+      chain:
+        type: string
       orderId:
         type: string
       orderState:
@@ -1514,6 +1565,8 @@ definitions:
         $ref: '#/definitions/respond.UserInfo'
       buyerAddress:
         type: string
+      chain:
+        type: string
       confirmationState:
         $ref: '#/definitions/models.ConfirmationState'
       content:
@@ -1571,6 +1624,8 @@ definitions:
     properties:
       assetType:
         $ref: '#/definitions/models.AssetType'
+      chain:
+        type: string
       orderId:
         type: string
       orderState:
@@ -1584,6 +1639,8 @@ definitions:
         type: string
       assetType:
         $ref: '#/definitions/models.AssetType'
+      chain:
+        type: string
       orderId:
         type: string
       orderState:
@@ -1728,6 +1785,8 @@ definitions:
     properties:
       assetType:
         $ref: '#/definitions/models.AssetType'
+      chain:
+        type: string
       orderId:
         type: string
       orderState:
@@ -1743,6 +1802,8 @@ definitions:
         type: string
       assetType:
         $ref: '#/definitions/models.AssetType'
+      chain:
+        type: string
       orderId:
         type: string
       orderState:
@@ -1806,14 +1867,19 @@ paths:
       - Market-Order
   /api/v1/common/coin/price:
     get:
-      description: Fetch coin price
+      description: Fetch coin price, 统一返回 BitcoinPrice 格式（USD 为重点）
+      parameters:
+      - description: coin，默认 btc
+        in: query
+        name: coin
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/respond.FeeRecommended'
+            $ref: '#/definitions/common_service.BitcoinPrice'
       summary: Fetch coin price
       tags:
       - Common
@@ -1847,6 +1913,10 @@ paths:
         in: query
         name: size
         type: integer
+      - description: source（如 mrc20-v2）
+        in: query
+        name: source
+        type: string
       produces:
       - application/json
       responses:
@@ -1911,6 +1981,10 @@ paths:
         in: query
         name: size
         type: integer
+      - description: source（如 mrc20-v2）
+        in: query
+        name: source
+        type: string
       produces:
       - application/json
       responses:

@@ -75,7 +75,6 @@ func Run() {
 		v1.POST("/id-coins/redeem/preview", auth.AuthSignMiddleware(), BookOrderTakeMintBidPreview)
 		v1.POST("/id-coins/redeem/pre", auth.AuthSignMiddleware(), BookOrderTakeMintBidPre)
 		v1.POST("/id-coins/redeem/commit", auth.AuthSignMiddleware(), BookOrderTakeMintBidCommit)
-		//v1.GET("/id-coins/inscribe/orders", auth.AuthSignMiddleware(), FetchIdCoinsOpOrders)
 		v1.GET("/id-coins/inscribe/orders", FetchIdCoinsOpOrders)
 		v1.GET("/id-coins/address/mint/order", auth.AuthSignMiddleware(), FetchIdCoinsAddressMintOrder)
 		v1.GET("/id-coins/coins-list", FetchIdCoinsList)
@@ -99,11 +98,10 @@ func Run() {
 		v1.GET("/common/fee/recommended", FetchFeeRecommended)
 		v1.GET("/common/coin/price", FetchCoinPrice)
 
+		v1.GET("/common/tx/raw", FetchRawTx)
 		v1.POST("/common/tx/broadcast", BroadcastTx)
 
 		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
-		v1.POST("/admin/auto-bridge/create", AddAutoCreateBridge)
-		v1.GET("/admin/auto-bridge/info", GetMarketAutoBridgeCreateInfo)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")

@@ -30,11 +30,11 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		tickId      string = req.TickId
 		mrc20UtxoId string = ""
 		outValue    int64  = 0
+		chain       string = strings.ToLower(req.Chain)
 
 		tick              string  = ""
 		tokenName         string  = ""
 		decimals          int64   = 0
-		chain             string  = ""
 		amount            int64   = 0
 		amountStr         string  = ""
 		tokenPriceRate    float64 = 0
@@ -56,6 +56,13 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 
 		supply string = "0"
 	)
+	if chain == "doge" {
+		priceCoin = "DOGE"
+		feeAmount = 100000000 * 2
+	} else {
+		chain = "btc"
+	}
+
 	if req.PsbtRaw == "" {
 		return nil, errors.New("Wrong Psbt: empty. ")
 	}
@@ -63,7 +70,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New("Wrong AssetType. ")
 	}
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, sellerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, sellerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -71,13 +78,13 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
 
-	isLegacy, err := common.CheckLegacyAddressType(conf.Net, sellerAddress)
+	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, sellerAddress)
 	if err != nil {
 		return nil, err
 	}
 
 	//check psbt
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), psbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), psbtRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -107,12 +114,15 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 
 		var tickInfo *common_service.TickInfo
 		if askType == models.AskTypeNone {
-			mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(preTxId, int64(preTxIndex), 0, 100)
+			mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(chain, preTxId, int64(preTxIndex), 0, 100)
 			if err != nil {
 				return nil, err
 			}
 			if mrc20InfoTotal > 1 {
 				return nil, errors.New("Wrong Psbt: this mrc20 info is not unique. ")
+			}
+			if len(mrc20InfoList) == 0 {
+				return nil, errors.New("Wrong Psbt: mrc20 info not found. [preTxId: " + preTxId + ", preTxIndex: " + strconv.FormatUint(uint64(preTxIndex), 10) + "]")
 			}
 
 			mrc20Info := mrc20InfoList[0]
@@ -127,7 +137,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			}
 			tokenName = tickInfo.TokenName
 			decimals, _ = strconv.ParseInt(tickInfo.Decimals, 10, 64)
-			chain = mrc20Info.Chain
+			if chain != strings.ToLower(mrc20Info.Chain) {
+				return nil, errors.New(fmt.Sprintf("Wrong Psbt: chain not match. %s != %s", chain, mrc20Info.Chain))
+			}
 
 			amountStr = mrc20Info.AmtChange
 			amount, _ = strconv.ParseInt(amountStr, 10, 64)
@@ -143,7 +155,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			tick = tickInfo.Tick
 			tokenName = tickInfo.TokenName
 			decimals, _ = strconv.ParseInt(tickInfo.Decimals, 10, 64)
-			chain = tickInfo.Chain
+			if chain != strings.ToLower(tickInfo.Chain) {
+				return nil, errors.New(fmt.Sprintf("Wrong Psbt: chain not match. %s != %s", chain, tickInfo.Chain))
+			}
 
 			amountStr = reqCoinAmountStr
 			//amount, _ = strconv.ParseInt(amountStr, 10, 64)
@@ -167,7 +181,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			continue
 		}
 		pkScript := hex.EncodeToString(v.PkScript)
-		address, err := common.PkScriptToAddress(conf.Net, pkScript)
+		address, err := common.PkScriptToAddress(conf.Net, chain, pkScript)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +190,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		}
 		priceAmount = v.Value
 		priceDecimal = 8
-		priceCoin = "BTC"
+		// priceCoin = "BTC"
 	}
 	//if !psbtBuilder.IsComplete() {
 	//	return nil, errors.New("Wrong Psbt: incomplete. ")
@@ -277,6 +291,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 	}
 
 	return &respond.PushMrc20OrderResp{
+		Chain:      chain,
 		OrderId:    orderId,
 		AssetType:  assetType,
 		TickId:     tickId,
@@ -293,9 +308,10 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		feeAmountForPlatform int64  = 0
 		feeRateStr           string = ""
 		psbtBuilder          *common.PsbtBuilder
+		chain                string = strings.ToLower(req.Chain)
 	)
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, req.BuyerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, req.BuyerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -317,12 +333,16 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		return nil, errors.New("Order is closed. ")
 	}
 
+	if chain != "" && entity.Chain != chain {
+		return nil, errors.New(fmt.Sprintf("Chain not match. %s != %s", entity.Chain, chain))
+	}
+
 	if entity.AskType == models.AskTypePreTransfer {
 		return nil, errors.New("The asset-utxo of this order is waiting for confirmation. " +
 			"Please wait for the confirmation or select a different order. ")
 	}
 
-	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformMrc20TradeServiceFee(int64(entity.PriceAmount))
+	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformMrc20TradeServiceFee(chain, int64(entity.PriceAmount))
 
 	//if entity.FeeRate > 0 {
 	//	feeRateDe := decimal.New(int64(entity.FeeRate), -2)
@@ -341,7 +361,7 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 	sellUtxoIdStrs := strings.Split(entity.UtxoId, "_")
 	sellUtxoTxId := sellUtxoIdStrs[0]
 	sellUtxoIndex, _ := strconv.ParseInt(sellUtxoIdStrs[1], 10, 64)
-	utxoInfo := common.GetUtxoInfo(conf.Net, sellUtxoTxId, sellUtxoIndex)
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, sellUtxoTxId, sellUtxoIndex)
 	if utxoInfo == nil {
 		return nil, errors.New(fmt.Sprintf("sell Utxo not found. [%s]", entity.UtxoId))
 	}
@@ -355,12 +375,12 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		return nil, errors.New(fmt.Sprintf("sell Utxo is spend. Please select a different order. [%s]", entity.UtxoId))
 	}
 
-	isLegacy, err := common.CheckLegacyAddressType(conf.Net, entity.SellerAddress)
+	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, entity.SellerAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), entity.MakerPsbt)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), entity.MakerPsbt)
 	if err != nil {
 		return nil, err
 	}
@@ -370,12 +390,12 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 	}
 
 	if len(psbtBuilder.GetInputs()) == 2 {
-		takerPsbtRaw, feeAmountForPlatform, err = common.MakeMrc20AskTakerPsbtRawForPreMake(conf.Net, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
+		takerPsbtRaw, feeAmountForPlatform, err = common.MakeMrc20AskTakerPsbtRawForPreMake(conf.Net, chain, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		takerPsbtRaw, feeAmountForPlatform, err = common.MakeMrc20AskTakerPsbtRaw(conf.Net, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
+		takerPsbtRaw, feeAmountForPlatform, err = common.MakeMrc20AskTakerPsbtRaw(conf.Net, chain, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
 		if err != nil {
 			return nil, err
 		}
@@ -421,7 +441,8 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		newUtxoList         []*models.MarketUtxoModel = make([]*models.MarketUtxoModel, 0)
 		nowTime             int64                     = tool.MakeTimestamp()
 		tickInfo            *man_service.Mrc20TickInfo
-		supply              = "0"
+		supply                     = "0"
+		chain               string = ""
 	)
 	entity, err = models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
 		OrderId: req.OrderId,
@@ -435,6 +456,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	if entity.OrderState != models.OrderStateCreate {
 		return nil, errors.New("Order is closed. ")
 	}
+	chain = entity.Chain
 
 	tickInfo, err = man_service.FetchMrc20TickInfo(entity.TickId, "")
 	if err != nil {
@@ -456,11 +478,48 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		}
 	}
 
-	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), req.TakerPsbtRaw)
+	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), req.TakerPsbtRaw)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT: NewPsbtBuilder err:%s", err.Error()))
 	}
-	err = common.SignMrc20AskTakerPsbtRawInDummy(conf.Net, takerAskPsbtBuilder)
+	signDummyInputList := make([]*common.SignDummyInput, 0)
+	for i, v := range takerAskPsbtBuilder.GetInputs() {
+		if i == 0 {
+			utxoId := fmt.Sprintf("%s_%d", v.PreviousOutPoint.Hash.String(), v.PreviousOutPoint.Index)
+			utxoEntity, err := models.MarketUtxoModelDao().GetOne(&models.MarketUtxoModel{
+				UtxoId: utxoId,
+			})
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
+			if utxoEntity == nil {
+				return nil, errors.New(fmt.Sprintf("Utxo not found: %s. ", utxoId))
+			}
+			if utxoEntity.UsedState != models.UsedNo {
+				return nil, errors.New(fmt.Sprintf("Utxo used: %s. ", utxoId))
+			}
+			isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, utxoEntity.Address)
+			if err != nil {
+				return nil, err
+			}
+			outRaw := ""
+			UtxoType := common.Witness
+			if isLegacy {
+				outRaw, err = common.FetchTxHex(chain, utxoEntity.TxId)
+				if err != nil {
+					return nil, err
+				}
+				UtxoType = common.NonWitness
+			} else {
+				UtxoType = common.Witness
+			}
+			signDummyInputList = append(signDummyInputList, &common.SignDummyInput{
+				OutRaw:   outRaw,
+				UtxoType: UtxoType,
+			})
+		}
+	}
+	err = common.SignMrc20AskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, signDummyInputList)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("SignAskTakerPsbtRawInDummy err:%s", err.Error()))
 	}
@@ -514,12 +573,13 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		if i == 2 {
 			utxoType := models.UtxoTypeDummy600
 			pkScriptHex := hex.EncodeToString(v.PkScript)
-			address, err := common.PkScriptToAddress(conf.Net, pkScriptHex)
+			address, err := common.PkScriptToAddress(conf.Net, chain, pkScriptHex)
 			if err != nil {
 				return nil, errors.New(fmt.Sprintf("PkScriptToAddress err: %s. ", err.Error()))
 			}
 
 			newUtxo := &models.MarketUtxoModel{
+				Chain:    chain,
 				UtxoId:   fmt.Sprintf("%s_%d", txId, i),
 				UtxoType: utxoType,
 				Amount:   uint64(v.Value),
@@ -549,7 +609,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	buyerInput := takerAskPsbtBuilder.GetInputs()[2]
 	buyerInputTxId := buyerInput.PreviousOutPoint.Hash.String()
 	buyerInputIndex := buyerInput.PreviousOutPoint.Index
-	utxoInfo := common.GetUtxoInfo(conf.Net, buyerInputTxId, int64(buyerInputIndex))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
 	if utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
 		return nil, errors.New(fmt.Sprintf("PSBT(take): Utxo is spend. Please select a different utxo. [%s_%d]", buyerInputTxId, int64(buyerInputIndex)))
 	}
@@ -559,11 +619,11 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	entity.OrderState = models.OrderStateFinish
 	entity.ConfirmationState = models.ConfirmationStateUnconfirmed
 
-	feeAmountForPlatform, feeRate, _, _ := common.GetPlatformMrc20TradeServiceFee(int64(entity.PriceAmount))
+	feeAmountForPlatform, feeRate, _, _ := common.GetPlatformMrc20TradeServiceFee(chain, int64(entity.PriceAmount))
 	entity.FeeRate = feeRate
 	entity.FeeAmount = feeAmountForPlatform
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, buyerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, buyerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -571,6 +631,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
 	err = models.MarketMrc20OrderModelDao().UpdateOrderEntityListForJobFunc(
+		chain,
 		entity,
 		usedUtxoList, newUtxoList,
 		supply,
@@ -581,6 +642,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	}
 
 	return &respond.TakeMrc20OrderResp{
+		Chain:      chain,
 		OrderId:    entity.OrderId,
 		AssetType:  entity.AssetType,
 		TickId:     entity.TickId,
@@ -593,6 +655,7 @@ func CancelMarketMrc20Order(req *request.CancelMrc20OrderReq, publicKey, ip stri
 	var (
 		entity *models.MarketMrc20OrderModel
 		err    error
+		chain  string = ""
 	)
 	entity, err = models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
 		OrderId: req.OrderId,
@@ -603,7 +666,8 @@ func CancelMarketMrc20Order(req *request.CancelMrc20OrderReq, publicKey, ip stri
 	if entity == nil {
 		return nil, errors.New("Order is empty. ")
 	}
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, entity.SellerAddress)
+	chain = entity.Chain
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, entity.SellerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -632,6 +696,7 @@ func CancelMarketMrc20Order(req *request.CancelMrc20OrderReq, publicKey, ip stri
 		return nil, err
 	}
 	return &respond.CancelMrc20OrderResp{
+		Chain:      chain,
 		OrderId:    entity.OrderId,
 		AssetType:  entity.AssetType,
 		TickId:     entity.TickId,
@@ -657,6 +722,9 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 	}
 	if req.Address != "" {
 		filter.SellerAddress = req.Address
+	}
+	if req.Chain != "" {
+		filter.Chain = req.Chain
 	}
 	if req.SortKey != "" {
 		sortKey = req.SortKey

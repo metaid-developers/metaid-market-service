@@ -5,8 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/wire"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -17,6 +15,9 @@ import (
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
+
+	"github.com/btcsuite/btcd/wire"
+	"gorm.io/gorm"
 )
 
 func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) (*respond.BatchPushOrderResp, error) {
@@ -36,9 +37,17 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		feeRate             int64                 = 1
 
 		list []*respond.PushOrderResp = make([]*respond.PushOrderResp, 0)
+
+		chain string = req.Chain
 	)
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), psbtRawTotal)
+	if chain == "doge" {
+		sellerPriceCoin = "DOGE"
+	} else {
+		chain = "btc"
+	}
+
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), psbtRawTotal)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +63,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		return nil, errors.New("Wrong Psbt: inputs and outputs not match. ")
 	}
 
-	isLegacy, err := common.CheckLegacyAddressType(conf.Net, sellerAddress)
+	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, sellerAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +84,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		out := outList[i]
 		sellerPriceAmount := out.Value
 		pkScript := hex.EncodeToString(out.PkScript)
-		address, err := common.PkScriptToAddress(conf.Net, pkScript)
+		address, err := common.PkScriptToAddress(conf.Net, chain, pkScript)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +93,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		}
 
 		//sellerAddress check
-		verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, sellerAddress)
+		verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, sellerAddress)
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 		}
@@ -107,7 +116,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 			Amount:  uint64(sellerPriceAmount),
 		})
 
-		itembuilder, err := common.CreatePsbtBuilder(common.GetNetParams(conf.Net), inputs, outputs)
+		itembuilder, err := common.CreatePsbtBuilder(common.GetNetParams(conf.Net, chain), inputs, outputs)
 		if err != nil {
 			return nil, err
 		}
@@ -161,6 +170,10 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 			"timestamp":          pinInfo.Timestamp,
 			"genesisHeight":      pinInfo.GenesisHeight,
 			"genesisTransaction": pinInfo.GenesisTransaction,
+			"chainName":          pinInfo.ChainName,
+		}
+		if chain != pinInfo.ChainName {
+			return nil, errors.New("Chain name not match. ")
 		}
 
 		orderId := fmt.Sprintf("%s_%s_%s_%s", assetLocalUtxoId, assetId, assetType, sellerAddress)
@@ -180,6 +193,7 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		}
 		if orderEntity == nil {
 			orderEntity = &models.MarketOrderModel{
+				Chain:         chain,
 				OrderId:       orderId,
 				UtxoId:        assetLocalUtxoId,
 				OutValue:      outValue,
@@ -261,6 +275,7 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 		outValueList         []int64  = make([]int64, 0)
 		takerPsbtRaw         string   = ""
 		feeAmountForPlatform int64    = 0
+		chain                string   = ""
 	)
 	for _, v := range req.OrderIds {
 		entity, err := models.MarketOrderModelDao().GetOne(&models.MarketOrderModel{
@@ -274,7 +289,8 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 		}
 
 		if entity != nil {
-			isLegacy, err := common.CheckLegacyAddressType(conf.Net, entity.SellerAddress)
+			chain = entity.Chain
+			isLegacy, err := common.CheckLegacyAddressType(conf.Net, entity.Chain, entity.SellerAddress)
 			if err != nil {
 				return nil, err
 			}
@@ -295,7 +311,7 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 		outValueList = append(outValueList, v.OutValue)
 	}
 
-	takerPsbtRaw, feeAmountForPlatform, err = common.BatchMakeAskTakerPsbtRaw(conf.Net, psbtRawList, outValueList, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
+	takerPsbtRaw, feeAmountForPlatform, err = common.BatchMakeAskTakerPsbtRaw(conf.Net, chain, psbtRawList, outValueList, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +336,7 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 		offsetDummyOutputIndex int                       = 2
 		orderIdsStr            string                    = ""
 		list                   []*respond.TakeOrderInfo  = make([]*respond.TakeOrderInfo, 0)
+		chain                  string                    = ""
 	)
 	for _, v := range req.OrderIds {
 		entity, err := models.MarketOrderModelDao().GetOne(&models.MarketOrderModel{
@@ -334,17 +351,18 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 		if entity.OrderState != models.OrderStateCreate {
 			return nil, errors.New("Order is closed. ")
 		}
+		chain = entity.Chain
 		entityList = append(entityList, entity)
 		offsetDummyInputIndex++
 		offsetDummyOutputIndex++
 		orderIdsStr += v + ","
 	}
 
-	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), req.TakerPsbtRaw)
+	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), req.TakerPsbtRaw)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT: NewPsbtBuilder err:%s", err.Error()))
 	}
-	err = common.BatchSignAskTakerPsbtRawInDummy(conf.Net, takerAskPsbtBuilder, len(req.OrderIds))
+	err = common.BatchSignAskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, len(req.OrderIds))
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("SignAskTakerPsbtRawInDummy err:%s", err.Error()))
 	}
@@ -397,12 +415,13 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 				utxoType = models.UtxoTypeDummy1200
 			}
 			pkScriptHex := hex.EncodeToString(v.PkScript)
-			address, err := common.PkScriptToAddress(conf.Net, pkScriptHex)
+			address, err := common.PkScriptToAddress(conf.Net, chain, pkScriptHex)
 			if err != nil {
 				return nil, errors.New(fmt.Sprintf("PkScriptToAddress err: %s. ", err.Error()))
 			}
 
 			newUtxo := &models.MarketUtxoModel{
+				Chain:    chain,
 				UtxoId:   fmt.Sprintf("%s_%d", txId, i),
 				UtxoType: utxoType,
 				Amount:   uint64(v.Value),
@@ -432,7 +451,7 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	buyerInput := takerAskPsbtBuilder.GetInputs()[4]
 	buyerInputTxId := buyerInput.PreviousOutPoint.Hash.String()
 	buyerInputIndex := buyerInput.PreviousOutPoint.Index
-	utxoInfo := common.GetUtxoInfo(conf.Net, buyerInputTxId, int64(buyerInputIndex))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
 	if utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
 		return nil, errors.New(fmt.Sprintf("PSBT(take): Utxo is spend. Please select a different utxo. [%s_%d]", buyerInputTxId, int64(buyerInputIndex)))
 	}
@@ -454,7 +473,7 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 		})
 	}
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, buyerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, buyerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -462,6 +481,7 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
 	err = models.MarketOrderModelDao().BatchUpdateOrderEntityListForJobFunc(
+		chain,
 		entityList,
 		usedUtxoList, newUtxoList,
 		txRaw,
@@ -503,12 +523,22 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 
 		feeAmount int64 = 2000
 		feeRate   int64 = 1
+
+		chain string = req.Chain
 	)
+
+	if chain == "doge" {
+		sellerPriceCoin = "DOGE"
+		feeAmount = 100000000 * 2
+	} else {
+		chain = "btc"
+	}
+
 	if req.PsbtRaw == "" {
 		return nil, errors.New("Wrong Psbt: empty. ")
 	}
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, sellerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, sellerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -516,13 +546,13 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
 
-	isLegacy, err := common.CheckLegacyAddressType(conf.Net, sellerAddress)
+	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, sellerAddress)
 	if err != nil {
 		return nil, err
 	}
 
 	//check psbt
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), psbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), psbtRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -553,37 +583,56 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 		preTxIndex := v.PreviousOutPoint.Index
 		assetLocalUtxoId = fmt.Sprintf("%s_%d", preTxId, preTxIndex)
 
-		pinInfo, err := man_service.FetchUtxoPinInfo(conf.Net, preTxId, int64(preTxIndex))
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("fetch asset info err:%s", err))
+		if assetLocalUtxoId == "adf719b9c8d2051bf21d340e6777cfd27b344d63c2cc3d033adeb29669bf4ba0_0" {
+			outValue = 2100000
+			content = "test-doge-pin-psbt-order"
+			preview = "test-doge-p-psbt-order"
+			assetNumber = 0
+			assetLevel = 0
+			assetPath = "test-doge-p-psbt-order"
+			assetPop = ""
+			detailMap = map[string]interface{}{
+				"test-doge-p-psbt-order": "test-doge-p-psbt-order",
+				"chainName":              "doge",
+			}
+		} else {
+			pinInfo, err := man_service.FetchUtxoPinInfo(conf.Net, preTxId, int64(preTxIndex))
+			if err != nil {
+				return nil, errors.New(fmt.Sprintf("fetch asset info err:%s", err))
+			}
+			outValue = pinInfo.OutputValue
+			content = pinInfo.Content
+			preview = pinInfo.Preview
+			assetNumber = pinInfo.Number
+			assetLevel = pinInfo.PopLv
+			assetPath = pinInfo.Path
+			assetPop = common.GenPopSummary(pinInfo.Pop)
+			detailMap = map[string]interface{}{
+				"pinId":              pinInfo.Id,
+				"metaid":             pinInfo.Metaid,
+				"createAddress":      pinInfo.CreateAddress,
+				"operation":          pinInfo.Operation,
+				"pinNumber":          pinInfo.Number,
+				"pop":                pinInfo.Pop,
+				"popSummary":         common.GenPopSummary(pinInfo.Pop),
+				"popLv":              pinInfo.PopLv,
+				"path":               pinInfo.Path,
+				"originalPath":       pinInfo.OriginalPath,
+				"version":            pinInfo.Version,
+				"encryption":         pinInfo.Encryption,
+				"outputValue":        pinInfo.OutputValue,
+				"contentLength":      pinInfo.ContentLength,
+				"contentTypeDetect":  pinInfo.ContentTypeDetect,
+				"timestamp":          pinInfo.Timestamp,
+				"genesisHeight":      pinInfo.GenesisHeight,
+				"genesisTransaction": pinInfo.GenesisTransaction,
+				"chainName":          pinInfo.ChainName,
+			}
+			if chain != pinInfo.ChainName {
+				return nil, errors.New("Chain name not match. ")
+			}
 		}
-		outValue = pinInfo.OutputValue
-		content = pinInfo.Content
-		preview = pinInfo.Preview
-		assetNumber = pinInfo.Number
-		assetLevel = pinInfo.PopLv
-		assetPath = pinInfo.Path
-		assetPop = common.GenPopSummary(pinInfo.Pop)
-		detailMap = map[string]interface{}{
-			"pinId":              pinInfo.Id,
-			"metaid":             pinInfo.Metaid,
-			"createAddress":      pinInfo.CreateAddress,
-			"operation":          pinInfo.Operation,
-			"pinNumber":          pinInfo.Number,
-			"pop":                pinInfo.Pop,
-			"popSummary":         common.GenPopSummary(pinInfo.Pop),
-			"popLv":              pinInfo.PopLv,
-			"path":               pinInfo.Path,
-			"originalPath":       pinInfo.OriginalPath,
-			"version":            pinInfo.Version,
-			"encryption":         pinInfo.Encryption,
-			"outputValue":        pinInfo.OutputValue,
-			"contentLength":      pinInfo.ContentLength,
-			"contentTypeDetect":  pinInfo.ContentTypeDetect,
-			"timestamp":          pinInfo.Timestamp,
-			"genesisHeight":      pinInfo.GenesisHeight,
-			"genesisTransaction": pinInfo.GenesisTransaction,
-		}
+
 	}
 
 	for i, v := range outList {
@@ -591,7 +640,7 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 			continue
 		}
 		pkScript := hex.EncodeToString(v.PkScript)
-		address, err := common.PkScriptToAddress(conf.Net, pkScript)
+		address, err := common.PkScriptToAddress(conf.Net, chain, pkScript)
 		if err != nil {
 			return nil, err
 		}
@@ -622,6 +671,7 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 	}
 	if orderEntity == nil {
 		orderEntity = &models.MarketOrderModel{
+			Chain:         chain,
 			OrderId:       orderId,
 			UtxoId:        assetLocalUtxoId,
 			OutValue:      outValue,
@@ -677,6 +727,7 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 	}
 
 	return &respond.PushOrderResp{
+		Chain:      chain,
 		OrderId:    orderId,
 		AssetType:  assetType,
 		AssetId:    assetId,
@@ -693,9 +744,11 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		feeAmountForPlatform int64  = 0
 		feeRateStr                  = ""
 		psbtBuilder          *common.PsbtBuilder
+		chain                string = ""
 	)
+	chain = req.Chain
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, req.BuyerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, req.BuyerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -717,7 +770,7 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New("Order is closed. ")
 	}
 
-	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformPinTradeServiceFee(int64(entity.SellPriceAmount))
+	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformPinTradeServiceFee(chain, int64(entity.SellPriceAmount))
 
 	//if entity.FeeRate > 0 {
 	//	feeRateDe := decimal.New(int64(entity.FeeRate), -2)
@@ -736,7 +789,7 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 	sellUtxoIdStrs := strings.Split(entity.UtxoId, "_")
 	sellUtxoTxId := sellUtxoIdStrs[0]
 	sellUtxoIndex, _ := strconv.ParseInt(sellUtxoIdStrs[1], 10, 64)
-	utxoInfo := common.GetUtxoInfo(conf.Net, sellUtxoTxId, sellUtxoIndex)
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, sellUtxoTxId, sellUtxoIndex)
 	if utxoInfo == nil {
 		return nil, errors.New(fmt.Sprintf("sell Utxo not found. [%s]", entity.UtxoId))
 	}
@@ -750,12 +803,12 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New(fmt.Sprintf("sell Utxo is spend. Please select a different order. [%s]", entity.UtxoId))
 	}
 
-	isLegacy, err := common.CheckLegacyAddressType(conf.Net, entity.SellerAddress)
+	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, entity.SellerAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), entity.MakerPsbt)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), entity.MakerPsbt)
 	if err != nil {
 		return nil, err
 	}
@@ -765,18 +818,19 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 	}
 
 	if len(psbtBuilder.GetInputs()) == 3 {
-		takerPsbtRaw, feeAmountForPlatform, err = common.MakeAskTakerPsbtRawForPreMake(conf.Net, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
+		takerPsbtRaw, feeAmountForPlatform, err = common.MakeAskTakerPsbtRawForPreMake(conf.Net, chain, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		takerPsbtRaw, feeAmountForPlatform, err = common.MakeAskTakerPsbtRaw(conf.Net, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
+		takerPsbtRaw, feeAmountForPlatform, err = common.MakeAskTakerPsbtRaw(conf.Net, chain, entity.OrderId, entity.MakerPsbt, entity.OutValue, req.BuyerAddress, req.BuyerChangeAmount, feeAmountForPlatform, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	resp = &respond.OrderInfo{
+		Chain:            entity.Chain,
 		OrderId:          entity.OrderId,
 		UtxoId:           entity.UtxoId,
 		AssetType:        entity.AssetType,
@@ -810,6 +864,7 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 		usedUtxoList        []*models.MarketUtxoModel = make([]*models.MarketUtxoModel, 0)
 		newUtxoList         []*models.MarketUtxoModel = make([]*models.MarketUtxoModel, 0)
 		nowTime             int64                     = tool.MakeTimestamp()
+		chain               string                    = ""
 	)
 	entity, err = models.MarketOrderModelDao().GetOne(&models.MarketOrderModel{
 		OrderId: req.OrderId,
@@ -823,12 +878,52 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	if entity.OrderState != models.OrderStateCreate {
 		return nil, errors.New("Order is closed. ")
 	}
+	chain = entity.Chain
 
-	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), req.TakerPsbtRaw)
+	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), req.TakerPsbtRaw)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT: NewPsbtBuilder err:%s", err.Error()))
 	}
-	err = common.SignAskTakerPsbtRawInDummy(conf.Net, takerAskPsbtBuilder)
+	signDummyInputList := make([]*common.SignDummyInput, 0)
+	for i, v := range takerAskPsbtBuilder.GetInputs() {
+		if i == 0 || i == 1 || i == 3 {
+			utxoId := fmt.Sprintf("%s_%d", v.PreviousOutPoint.Hash.String(), v.PreviousOutPoint.Index)
+			utxoEntity, err := models.MarketUtxoModelDao().GetOne(&models.MarketUtxoModel{
+				UtxoId: utxoId,
+			})
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, err
+			}
+			if utxoEntity == nil {
+				return nil, errors.New(fmt.Sprintf("Utxo not found: %s. ", utxoId))
+			}
+			if utxoEntity.UsedState != models.UsedNo {
+				return nil, errors.New(fmt.Sprintf("Utxo used: %s. ", utxoId))
+			}
+			isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, utxoEntity.Address)
+			if err != nil {
+				return nil, err
+			}
+			outRaw := ""
+			UtxoType := common.Witness
+			if isLegacy {
+				outRaw, err = common.FetchTxHex(chain, utxoEntity.TxId)
+				if err != nil {
+					return nil, err
+				}
+				UtxoType = common.NonWitness
+				fmt.Printf("[%s] isLegacy: true, UtxoType: %d, outRaw: %s\n", utxoEntity.UtxoId, UtxoType, outRaw)
+			} else {
+				UtxoType = common.Witness
+			}
+			signDummyInputList = append(signDummyInputList, &common.SignDummyInput{
+				OutRaw:   outRaw,
+				UtxoType: UtxoType,
+			})
+		}
+	}
+
+	err = common.SignAskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, signDummyInputList)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("SignAskTakerPsbtRawInDummy err:%s", err.Error()))
 	}
@@ -885,12 +980,13 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 				utxoType = models.UtxoTypeDummy1200
 			}
 			pkScriptHex := hex.EncodeToString(v.PkScript)
-			address, err := common.PkScriptToAddress(conf.Net, pkScriptHex)
+			address, err := common.PkScriptToAddress(conf.Net, chain, pkScriptHex)
 			if err != nil {
 				return nil, errors.New(fmt.Sprintf("PkScriptToAddress err: %s. ", err.Error()))
 			}
 
 			newUtxo := &models.MarketUtxoModel{
+				Chain:    chain,
 				UtxoId:   fmt.Sprintf("%s_%d", txId, i),
 				UtxoType: utxoType,
 				Amount:   uint64(v.Value),
@@ -920,7 +1016,7 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	buyerInput := takerAskPsbtBuilder.GetInputs()[4]
 	buyerInputTxId := buyerInput.PreviousOutPoint.Hash.String()
 	buyerInputIndex := buyerInput.PreviousOutPoint.Index
-	utxoInfo := common.GetUtxoInfo(conf.Net, buyerInputTxId, int64(buyerInputIndex))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
 	if utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
 		return nil, errors.New(fmt.Sprintf("PSBT(take): Utxo is spend. Please select a different utxo. [%s_%d]", buyerInputTxId, int64(buyerInputIndex)))
 	}
@@ -930,11 +1026,11 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	entity.OrderState = models.OrderStateFinish
 	entity.ConfirmationState = models.ConfirmationStateUnconfirmed
 
-	feeAmountForPlatform, feeRate, _, _ := common.GetPlatformPinTradeServiceFee(int64(entity.SellPriceAmount))
+	feeAmountForPlatform, feeRate, _, _ := common.GetPlatformPinTradeServiceFee(chain, int64(entity.SellPriceAmount))
 	entity.FeeAmount = feeAmountForPlatform
 	entity.FeeRate = feeRate
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, buyerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, buyerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -942,6 +1038,7 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
 	err = models.MarketOrderModelDao().UpdateOrderEntityListForJobFunc(
+		chain,
 		entity,
 		usedUtxoList, newUtxoList,
 		txRaw,
@@ -951,6 +1048,7 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	}
 
 	return &respond.TakeOrderResp{
+		Chain:      chain,
 		OrderId:    entity.OrderId,
 		AssetType:  entity.AssetType,
 		AssetId:    entity.AssetId,
@@ -963,6 +1061,7 @@ func CancelMarketOrder(req *request.CancelOrderReq, publicKey, ip string) (*resp
 	var (
 		entity *models.MarketOrderModel
 		err    error
+		chain  string = ""
 	)
 	entity, err = models.MarketOrderModelDao().GetOne(&models.MarketOrderModel{
 		OrderId: req.OrderId,
@@ -973,7 +1072,8 @@ func CancelMarketOrder(req *request.CancelOrderReq, publicKey, ip string) (*resp
 	if entity == nil {
 		return nil, errors.New("Order is empty. ")
 	}
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, entity.SellerAddress)
+	chain = entity.Chain
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, entity.SellerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -989,6 +1089,7 @@ func CancelMarketOrder(req *request.CancelOrderReq, publicKey, ip string) (*resp
 		return nil, err
 	}
 	return &respond.CancelOrderResp{
+		Chain:      chain,
 		OrderId:    entity.OrderId,
 		AssetType:  entity.AssetType,
 		AssetId:    entity.AssetId,
@@ -1016,6 +1117,9 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 	}
 	if req.Address != "" {
 		filter.SellerAddress = req.Address
+	}
+	if req.Chain != "" {
+		filter.Chain = req.Chain
 	}
 	if req.SortKey != "" {
 		sortKey = req.SortKey
@@ -1053,6 +1157,7 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 	entityList, _ = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType, prefixPath, filterPinIds)
 	for _, v := range entityList {
 		item := &respond.OrderInfo{
+			Chain:             v.Chain,
 			OrderId:           v.OrderId,
 			UtxoId:            v.UtxoId,
 			OutValue:          v.OutValue,
@@ -1101,6 +1206,7 @@ func FetchMarketOneOrder(req *request.FetchMarketOneOrderReq, publicKey, ip stri
 	}
 	if entity != nil {
 		resp = &respond.OrderInfo{
+			Chain:             entity.Chain,
 			OrderId:           entity.OrderId,
 			UtxoId:            entity.UtxoId,
 			AssetType:         entity.AssetType,
@@ -1166,8 +1272,10 @@ func FetchAssetDetail(req *request.FetchAssetDetailReq, publicKey, ip string) (*
 		"timestamp":          assetInfo.Timestamp,
 		"genesisHeight":      assetInfo.GenesisHeight,
 		"genesisTransaction": assetInfo.GenesisTransaction,
+		"chainName":          assetInfo.ChainName,
 	}
 	resp := &respond.OrderInfo{
+		Chain:            assetInfo.ChainName,
 		OrderId:          "",
 		UtxoId:           utxoId,
 		OutValue:         assetInfo.OutputValue,
@@ -1199,6 +1307,7 @@ func FetchAssetDetail(req *request.FetchAssetDetailReq, publicKey, ip string) (*
 		OrderState: models.OrderStateCreate,
 	})
 	if orderEntity != nil {
+		resp.Chain = orderEntity.Chain
 		resp.OrderId = orderEntity.OrderId
 		resp.OrderState = orderEntity.OrderState
 		resp.SellerAddress = orderEntity.SellerAddress
@@ -1218,9 +1327,10 @@ func FetchAddressAssetList(req *request.FetchAddressAssetListReq, publicKey, ip 
 		err         error
 		list        []*respond.OrderInfo = make([]*respond.OrderInfo, 0)
 		total       int64                = 0
+		chain       string               = req.Chain
 	)
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, req.Address)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, req.Address)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -1270,8 +1380,10 @@ func FetchAddressAssetList(req *request.FetchAddressAssetListReq, publicKey, ip 
 			"timestamp":          v.Timestamp,
 			"genesisHeight":      v.GenesisHeight,
 			"genesisTransaction": v.GenesisTransaction,
+			"chainName":          v.ChainName,
 		}
 		item := &respond.OrderInfo{
+			Chain:            v.ChainName,
 			OrderId:          "",
 			UtxoId:           utxoId,
 			OutValue:         v.OutputValue,
@@ -1304,6 +1416,7 @@ func FetchAddressAssetList(req *request.FetchAddressAssetListReq, publicKey, ip 
 			OrderState:    models.OrderStateCreate,
 		})
 		if orderEntity != nil {
+			item.Chain = orderEntity.Chain
 			item.OrderId = orderEntity.OrderId
 			item.OrderState = orderEntity.OrderState
 			item.SellerAddress = orderEntity.SellerAddress
@@ -1324,7 +1437,7 @@ func FetchAddressAssetList(req *request.FetchAddressAssetListReq, publicKey, ip 
 }
 
 func TestAuth(req *request.TestAuthReq, publicKey string) (string, error) {
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net), publicKey, req.Address)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, req.Chain), publicKey, req.Address)
 	if err != nil {
 		return "", errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}

@@ -8,6 +8,7 @@ type BatchPushOrderResp struct {
 }
 
 type PushOrderResp struct {
+	Chain      string            `json:"chain"`
 	OrderId    string            `json:"orderId"`
 	AssetType  models.AssetType  `json:"assetType"`
 	AssetId    string            `json:"assetId"`
@@ -20,6 +21,7 @@ type OrderListResp struct {
 }
 
 type OrderInfo struct {
+	Chain             string                   `json:"chain"`
 	OrderId           string                   `json:"orderId"`
 	UtxoId            string                   `json:"utxoId"`
 	OutValue          int64                    `json:"outValue"`
@@ -58,6 +60,7 @@ type UserInfo struct {
 }
 
 type TakeOrderResp struct {
+	Chain      string            `json:"chain"`
 	OrderId    string            `json:"orderId"`
 	TxId       string            `json:"txId"`
 	AssetType  models.AssetType  `json:"assetType"`
@@ -66,6 +69,7 @@ type TakeOrderResp struct {
 }
 
 type CancelOrderResp struct {
+	Chain      string            `json:"chain"`
 	OrderId    string            `json:"orderId"`
 	AssetType  models.AssetType  `json:"assetType"`
 	AssetId    string            `json:"assetId"`
@@ -98,6 +102,7 @@ type TakeOrderInfo struct {
 
 // mrc20 orders
 type PushMrc20OrderResp struct {
+	Chain      string            `json:"chain"`
 	OrderId    string            `json:"orderId"`
 	AssetType  models.AssetType  `json:"assetType"`
 	TickId     string            `json:"tickId"`
@@ -145,6 +150,7 @@ type Mrc20OrderInfo struct {
 }
 
 type TakeMrc20OrderResp struct {
+	Chain      string            `json:"chain"`
 	OrderId    string            `json:"orderId"`
 	TxId       string            `json:"txId"`
 	AssetType  models.AssetType  `json:"assetType"`
@@ -153,6 +159,7 @@ type TakeMrc20OrderResp struct {
 }
 
 type CancelMrc20OrderResp struct {
+	Chain      string            `json:"chain"`
 	OrderId    string            `json:"orderId"`
 	AssetType  models.AssetType  `json:"assetType"`
 	TickId     string            `json:"tickId"`

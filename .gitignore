@@ -22,7 +22,11 @@ go.work
 go.work.sum
 go.sum
 .idea
-conf/conf*
 fix
 
 log/*
+
+conf/conf_*.yaml
+!conf/conf_example.yaml
+
+example/common.go

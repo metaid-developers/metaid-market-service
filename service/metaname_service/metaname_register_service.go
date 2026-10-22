@@ -5,9 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -16,11 +13,16 @@ import (
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/tool"
 	"strings"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"gorm.io/gorm"
 )
 
 func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip string) (*respond.RegisterMetaNamePreResp, error) {
 	var (
 		net                   string = conf.Net
+		chain                 string = req.Chain
 		receiveAddress        string = req.Address
 		registerAddress       string = req.Address
 		changeAddress         string = req.Address
@@ -57,6 +59,11 @@ func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip 
 		revealAddress         string                    = ""
 		revealInputIndex      int64                     = 0
 	)
+
+	if chain == "doge" {
+		return nil, errors.New("doge chain not supported")
+	}
+
 	metanameStrs = strings.Split(metaname, ".")
 	if len(metanameStrs) != 2 {
 		return nil, errors.New("metaname error")
@@ -76,7 +83,7 @@ func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip 
 	}
 	_ = serviceAddress
 
-	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(net), publicKey, registerAddress)
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(net, chain), publicKey, registerAddress)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
 	}
@@ -98,7 +105,7 @@ func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip 
 	}
 
 	metaIdOpRequest = &mrc20_service.MetaIdInscribeRequest{
-		Net:           common.GetNetParams(net),
+		Net:           common.GetNetParams(net, chain),
 		MetaIdFlag:    common.GetMetaIdFlag(),
 		Path:          path,
 		Payload:       tool.AnyToStr(metaDataMap),
@@ -116,7 +123,7 @@ func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip 
 	if err != nil {
 		return nil, err
 	}
-	revealAddress, err = common.PkScriptToAddress(net, hex.EncodeToString(metaIdInscribeBuilder.TxCtxData.CommitTxAddressPkScript))
+	revealAddress, err = common.PkScriptToAddress(net, chain, hex.EncodeToString(metaIdInscribeBuilder.TxCtxData.CommitTxAddressPkScript))
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +211,7 @@ func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip 
 func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKey, ip string) (*respond.RegisterMetaNameCommitResp, error) {
 	var (
 		net          string = conf.Net
+		chain        string = ""
 		orderId      string = req.OrderId
 		commitTxRaw  string = req.CommitTxRaw
 		commitTxId   string = ""
@@ -243,6 +251,9 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 	if metanameRegisterOrder.InscribeState != models.InscribeStatePending {
 		return nil, errors.New("deploy order state error")
 	}
+
+	chain = metanameRegisterOrder.Chain
+
 	txRawByte, _ = hex.DecodeString(commitTxRaw)
 	err = commitTx.Deserialize(bytes.NewReader(txRawByte))
 	if err != nil {
@@ -254,7 +265,7 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 	}
 
 	txIn := commitTx.TxIn[0]
-	utxoInfo := common.GetUtxoInfo(net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	utxoInfo := common.GetUtxoInfo(net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	if utxoInfo == nil {
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
@@ -268,7 +279,7 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 		return nil, errors.New("prePsbtRaw is empty")
 	}
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(net), prePsbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(net, chain), prePsbtRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +288,7 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 	commitPreOutPoint := wire.NewOutPoint(&txHash, uint32(commitTxOutIndex))
 	psbtBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxIn[metanameRegisterOrder.RevealInputIndex].PreviousOutPoint = *commitPreOutPoint
 
-	pkScript, err = common.AddressToPkScript(net, metanameRegisterOrder.RevealTxAddress)
+	pkScript, err = common.AddressToPkScript(net, chain, metanameRegisterOrder.RevealTxAddress)
 	taprootInSigner = &common.InputSign{
 		UtxoType: common.Taproot,
 		Index:    int(metanameRegisterOrder.RevealInputIndex),
@@ -327,7 +338,11 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 		return nil, err
 	}
 
-	err = models.MetanameRegisterOrderModelDao().SaveEntityForInscribing(metanameRegisterOrder, txRawList, common.BroadcastTx)
+	err = models.MetanameRegisterOrderModelDao().SaveEntityForInscribing(
+		chain,
+		metanameRegisterOrder,
+		txRawList,
+		common.BroadcastTx)
 	if err != nil {
 		return nil, err
 	}

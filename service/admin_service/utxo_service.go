@@ -2,17 +2,18 @@ package admin_service
 
 import (
 	"fmt"
-	"github.com/btcsuite/btcd/chaincfg"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/models"
 	"metaid-market-service/tool"
+
+	"github.com/btcsuite/btcd/chaincfg"
 )
 
 func ColdDownDummyUtxo(req *request.ColdDownDummyUtxoRequest) (string, error) {
 	var (
-		netParams *chaincfg.Params = common.GetNetParams(conf.Net)
+		netParams *chaincfg.Params = common.GetNetParams(conf.Net, req.Chain)
 		err       error
 		coldTxId  string = ""
 		txRaw     string = ""
@@ -20,9 +21,15 @@ func ColdDownDummyUtxo(req *request.ColdDownDummyUtxoRequest) (string, error) {
 		utxoList  []*models.MarketUtxoModel = make([]*models.MarketUtxoModel, 0)
 		perAmount uint64                    = req.PerAmount
 
-		_, dummyAddress string = common.GetPlatformKeyAndAddressForDummyAsk()
-		nowTime         int64  = tool.MakeTimestamp()
+		_, dummyAddress string          = common.GetPlatformKeyAndAddressForDummyAsk(req.Chain)
+		nowTime         int64           = tool.MakeTimestamp()
+		chain           string          = req.Chain
+		signMode        common.SignMode = common.SignModeSegwit
 	)
+
+	if req.SignMode != "" {
+		signMode = req.SignMode
+	}
 
 	inputs := make([]*common.TxInputUtxo, 0)
 	inputs = append(inputs, &common.TxInputUtxo{
@@ -31,7 +38,7 @@ func ColdDownDummyUtxo(req *request.ColdDownDummyUtxoRequest) (string, error) {
 		PkScript: req.PkScript,
 		Amount:   req.Amount,
 		PriHex:   req.PriKeyHex,
-		SignMode: common.SignModeSegwit,
+		SignMode: signMode,
 	})
 
 	outputs := make([]*common.TxOutput, 0)
@@ -41,12 +48,13 @@ func ColdDownDummyUtxo(req *request.ColdDownDummyUtxoRequest) (string, error) {
 			Amount:  int64(perAmount),
 		})
 
-		pkScript, err := common.AddressToPkScript(conf.Net, dummyAddress)
+		pkScript, err := common.AddressToPkScript(conf.Net, chain, dummyAddress)
 		if err != nil {
 			return "", err
 		}
 
 		utxoList = append(utxoList, &models.MarketUtxoModel{
+			Chain: chain,
 			//UtxoId:         "",
 			UtxoType:      req.UtxoType,
 			Amount:        perAmount,
@@ -88,7 +96,11 @@ func ColdDownDummyUtxo(req *request.ColdDownDummyUtxoRequest) (string, error) {
 		u.UtxoId = fmt.Sprintf("%s_%d", u.TxId, u.Index)
 	}
 
-	coldTxId, err = models.MarketUtxoModelDao().ColdDownUtxoEntityListForJobFunc(utxoList, txRaw, common.BroadcastTx)
+	coldTxId, err = models.MarketUtxoModelDao().ColdDownUtxoEntityListForJobFunc(
+		chain,
+		utxoList,
+		txRaw,
+		common.BroadcastTx)
 	if err != nil {
 		return "", err
 	}

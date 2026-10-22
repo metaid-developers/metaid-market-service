@@ -2,10 +2,8 @@ package task
 
 import (
 	"fmt"
-	"metaid-market-service/conf"
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
-	"metaid-market-service/service/own_service"
 	"strconv"
 	"strings"
 )
@@ -41,12 +39,12 @@ func jobForCheckRecordConfirm() {
 		}
 
 		// check confirm
-		txInfo, err := own_service.GetTxInfo(conf.Net, entity.TxId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
+		if txInfo.Confirmed {
 			entity.ConfirmationState = models.ConfirmationStateConfirmed
 			entity.BlockHeight = txInfo.Height
 			err := models.MarketOrderModelDao().Update(entity)
@@ -82,12 +80,12 @@ func jobForCheckMrc20RecordConfirm() {
 		}
 
 		// check confirm
-		txInfo, err := own_service.GetTxInfo(conf.Net, entity.TxId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
+		if txInfo.Confirmed {
 			entity.ConfirmationState = models.ConfirmationStateConfirmed
 			entity.BlockHeight = txInfo.Height
 			err := models.MarketMrc20OrderModelDao().Update(entity)
@@ -123,12 +121,12 @@ func jobForCheckMrc20DeployRecordConfirm() {
 		}
 
 		// check confirm
-		txInfo, err := own_service.GetTxInfo(conf.Net, entity.TxId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
+		if txInfo.Confirmed {
 			entity.ConfirmationState = models.ConfirmationStateConfirmed
 			entity.BlockHeight = txInfo.Height
 			err := models.Mrc20DeployOrderModelDao().Update(entity)
@@ -164,12 +162,12 @@ func jobForCheckMrc20MintRecordConfirm() {
 		}
 
 		// check confirm
-		txInfo, err := own_service.GetTxInfo(conf.Net, entity.TxId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
+		if txInfo.Confirmed {
 			entity.ConfirmationState = models.ConfirmationStateConfirmed
 			entity.BlockHeight = txInfo.Height
 			err := models.Mrc20MintOrderModelDao().Update(entity)
@@ -205,12 +203,12 @@ func jobForCheckMrc20TransferRecordConfirm() {
 		}
 
 		// check confirm
-		txInfo, err := own_service.GetTxInfo(conf.Net, entity.TxId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
+		if txInfo.Confirmed {
 			entity.ConfirmationState = models.ConfirmationStateConfirmed
 			entity.BlockHeight = txInfo.Height
 			err := models.Mrc20TransferOrderModelDao().Update(entity)
@@ -257,13 +255,13 @@ func jobForCheckMrc20PreTransferOrderAskConfirm() {
 		txId := utxoIdStrs[0]
 		vout, _ := strconv.ParseInt(utxoIdStrs[1], 10, 64)
 
-		txInfo, err := own_service.GetTxInfo(conf.Net, txId)
+		txInfo, err := common_service.GetTxInfo(entity.Chain, txId)
 		if err != nil {
 			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
 			continue
 		}
-		if txInfo.Confirmed && txInfo.Height > 0 {
-			mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(txId, int64(vout), 0, 100)
+		if txInfo.Confirmed {
+			mrc20InfoList, mrc20InfoTotal, err := common_service.FetchTxPointInfo(entity.Chain, txId, int64(vout), 0, 100)
 			if err != nil {
 				fmt.Printf("[JOB][%s][%s] FetchTxPointInfo error: %v\n", jobName, entity.OrderId, err)
 				continue

@@ -365,3 +365,12 @@ alter table tb_market_mrc20_info
 alter table tb_market_mrc20_info
     add orderCount bigint  default 0 not null AFTER `autoStatus` ;
 
+
+alter table tb_market_order
+    add chain varchar(20)  default '' not null AFTER `id` ;
+alter table tb_market_utxo
+    add chain varchar(20)  default '' not null AFTER `id` ;
+alter table tb_mrc20_mint_order
+    add chain varchar(20)  default '' not null AFTER `id` ;
+alter table tb_mrc20_transfer_order
+    add chain varchar(20)  default '' not null AFTER `id` ;

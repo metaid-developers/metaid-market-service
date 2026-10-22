@@ -3,6 +3,7 @@ package request
 import "metaid-market-service/models"
 
 type BatchPushOrderReq struct {
+	Chain     string           `json:"chain"`
 	AssetType models.AssetType `json:"assetType"` //pins/ordinals
 	AssetIds  []string         `json:"assetIds"`
 	Address   string           `json:"address"`
@@ -20,6 +21,7 @@ type BatchTakeOrderReq struct {
 }
 
 type PushOrderReq struct {
+	Chain     string           `json:"chain"`
 	AssetType models.AssetType `json:"assetType"` //pins/ordinals
 	AssetId   string           `json:"assetId"`
 	Address   string           `json:"address"`
@@ -27,6 +29,7 @@ type PushOrderReq struct {
 }
 
 type FetchOrderPsbtReq struct {
+	Chain             string `json:"chain"`
 	OrderId           string `json:"orderId"`
 	BuyerAddress      string `json:"buyerAddress"`
 	BuyerChangeAmount uint64 `json:"buyerChangeAmount"`
@@ -43,6 +46,7 @@ type CancelOrderReq struct {
 }
 
 type FetchMarketOrdersReq struct {
+	Chain      string            `json:"chain"`
 	OrderState models.OrderState `json:"orderState"` //1-create,2-finish,3-cancel
 	AssetType  models.AssetType  `json:"assetType"`  //pins/ordinals
 	Filters    *Filter           `json:"filters"`
@@ -68,6 +72,7 @@ type FetchAssetDetailReq struct {
 }
 
 type FetchAddressAssetListReq struct {
+	Chain     string           `json:"chain"`
 	Address   string           `json:"address"`
 	AssetType models.AssetType `json:"assetType"` //pins/ordinals
 	Cursor    int64            `json:"cursor"`
@@ -75,11 +80,13 @@ type FetchAddressAssetListReq struct {
 }
 
 type TestAuthReq struct {
+	Chain   string `json:"chain"`
 	Address string `json:"address"`
 }
 
 // mrc20 orders
 type PushMrc20OrderReq struct {
+	Chain         string           `json:"chain"`
 	AssetType     models.AssetType `json:"assetType"` //pins/ordinals
 	TickId        string           `json:"tickId"`
 	Address       string           `json:"address"`
@@ -90,6 +97,7 @@ type PushMrc20OrderReq struct {
 }
 
 type FetchMrc20OrderPsbtReq struct {
+	Chain             string `json:"chain"`
 	OrderId           string `json:"orderId"`
 	BuyerAddress      string `json:"buyerAddress"`
 	BuyerChangeAmount uint64 `json:"buyerChangeAmount"`
@@ -106,6 +114,7 @@ type CancelMrc20OrderReq struct {
 }
 
 type FetchMarketMrc20OrdersReq struct {
+	Chain      string            `json:"chain"`
 	OrderState models.OrderState `json:"orderState"` //1-create,2-finish,3-cancel
 	AssetType  models.AssetType  `json:"assetType"`  //mrc20
 	TickId     string            `json:"tickId"`

@@ -8,6 +8,7 @@ message AddressMrc20TxRequest {
   string tickId = 2;
   int64 offset = 3;
   int64 limit = 4;
+  string source = 5;
 }
 
 
@@ -39,6 +40,7 @@ message AddressMrc20BalanceRequest {
   repeated string tickIds = 2;
   int64 offset = 3;
   int64 limit = 4;
+  string source = 5;
 }
 
 message Mrc20BalanceListResponse {
@@ -54,6 +56,10 @@ message Mrc20BalanceInfoResponse {
   int64 decimals = 4;
   string balance = 5;
   string metadata = 6;
+  string unsafeBalance = 7;
+  string chain = 8;
+  string pendingInBalance = 9;
+  string pendingOutBalance = 10;
 }
 
 
@@ -64,6 +70,7 @@ message AddressMrc20UtxoRequest {
   repeated string tickIds = 2;
   int64 offset = 3;
   int64 limit = 4;
+  string source = 5;
 }
 
 
@@ -102,6 +109,7 @@ message TickListRequest {
   string orderType = 4;
   int64 offset = 5;
   int64 size = 6;
+  string source = 7;
 }
 
 
@@ -153,6 +161,7 @@ message Mrc20UtxoTxPointRequest {
   int64 vout = 2;
   int64 offset = 3;
   int64 limit = 4;
+  string source = 5;
 }
 
 message Mrc20UtxoTickBlockRequest {
@@ -162,6 +171,7 @@ message Mrc20UtxoTickBlockRequest {
   string address = 4;
   int64 offset = 5;
   int64 limit = 6;
+  string source = 7;
 }
 
 message Mrc20DbUtxoResponse {
@@ -192,7 +202,7 @@ message Mrc20UtxoDbInfo {
 }
 
 message Mrc20CheckBlockRequest {
-
+  string source = 1;
 }
 
 message Mrc20CheckBlockInfoResponse {
@@ -203,6 +213,103 @@ message Mrc20CheckBlockInfoResponse {
 }
 
 
+message Mrc20MempoolUtxoTxPointRequest {
+  string txId = 1;
+  int64 vout = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+  string source = 5;
+}
+
+message Mrc20MempoolDbUtxoResponse {
+  int64 total = 1;
+  int64 offset = 2;
+  repeated Mrc20MempoolUtxoDbInfo detail = 3;
+}
+
+message Mrc20MempoolUtxoDbInfo {
+  int64 index = 1;
+  bool verify = 2;
+  string mrc20Id = 3;
+  string txPoint = 4;
+  string amtChange = 5;
+  int64 blockHeight = 6;
+  string chain = 7;
+  string fromAddress = 8;
+  string mrcOption = 9;
+  string msg = 10;
+  string operationTx = 11;
+  int64 pointValue = 12;
+  int64 status = 13;
+  string tick = 14;
+  int64 timestamp = 15;
+  string toAddress = 16;
+}
+
+
+message Mrc20AddressHistoryRequest {
+  string address = 1;
+  string tickId = 2;
+  int64 cursor = 3;
+  int64 size = 4;
+  string source = 5;
+}
+
+message Mrc20AddressHistoryResponse {
+  int64 total = 1;
+  repeated Mrc20AddressHistoryItem list = 2;
+}
+
+message Mrc20AddressHistoryItem {
+  string tick = 1;
+  string mrc20Id = 2;
+  string txPoint = 3;
+  int64 pointValue = 4;
+  string pinId = 5;
+  string pinContent = 6;
+  bool verify = 7;
+  int64 blockHeight = 8;
+  string mrcOption = 9;
+  string fromAddress = 10;
+  string toAddress = 11;
+  string msg = 12;
+  string amtChange = 13;
+  int64 status = 14;
+  string chain = 15;
+  int64 index = 16;
+  int64 timestamp = 17;
+  string operationTx = 18;
+}
+
+message Mrc20TickInfoReq {
+  string tick = 1;
+  string tickId = 2;
+  string source = 3;
+}
+
+message Mrc20TickInfoResponse {
+  string tick = 1;
+  string tokenName = 2;
+  string decimals = 3;
+  string amtPerMint = 4;
+  int64 mintCount = 5;
+  string blockHeight = 6;
+  string metadata = 7;
+  string deployType = 8;
+  int64 premineCount = 9;
+  Mrc20DeployPinCheck pinCheck = 10;
+  PayCheck payCheck = 11;
+  int64 totalMinted = 12;
+  string mrc20Id = 13;
+  int64 pinNumber = 14;
+  string chain = 15;
+  int64 holders = 16;
+  int64 txCount = 17;
+  string metaId = 18;
+  string address = 19;
+  int64 deployTime = 20;
+}
+
 service Mrc20UtxoService {
   rpc FetchMrc20AddressTxList(AddressMrc20TxRequest) returns (Mrc20TxListResponse) {};
   rpc FetchMrc20AddressBalanceList(AddressMrc20BalanceRequest) returns (Mrc20BalanceListResponse) {};
@@ -211,4 +318,7 @@ service Mrc20UtxoService {
   rpc FetchMrc20UtxoTxPoint(Mrc20UtxoTxPointRequest) returns (Mrc20DbUtxoResponse) {};
   rpc FetchMrc20UtxoTickBlock(Mrc20UtxoTickBlockRequest) returns (Mrc20DbUtxoResponse) {};
   rpc FetchMrc20CheckBlock(Mrc20CheckBlockRequest) returns (Mrc20CheckBlockInfoResponse) {};
+  rpc FetchMrc20MempoolUtxoTxPoint(Mrc20MempoolUtxoTxPointRequest) returns (Mrc20MempoolDbUtxoResponse) {};
+  rpc FetchMrc20TickInfo(Mrc20TickInfoReq) returns (Mrc20TickInfoResponse) {};
+  rpc FetchMrc20AddressHistory(Mrc20AddressHistoryRequest) returns (Mrc20AddressHistoryResponse) {};
 }

@@ -1,0 +1,86 @@
+# api port
+port: "1234"
+
+#chain network
+net: "livenet"
+
+#rds
+rds:
+  dsn: ""
+  max_open_conns: 1000
+  max_igle_conns: 50
+
+
+man:
+  domain: "https://"
+  base: "https://"
+
+own:
+  domain: "http://"
+
+orders_exchange:
+  domain: "http://"
+  key: ""
+
+ticket_fans:
+  domain: "http://"
+
+mvcscan:
+  domain: "https://"
+
+mempool_space:
+  domain: "https://mempool.space"
+
+grpc:
+  asset_base:
+    address: ""
+
+zmq:
+  btc:
+    hashblock_url: "tcp://"
+    rawtx_url: "tcp://"
+    rawblock_url: "tcp://"
+
+redis:
+  endpoint: "127.0.0.1:6379"
+  password: ""
+  db: 6
+
+
+platform:
+  dummy:
+    private_key: ""
+    address: ""
+  receive_fee:
+    private_key: ""
+    address: ""
+  service_fee:
+    service_address: ""
+    pin_trade_fee: 0
+    pin_trade_fee_rate: 60
+    pin_trade_fee_min: 1800
+    mrc20_trade_fee: 0
+    mrc20_trade_fee_rate: 60
+    mrc20_trade_fee_min: 1800
+    deploy_fee: 1999
+    mint_fee: 0 #1999
+    transfer_fee: 0
+    meta_id_inscribe_fee: 0 #1999
+
+host: ""
+
+idcoins:
+  public_key: "022a5babbf8c7c8e304884979fd0d57837d215956b1d399927f2e44a4147ae6d05"
+
+
+meta_coin:
+  mrc20id: "644dba0433aced0ec4cecef9baa951eccabb1751f222d48d33e7a309738ff0d2i0"
+  codehash: "a2421f1e90c6048c36745edd44fad682e8644693"
+  genesis: "07e4c5a9f866164108de005be81d40ccbd2e964c"
+
+pop:
+  extract_count: 21
+
+auto_bridge_rule:
+  order_count_limit: 10
+  market_cap_usdt_limit: 100000

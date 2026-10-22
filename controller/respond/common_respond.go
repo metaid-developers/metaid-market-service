@@ -155,6 +155,10 @@ type BroadcastTxResp struct {
 	TxId string `json:"txId"`
 }
 
+type FetchRawTxResp struct {
+	RawTx string `json:"rawTx"`
+}
+
 type Mrc20TickMarketPriceResp struct {
 	TickId         string  `json:"tickId"`
 	Tick           string  `json:"tick"`

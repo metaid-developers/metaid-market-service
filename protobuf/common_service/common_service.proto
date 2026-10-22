@@ -11,7 +11,21 @@ message CommonCoinPriceResp {
     double priceUsd = 3;
 }
 
+message CommonMrc20CoinPriceReq {
+    string tickId = 1;
+    string tick = 2;
+}
+
+message CommonMrc20CoinPriceResp {
+    double price = 3;
+    double priceUsd = 4;
+    string tickId = 5;
+    string tick = 6;
+    string priceChange24h = 7;
+}
+
 
 service CommonService {
     rpc FetchCommonCoinPrice(CommonCoinPriceReq) returns (CommonCoinPriceResp);
+    rpc FetchCommonMrc20CoinPrice(CommonMrc20CoinPriceReq) returns (CommonMrc20CoinPriceResp);
 }

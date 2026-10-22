@@ -3,11 +3,12 @@ package models
 import (
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"sync"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 const (
@@ -112,7 +113,7 @@ func (_ *marketMrc20OrderModelDao) SetForPushOrder(model *MarketMrc20OrderModel,
 			floorPrice = model.TokenPriceRate
 		}
 
-		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: model.TickId})
+		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: model.TickId, Chain: model.Chain})
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
@@ -322,7 +323,7 @@ func (_ *marketMrc20OrderModelDao) UpdateForPushAndCancel(q *MarketMrc20OrderMod
 			floorPrice = q.TokenPriceRate
 		}
 
-		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: q.TickId})
+		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: q.TickId, Chain: q.Chain})
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
@@ -403,7 +404,7 @@ func (_ *marketMrc20OrderModelDao) BatchSaveList(list []*MarketMrc20OrderModel) 
 	return nil
 }
 
-func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc20OrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, supply string, txRaw string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(chain string, q *MarketMrc20OrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, supply string, txRaw string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
 
@@ -446,7 +447,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 			floorPrice = floorEntity.TokenPriceRate
 		}
 
-		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: q.TickId})
+		marketTickInfo, err := MarketMrc20InfoModelDao().GetOne(&MarketMrc20InfoModel{TickId: q.TickId, Chain: q.Chain})
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
@@ -516,7 +517,7 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(q *MarketMrc2
 			}
 		}
 
-		_, err = jobFunc(txRaw)
+		_, err = jobFunc(chain, txRaw)
 		if err != nil {
 			return err
 		}

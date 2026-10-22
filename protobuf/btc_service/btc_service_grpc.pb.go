@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v5.29.3
-// source: protobuf/btc_service/btc_service.proto
+// source: btc_service.proto
 
 package btc_service
 
@@ -31,6 +31,7 @@ const (
 	BtcService_GetBtcAddressTxCount_FullMethodName = "/protobuf.BtcService/GetBtcAddressTxCount"
 	BtcService_GetBtcTxRaw_FullMethodName          = "/protobuf.BtcService/GetBtcTxRaw"
 	BtcService_GetBtcFeeRate_FullMethodName        = "/protobuf.BtcService/GetBtcFeeRate"
+	BtcService_GetTxInfo_FullMethodName            = "/protobuf.BtcService/GetTxInfo"
 )
 
 // BtcServiceClient is the client API for BtcService service.
@@ -49,6 +50,7 @@ type BtcServiceClient interface {
 	GetBtcAddressTxCount(ctx context.Context, in *BtcAddressTxCountReq, opts ...grpc.CallOption) (*BtcAddressTxCountResp, error)
 	GetBtcTxRaw(ctx context.Context, in *BtcTxRawReq, opts ...grpc.CallOption) (*BtcTxRawResp, error)
 	GetBtcFeeRate(ctx context.Context, in *BtcFeeRateReq, opts ...grpc.CallOption) (*BtcFeeRateResp, error)
+	GetTxInfo(ctx context.Context, in *BtcTxInfoReq, opts ...grpc.CallOption) (*BtcTxInfoResp, error)
 }
 
 type btcServiceClient struct {
@@ -167,6 +169,15 @@ func (c *btcServiceClient) GetBtcFeeRate(ctx context.Context, in *BtcFeeRateReq,
 	return out, nil
 }
 
+func (c *btcServiceClient) GetTxInfo(ctx context.Context, in *BtcTxInfoReq, opts ...grpc.CallOption) (*BtcTxInfoResp, error) {
+	out := new(BtcTxInfoResp)
+	err := c.cc.Invoke(ctx, BtcService_GetTxInfo_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BtcServiceServer is the server API for BtcService service.
 // All implementations must embed UnimplementedBtcServiceServer
 // for forward compatibility
@@ -183,6 +194,7 @@ type BtcServiceServer interface {
 	GetBtcAddressTxCount(context.Context, *BtcAddressTxCountReq) (*BtcAddressTxCountResp, error)
 	GetBtcTxRaw(context.Context, *BtcTxRawReq) (*BtcTxRawResp, error)
 	GetBtcFeeRate(context.Context, *BtcFeeRateReq) (*BtcFeeRateResp, error)
+	GetTxInfo(context.Context, *BtcTxInfoReq) (*BtcTxInfoResp, error)
 	mustEmbedUnimplementedBtcServiceServer()
 }
 
@@ -225,6 +237,9 @@ func (UnimplementedBtcServiceServer) GetBtcTxRaw(context.Context, *BtcTxRawReq) 
 }
 func (UnimplementedBtcServiceServer) GetBtcFeeRate(context.Context, *BtcFeeRateReq) (*BtcFeeRateResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBtcFeeRate not implemented")
+}
+func (UnimplementedBtcServiceServer) GetTxInfo(context.Context, *BtcTxInfoReq) (*BtcTxInfoResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTxInfo not implemented")
 }
 func (UnimplementedBtcServiceServer) mustEmbedUnimplementedBtcServiceServer() {}
 
@@ -455,6 +470,24 @@ func _BtcService_GetBtcFeeRate_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BtcService_GetTxInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BtcTxInfoReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BtcServiceServer).GetTxInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BtcService_GetTxInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BtcServiceServer).GetTxInfo(ctx, req.(*BtcTxInfoReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BtcService_ServiceDesc is the grpc.ServiceDesc for BtcService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -510,7 +543,11 @@ var BtcService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetBtcFeeRate",
 			Handler:    _BtcService_GetBtcFeeRate_Handler,
 		},
+		{
+			MethodName: "GetTxInfo",
+			Handler:    _BtcService_GetTxInfo_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "protobuf/btc_service/btc_service.proto",
+	Metadata: "btc_service.proto",
 }

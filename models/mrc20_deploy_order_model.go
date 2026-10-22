@@ -2,10 +2,11 @@ package models
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"sync"
+
+	"gorm.io/gorm"
 )
 
 type Mrc20DeployOrderModel struct {
@@ -148,7 +149,7 @@ func (_ *mrc20DeployOrderModelDao) Update(q *Mrc20DeployOrderModel) error {
 	return nil
 }
 
-func (_ *mrc20DeployOrderModelDao) SaveEntityForInscribing(model *Mrc20DeployOrderModel, txRawList []string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *mrc20DeployOrderModelDao) SaveEntityForInscribing(chain string, model *Mrc20DeployOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		if model == nil {
 			return errors.New("model is nil")
@@ -170,7 +171,7 @@ func (_ *mrc20DeployOrderModelDao) SaveEntityForInscribing(model *Mrc20DeployOrd
 		}
 
 		for _, txRaw := range txRawList {
-			_, err := jobFunc(txRaw)
+			_, err := jobFunc(chain, txRaw)
 			if err != nil {
 				return err
 			}

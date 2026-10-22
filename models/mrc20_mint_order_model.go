@@ -2,10 +2,11 @@ package models
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"sync"
+
+	"gorm.io/gorm"
 )
 
 type InscribeState int64
@@ -21,6 +22,7 @@ const (
 
 type Mrc20MintOrderModel struct {
 	Id                  int64             `gorm:"column:id" json:"id"`
+	Chain               string            `gorm:"column:chain" json:"chain"`
 	OrderId             string            `gorm:"column:orderId" json:"orderId"`
 	InscribeState       InscribeState     `gorm:"column:inscribeState" json:"inscribeState"`
 	Address             string            `gorm:"column:address" json:"address"`
@@ -148,7 +150,7 @@ func (_ *mrc20MintOrderModelDao) Update(q *Mrc20MintOrderModel) error {
 	return nil
 }
 
-func (_ *mrc20MintOrderModelDao) UpdateEntityListForInscribing(q *Mrc20MintOrderModel, txRawList []string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *mrc20MintOrderModelDao) UpdateEntityListForInscribing(chain string, q *Mrc20MintOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
 
@@ -166,7 +168,7 @@ func (_ *mrc20MintOrderModelDao) UpdateEntityListForInscribing(q *Mrc20MintOrder
 		}
 
 		for _, txRaw := range txRawList {
-			_, err := jobFunc(txRaw)
+			_, err := jobFunc(chain, txRaw)
 			if err != nil {
 				return err
 			}

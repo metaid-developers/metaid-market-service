@@ -1,27 +1,29 @@
 package common
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"metaid-market-service/models"
+
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"metaid-market-service/models"
 )
 
-func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList []int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
+func BatchMakeAskTakerPsbtRaw(net, chain string, psbtRawList []string, preOutValueList []int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
 	var (
 		takerPsbtRaw string           = ""
-		netParams    *chaincfg.Params = GetNetParams(net)
+		netParams    *chaincfg.Params = GetNetParams(net, chain)
 
 		askBuilderList                                      []*PsbtBuilder = make([]*PsbtBuilder, 0)
 		builder                                             *PsbtBuilder
 		utxoDummy1200List                                   []*models.MarketUtxoModel
 		utxoDummyList                                       []*models.MarketUtxoModel
 		err                                                 error
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk(chain)
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
 		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
@@ -31,7 +33,17 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 		dummyOutValue                    = uint64(0)
 		newDummyOutValue          uint64 = 600
 		offsetDummy1200InputIndex int    = 2
+
+		dummyInputAmount1 uint64 = 600
+		dummyInputAmount2 uint64 = 1200
+
+		feeAmountForPlatformLimit int64 = 546
 	)
+	if chain == "doge" {
+		platformAddressReceiveFee = GetPlatformServiceFeeConfigData().DogeServiceAddress
+		newDummyOutValue = 1000000 // 0.01 DOGE
+		feeAmountForPlatformLimit = 1000000
+	}
 
 	if len(psbtRawList) != len(preOutValueList) {
 		return "", feeAmountForPlatform, errors.New("Wrong ask Psbt: psbtRawList and preOutValueList length not equal. ")
@@ -59,12 +71,12 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 	}
 
 	//find dummy utxo
-	utxoDummyList, err = GetUnoccupiedUtxoList(2, models.UtxoTypeDummy600)
+	utxoDummyList, err = GetUnoccupiedUtxoList(chain, 2, models.UtxoTypeDummy600)
 	defer ReleaseUtxoList(utxoDummyList)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	utxoDummy1200List, err = GetUnoccupiedUtxoList(1, models.UtxoTypeDummy1200)
+	utxoDummy1200List, err = GetUnoccupiedUtxoList(chain, 1, models.UtxoTypeDummy1200)
 	defer ReleaseUtxoList(utxoDummy1200List)
 	if err != nil {
 		return "", feeAmountForPlatform, err
@@ -78,6 +90,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 			OutIndex: uint32(dummy.Index),
 		})
 		dummyOutValue = dummyOutValue + dummy.Amount
+		dummyInputAmount1 = dummy.Amount
 	}
 
 	//add pin input: 2 - 2+n
@@ -97,6 +110,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 			OutTxId:  dummy.TxId,
 			OutIndex: uint32(dummy.Index),
 		})
+		dummyInputAmount2 = dummy.Amount
 	}
 
 	outputs := make([]Output, 0)
@@ -107,7 +121,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 	})
 
 	// add buyer receive pin output: 1
-	isTaproot, err := CheckTaprootAddressType(net, buyerAddress)
+	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
@@ -137,7 +151,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 	outputs = append(outputs, dummyOut600)
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform >= 546 {
+	if feeAmountForPlatform >= feeAmountForPlatformLimit {
 		// add fee output: 5
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -156,7 +170,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 	}
 
 	inputSigns := make([]*InputSign, 0)
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -168,7 +182,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 	inputSigns = append(inputSigns, &InputSign{
 		Index:       1,
@@ -177,7 +191,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 
 	inputSigns = append(inputSigns, &InputSign{
@@ -187,7 +201,7 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      1200,
+		Amount:      dummyInputAmount2,
 	})
 
 	builder, err = CreatePsbtBuilder(netParams, inputs, outputs)
@@ -243,14 +257,20 @@ func BatchMakeAskTakerPsbtRaw(net string, psbtRawList []string, preOutValueList 
 	return takerPsbtRaw, feeAmountForPlatform, nil
 }
 
-func BatchSignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *PsbtBuilder, askOrderInputCount int) error {
+func BatchSignAskTakerPsbtRawInDummy(net, chain string, unSignDummyAskPsbtBuilder *PsbtBuilder, askOrderInputCount int) error {
 	var (
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string       = GetPlatformKeyAndAddressForDummyAsk()
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string       = GetPlatformKeyAndAddressForDummyAsk(chain)
 		inputSigns                                          []*InputSign = make([]*InputSign, 0)
 		offsetDummy1200InputIndex                           int          = 2
+		dummyInputAmount1                                   uint64       = 600
+		dummyInputAmount2                                   uint64       = 1200
 	)
+	if chain == "doge" {
+		dummyInputAmount1 = 1000000
+		dummyInputAmount2 = 2000000
+	}
 	offsetDummy1200InputIndex = offsetDummy1200InputIndex + askOrderInputCount
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -262,7 +282,7 @@ func BatchSignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *Psbt
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 	inputSigns = append(inputSigns, &InputSign{
 		Index:       1,
@@ -271,7 +291,7 @@ func BatchSignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *Psbt
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 
 	inputSigns = append(inputSigns, &InputSign{
@@ -281,7 +301,7 @@ func BatchSignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *Psbt
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      1200,
+		Amount:      dummyInputAmount2,
 	})
 	err = unSignDummyAskPsbtBuilder.UpdateAndSignInput(inputSigns)
 	if err != nil {
@@ -290,24 +310,33 @@ func BatchSignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *Psbt
 	return nil
 }
 
-func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
+func MakeAskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
 	var (
 		takerPsbtRaw                                        string           = ""
-		netParams                                           *chaincfg.Params = GetNetParams(net)
+		netParams                                           *chaincfg.Params = GetNetParams(net, chain)
 		askBuilder                                          *PsbtBuilder
 		builder                                             *PsbtBuilder
 		utxoDummy1200List                                   []*models.MarketUtxoModel
 		utxoDummyList                                       []*models.MarketUtxoModel
 		err                                                 error
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk(chain)
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
 		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
 		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
-		dummyOutValue           = uint64(0)
-		newDummyOutValue uint64 = 600
+		dummyOutValue                    = uint64(0)
+		newDummyOutValue          uint64 = 600
+		dummyInputAmount1         uint64 = 600
+		dummyInputAmount2         uint64 = 1200
+		feeAmountForPlatformLimit int64  = 546
 	)
+
+	if chain == "doge" {
+		platformAddressReceiveFee = GetPlatformServiceFeeConfigData().DogeServiceAddress
+		newDummyOutValue = 1000000
+		feeAmountForPlatformLimit = 1000000
+	}
 
 	askBuilder, err = NewPsbtBuilder(netParams, psbtRaw)
 	if err != nil {
@@ -325,12 +354,12 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 	askOutput := askOutputList[0]
 
 	//find dummy utxo
-	utxoDummyList, err = GetUnoccupiedUtxoList(2, models.UtxoTypeDummy600)
+	utxoDummyList, err = GetUnoccupiedUtxoList(chain, 2, models.UtxoTypeDummy600)
 	defer ReleaseUtxoList(utxoDummyList)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	utxoDummy1200List, err = GetUnoccupiedUtxoList(1, models.UtxoTypeDummy1200)
+	utxoDummy1200List, err = GetUnoccupiedUtxoList(chain, 1, models.UtxoTypeDummy1200)
 	defer ReleaseUtxoList(utxoDummy1200List)
 	if err != nil {
 		return "", feeAmountForPlatform, err
@@ -344,6 +373,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 			OutIndex: uint32(dummy.Index),
 		})
 		dummyOutValue = dummyOutValue + dummy.Amount
+		dummyInputAmount1 = dummy.Amount
 	}
 
 	//add brc20 input: 2
@@ -358,6 +388,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 			OutTxId:  dummy.TxId,
 			OutIndex: uint32(dummy.Index),
 		})
+		dummyInputAmount2 = dummy.Amount
 	}
 
 	outputs := make([]Output, 0)
@@ -368,7 +399,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 	})
 
 	// add buyer receive brc20 output: 1
-	isTaproot, err := CheckTaprootAddressType(net, buyerAddress)
+	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
@@ -394,7 +425,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 	outputs = append(outputs, dummyOut600)
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform >= 546 {
+	if feeAmountForPlatform >= feeAmountForPlatformLimit {
 		// add fee output: 5
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -413,7 +444,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 	}
 
 	inputSigns := make([]*InputSign, 0)
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -425,7 +456,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 	inputSigns = append(inputSigns, &InputSign{
 		Index:       1,
@@ -434,7 +465,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 
 	inputSigns = append(inputSigns, &InputSign{
@@ -444,7 +475,7 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      1200,
+		Amount:      dummyInputAmount2,
 	})
 
 	builder, err = CreatePsbtBuilder(netParams, inputs, outputs)
@@ -496,44 +527,56 @@ func MakeAskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerA
 	return takerPsbtRaw, feeAmountForPlatform, nil
 }
 
-func SignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *PsbtBuilder) error {
-	var (
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string       = GetPlatformKeyAndAddressForDummyAsk()
-		inputSigns                                          []*InputSign = make([]*InputSign, 0)
-	)
+type SignDummyInput struct {
+	OutRaw   string
+	UtxoType UtxoType
+}
 
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+func SignAskTakerPsbtRawInDummy(net, chain string, unSignDummyAskPsbtBuilder *PsbtBuilder, signDummyInputList []*SignDummyInput) error {
+	var (
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string       = GetPlatformKeyAndAddressForDummyAsk(chain)
+		inputSigns                                          []*InputSign = make([]*InputSign, 0)
+		dummyInputAmount1                                   uint64       = 600
+		dummyInputAmount2                                   uint64       = 1200
+	)
+	if chain == "doge" {
+		dummyInputAmount1 = 1000000
+		dummyInputAmount2 = 2000000
+	}
+
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return errors.New("AddressToPkScript err: " + err.Error())
 	}
 	//add dummy inputSign: 0,1
 	inputSigns = append(inputSigns, &InputSign{
-		Index:       0,
-		OutRaw:      "",
+		Index:       0, //0
+		OutRaw:      signDummyInputList[0].OutRaw,
 		PkScript:    platformDummyPkScript,
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
-		UtxoType:    Witness,
-		Amount:      600,
+		UtxoType:    signDummyInputList[0].UtxoType,
+		Amount:      dummyInputAmount1,
 	})
+	fmt.Printf("inputSigns[0]: %+v\n", inputSigns[0])
 	inputSigns = append(inputSigns, &InputSign{
-		Index:       1,
-		OutRaw:      "",
+		Index:       1, //1
+		OutRaw:      signDummyInputList[1].OutRaw,
 		PkScript:    platformDummyPkScript,
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
-		UtxoType:    Witness,
-		Amount:      600,
+		UtxoType:    signDummyInputList[1].UtxoType,
+		Amount:      dummyInputAmount1,
 	})
 
 	inputSigns = append(inputSigns, &InputSign{
-		Index:       3,
-		OutRaw:      "",
+		Index:       3, //3
+		OutRaw:      signDummyInputList[2].OutRaw,
 		PkScript:    platformDummyPkScript,
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
-		UtxoType:    Witness,
-		Amount:      1200,
+		UtxoType:    signDummyInputList[2].UtxoType,
+		Amount:      dummyInputAmount2,
 	})
 	err = unSignDummyAskPsbtBuilder.UpdateAndSignInput(inputSigns)
 	if err != nil {
@@ -542,24 +585,35 @@ func SignAskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *PsbtBuild
 	return nil
 }
 
-func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
+func MakeAskTakerPsbtRawForPreMake(net, chain, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
 	var (
 		takerPsbtRaw string           = ""
-		netParams    *chaincfg.Params = GetNetParams(net)
+		netParams    *chaincfg.Params = GetNetParams(net, chain)
 		askBuilder   *PsbtBuilder
 		//builder                                             *PsbtBuilder
 		utxoDummy1200List                                   []*models.MarketUtxoModel
 		utxoDummyList                                       []*models.MarketUtxoModel
 		err                                                 error
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk(chain)
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
 		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
 		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
-		dummyOutValue           = uint64(0)
-		newDummyOutValue uint64 = 600
+		dummyOutValue                    = uint64(0)
+		newDummyOutValue          uint64 = 600
+		dummyInputAmount1         uint64 = 600
+		dummyInputAmount2         uint64 = 1200
+		feeAmountForPlatformLimit int64  = 546
+		preOutValueLimit          int64  = 546
 	)
+	_ = dummyInputAmount1
+	if chain == "doge" {
+		platformAddressReceiveFee = GetPlatformServiceFeeConfigData().DogeServiceAddress
+		newDummyOutValue = 1000000
+		feeAmountForPlatformLimit = 1000000
+		preOutValueLimit = 1000000
+	}
 
 	askBuilder, err = NewPsbtBuilder(netParams, psbtRaw)
 	if err != nil {
@@ -579,12 +633,12 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 	}
 
 	//find dummy utxo
-	utxoDummyList, err = GetUnoccupiedUtxoList(2, models.UtxoTypeDummy600)
+	utxoDummyList, err = GetUnoccupiedUtxoList(chain, 2, models.UtxoTypeDummy600)
 	defer ReleaseUtxoList(utxoDummyList)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	utxoDummy1200List, err = GetUnoccupiedUtxoList(1, models.UtxoTypeDummy1200)
+	utxoDummy1200List, err = GetUnoccupiedUtxoList(chain, 1, models.UtxoTypeDummy1200)
 	defer ReleaseUtxoList(utxoDummy1200List)
 	if err != nil {
 		return "", feeAmountForPlatform, err
@@ -593,6 +647,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 	inputs := make([]Input, 0)
 	//add dummy input: 0,1
 	for i, dummy := range utxoDummyList {
+		dummyInputAmount1 = dummy.Amount
 		dummyTxHash, err := chainhash.NewHashFromStr(dummy.TxId)
 		if err != nil {
 			return "", 0, err
@@ -601,7 +656,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 		askPreOutList[i].PreviousOutPoint = *wire.NewOutPoint(dummyTxHash, uint32(dummy.Index))
 		dummyOutValue = dummyOutValue + dummy.Amount
 
-		dummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+		dummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 		if err != nil {
 			return "", 0, err
 		}
@@ -610,7 +665,30 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 			return "", 0, err
 		}
 
-		askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
+		//check dummy address
+		isLegacy, err := CheckLegacyAddressType(net, chain, dummy.Address)
+		if err != nil {
+			return "", 0, err
+		}
+		if isLegacy {
+			tx := wire.NewMsgTx(2)
+			outRaw, err := FetchTxHex(chain, dummy.TxId)
+			if err != nil {
+				return "", 0, err
+			}
+			nonWitnessUtxoHex, err := hex.DecodeString(outRaw)
+			if err != nil {
+				return "", 0, err
+			}
+			err = tx.Deserialize(bytes.NewReader(nonWitnessUtxoHex))
+			if err != nil {
+				return "", 0, err
+			}
+			askUpsbtList[i].NonWitnessUtxo = tx
+		} else {
+			askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
+		}
+
 		//signAll
 		askUpsbtList[i].SighashType = txscript.SigHashAll
 	}
@@ -619,7 +697,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 
 	outputs := make([]Output, 0)
 	// add dummy1200 output: 0
-	dummyAskPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	dummyAskPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -630,15 +708,15 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 	askOutputList[0] = wire.NewTxOut(int64(dummyOutValue), dummyAskPkScriptBytes)
 
 	// add buyer receive brc20 output: 1
-	isTaproot, err := CheckTaprootAddressType(net, buyerAddress)
+	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	if preOutValue < 546 && !isTaproot {
-		preOutValue = 546
+	if preOutValue < preOutValueLimit && !isTaproot {
+		preOutValue = preOutValueLimit
 	}
 
-	buyerAddressPkScript, err := AddressToPkScript(net, buyerAddress)
+	buyerAddressPkScript, err := AddressToPkScript(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -655,6 +733,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 			OutTxId:  dummy.TxId,
 			OutIndex: uint32(dummy.Index),
 		})
+		dummyInputAmount2 = dummy.Amount
 	}
 
 	for _, in := range inputs {
@@ -672,7 +751,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 	outputs = append(outputs, dummyOut600)
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform >= 546 {
+	if feeAmountForPlatform >= feeAmountForPlatformLimit {
 		// add fee output: 5
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -696,7 +775,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 	}
 
 	inputSigns := make([]*InputSign, 0)
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -727,7 +806,7 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      1200,
+		Amount:      dummyInputAmount2,
 	})
 
 	if !isUnSign {
@@ -752,23 +831,30 @@ func MakeAskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int
 }
 
 // Mrc20 orders
-func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
+func MakeMrc20AskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
 	var (
 		takerPsbtRaw                                        string           = ""
-		netParams                                           *chaincfg.Params = GetNetParams(net)
+		netParams                                           *chaincfg.Params = GetNetParams(net, chain)
 		askBuilder                                          *PsbtBuilder
 		builder                                             *PsbtBuilder
 		utxoDummyList                                       []*models.MarketUtxoModel
 		err                                                 error
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk(chain)
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
 		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
 		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
-		dummyOutValue           = uint64(0)
-		newDummyOutValue uint64 = 600
+		dummyOutValue                    = uint64(0)
+		newDummyOutValue          uint64 = 600
+		dummyInputAmount1         uint64 = 600
+		feeAmountForPlatformLimit int64  = 546
 	)
+	if chain == "doge" {
+		platformAddressReceiveFee = GetPlatformServiceFeeConfigData().DogeServiceAddress
+		newDummyOutValue = 1000000
+		feeAmountForPlatformLimit = 1000000
+	}
 
 	askBuilder, err = NewPsbtBuilder(netParams, psbtRaw)
 	if err != nil {
@@ -786,7 +872,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 	askOutput := askOutputList[0]
 
 	//find dummy utxo
-	utxoDummyList, err = GetUnoccupiedUtxoList(1, models.UtxoTypeDummy600)
+	utxoDummyList, err = GetUnoccupiedUtxoList(chain, 1, models.UtxoTypeDummy600)
 	defer ReleaseUtxoList(utxoDummyList)
 	if err != nil {
 		return "", feeAmountForPlatform, err
@@ -801,6 +887,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 			OutIndex: uint32(dummy.Index),
 		})
 		dummyOutValue = dummyOutValue + dummy.Amount
+		dummyInputAmount1 = dummy.Amount
 	}
 
 	//add brc20 input: 1
@@ -812,7 +899,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 	// make outputs
 	outputs := make([]Output, 0)
 	// add buyer receive brc20 output: 0
-	isTaproot, err := CheckTaprootAddressType(net, buyerAddress)
+	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
@@ -837,7 +924,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 	}
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform >= 546 {
+	if feeAmountForPlatform >= feeAmountForPlatformLimit {
 		// add fee output: 3
 		feeOut := Output{
 			Address: platformAddressReceiveFee,
@@ -856,7 +943,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 	}
 
 	inputSigns := make([]*InputSign, 0)
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -868,7 +955,7 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
 		UtxoType:    Witness,
-		Amount:      600,
+		Amount:      dummyInputAmount1,
 	})
 
 	builder, err = CreatePsbtBuilder(netParams, inputs, outputs)
@@ -920,25 +1007,29 @@ func MakeMrc20AskTakerPsbtRaw(net, orderId, psbtRaw string, preOutValue int64, b
 	return takerPsbtRaw, feeAmountForPlatform, nil
 }
 
-func SignMrc20AskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *PsbtBuilder) error {
+func SignMrc20AskTakerPsbtRawInDummy(net, chain string, unSignDummyAskPsbtBuilder *PsbtBuilder, signDummyInputList []*SignDummyInput) error {
 	var (
-		platformPrivateKeyDummyAsk, platformAddressDummyAsk string       = GetPlatformKeyAndAddressForDummyAsk()
+		platformPrivateKeyDummyAsk, platformAddressDummyAsk string       = GetPlatformKeyAndAddressForDummyAsk(chain)
 		inputSigns                                          []*InputSign = make([]*InputSign, 0)
+		dummyInputAmount1                                   uint64       = 600
 	)
 
-	platformDummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+	if chain == "doge" {
+		dummyInputAmount1 = 1000000
+	}
+	platformDummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 	if err != nil {
 		return errors.New("AddressToPkScript err: " + err.Error())
 	}
 	//add dummy inputSign: 0,1
 	inputSigns = append(inputSigns, &InputSign{
 		Index:       0,
-		OutRaw:      "",
+		OutRaw:      signDummyInputList[0].OutRaw,
 		PkScript:    platformDummyPkScript,
 		SighashType: txscript.SigHashAll,
 		PriHex:      platformPrivateKeyDummyAsk,
-		UtxoType:    Witness,
-		Amount:      600,
+		UtxoType:    signDummyInputList[0].UtxoType,
+		Amount:      dummyInputAmount1,
 	})
 	err = unSignDummyAskPsbtBuilder.UpdateAndSignInput(inputSigns)
 	if err != nil {
@@ -947,23 +1038,32 @@ func SignMrc20AskTakerPsbtRawInDummy(net string, unSignDummyAskPsbtBuilder *Psbt
 	return nil
 }
 
-func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
+func MakeMrc20AskTakerPsbtRawForPreMake(net, chain, orderId, psbtRaw string, preOutValue int64, buyerAddress string, buyerChangeAmount uint64, feeAmountForPlatform int64, isUnSign bool) (string, int64, error) {
 	var (
 		takerPsbtRaw string           = ""
-		netParams    *chaincfg.Params = GetNetParams(net)
+		netParams    *chaincfg.Params = GetNetParams(net, chain)
 		askBuilder   *PsbtBuilder
 		//builder                                             *PsbtBuilder
 		utxoDummyList              []*models.MarketUtxoModel
 		err                        error
-		_, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk()
+		_, platformAddressDummyAsk string = GetPlatformKeyAndAddressForDummyAsk(chain)
 		//feeAmountForPlatform                                int64  = GenerateAskTakerPlatformFeeOrderV2(orderId, buyerAddress)
 		//feeAmountForPlatform         int64  = 2000
 		//_, platformAddressReceiveFee string = GetPlatformKeyAndAddressForReceiveFee(net)
 		platformAddressReceiveFee string = GetPlatformServiceFeeConfigData().ServiceAddress
 
-		dummyOutValue           = uint64(0)
-		newDummyOutValue uint64 = 600
+		dummyOutValue                    = uint64(0)
+		newDummyOutValue          uint64 = 600
+		feeAmountForPlatformLimit int64  = 546
+		preOutValueLimit          int64  = 546
 	)
+
+	if chain == "doge" {
+		platformAddressReceiveFee = GetPlatformServiceFeeConfigData().DogeServiceAddress
+		newDummyOutValue = 1000000
+		feeAmountForPlatformLimit = 1000000
+		preOutValueLimit = 1000000
+	}
 
 	askBuilder, err = NewPsbtBuilder(netParams, psbtRaw)
 	if err != nil {
@@ -983,7 +1083,7 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 	}
 
 	//find dummy utxo
-	utxoDummyList, err = GetUnoccupiedUtxoList(1, models.UtxoTypeDummy600)
+	utxoDummyList, err = GetUnoccupiedUtxoList(chain, 1, models.UtxoTypeDummy600)
 	defer ReleaseUtxoList(utxoDummyList)
 	if err != nil {
 		return "", feeAmountForPlatform, err
@@ -998,7 +1098,7 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 
 		askPreOutList[i].PreviousOutPoint = *wire.NewOutPoint(dummyTxHash, uint32(dummy.Index))
 		dummyOutValue = dummyOutValue + dummy.Amount
-		dummyPkScript, err := AddressToPkScript(net, platformAddressDummyAsk)
+		dummyPkScript, err := AddressToPkScript(net, chain, platformAddressDummyAsk)
 		if err != nil {
 			return "", 0, err
 		}
@@ -1007,7 +1107,31 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 			return "", 0, err
 		}
 
-		askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
+		//check dummy address
+		isLegacy, err := CheckLegacyAddressType(net, chain, dummy.Address)
+		if err != nil {
+			return "", 0, err
+		}
+		if isLegacy {
+			tx := wire.NewMsgTx(2)
+			outRaw, err := FetchTxHex(chain, dummy.TxId)
+			if err != nil {
+				return "", 0, err
+			}
+			nonWitnessUtxoHex, err := hex.DecodeString(outRaw)
+			if err != nil {
+				return "", 0, err
+			}
+			err = tx.Deserialize(bytes.NewReader(nonWitnessUtxoHex))
+			if err != nil {
+				return "", 0, err
+			}
+			askUpsbtList[i].NonWitnessUtxo = tx
+		} else {
+			askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
+		}
+
+		// askUpsbtList[i].WitnessUtxo = wire.NewTxOut(int64(dummy.Amount), dummyPkScriptBytes)
 		//signAll
 		askUpsbtList[i].SighashType = txscript.SigHashAll
 	}
@@ -1016,14 +1140,14 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 
 	outputs := make([]Output, 0)
 	// add buyer receive brc20 output: 0
-	isTaproot, err := CheckTaprootAddressType(net, buyerAddress)
+	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	if preOutValue < 546 && !isTaproot {
-		preOutValue = 546
+	if preOutValue < preOutValueLimit && !isTaproot {
+		preOutValue = preOutValueLimit
 	}
-	buyerAddressPkScript, err := AddressToPkScript(net, buyerAddress)
+	buyerAddressPkScript, err := AddressToPkScript(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
 	}
@@ -1041,7 +1165,7 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, orderId, psbtRaw string, preOutValu
 	}
 	outputs = append(outputs, dummyOut600)
 
-	if feeAmountForPlatform >= 546 {
+	if feeAmountForPlatform >= feeAmountForPlatformLimit {
 		// add fee output: 3
 		feeOut := Output{
 			Address: platformAddressReceiveFee,

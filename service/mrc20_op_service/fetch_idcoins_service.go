@@ -1,13 +1,14 @@
 package mrc20_op_service
 
 import (
-	"github.com/shopspring/decimal"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/orders_exchange_service"
 	"strconv"
+
+	"github.com/shopspring/decimal"
 )
 
 func FetchIdCoinsOpOrders(req *request.FetchIdCoinsOpOrdersRequest, publicKey, ip string) (*respond.FetchIdCoinsOpOrdersResp, error) {
@@ -257,6 +258,7 @@ func fetchOneIdCoinsInfoFromOrders(req *request.FetchOneIdCoinsRequest, publicKe
 
 	marketInfo, _ := models.MarketMrc20InfoModelDao().GetOne(&models.MarketMrc20InfoModel{
 		TickId: respOrders.Mrc20Id,
+		Chain:  "btc",
 	})
 	price := "0"
 	priceUsd := "0.00"

@@ -5,10 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
@@ -19,11 +15,17 @@ import (
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
+
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*respond.Mrc20MintPreResp, error) {
 	var (
 		orderId   string = ""
+		chain     string = "btc"
 		mintOrder *models.Mrc20MintOrderModel
 		err       error
 		address   string = req.OutAddress
@@ -113,12 +115,12 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			Address:         pin.Address,
 			PkScript:        pin.PkScript,
 		}
-		addressClass, err := common.CheckAddressClass(common.GetNetParams(conf.Net), pin.Address)
+		addressClass, err := common.CheckAddressClass(common.GetNetParams(conf.Net, chain), pin.Address)
 		if err != nil {
 			return nil, err
 		}
 		if addressClass == txscript.PubKeyHashTy {
-			mintPin.OutRaw, err = common.FetchTxHex(pin.PinUtxoTxId)
+			mintPin.OutRaw, err = common.FetchTxHex(chain, pin.PinUtxoTxId)
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +134,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	payload = fmt.Sprintf(`{"id":"%s", "vout":"%d"}`, tickId, revealInputIndex+1)
 	mintPinsStr = strings.Trim(mintPinsStr, ",")
 	mrc20OpRequest = &mrc20_service.Mrc20OpRequest{
-		Net:                 common.GetNetParams(conf.Net),
+		Net:                 common.GetNetParams(conf.Net, chain),
 		MetaIdFlag:          common.GetMetaIdFlag(),
 		Op:                  "mint",
 		OpPayload:           payload,
@@ -153,7 +155,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	if err != nil {
 		return nil, err
 	}
-	revealAddress, err = common.PkScriptToAddress(conf.Net, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
+	revealAddress, err = common.PkScriptToAddress(conf.Net, chain, hex.EncodeToString(mrc20Builder.TxCtxData.CommitTxAddressPkScript))
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +178,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	}
 	if mintOrder == nil {
 		mintOrder = &models.Mrc20MintOrderModel{
+			Chain:               chain,
 			OrderId:             orderId,
 			InscribeState:       models.InscribeStatePending,
 			TickId:              tickId,
@@ -249,6 +252,7 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 		revealTxRaw  string = ""
 		prePsbtRaw   string = req.RevealPrePsbtRaw
 		finalPsbtRaw string = ""
+		chain        string = ""
 
 		address string = ""
 
@@ -281,6 +285,7 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 	if mintOrder.InscribeState != models.InscribeStatePending {
 		return nil, errors.New("mint order state error")
 	}
+	chain = mintOrder.Chain
 	txRawByte, _ = hex.DecodeString(commitTxRaw)
 	err = commitTx.Deserialize(bytes.NewReader(txRawByte))
 	if err != nil {
@@ -292,17 +297,17 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 	}
 
 	txIn := commitTx.TxIn[0]
-	utxoInfo := common.GetUtxoInfo(conf.Net, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	if utxoInfo == nil {
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
 	address = utxoInfo.Address
 
-	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net), prePsbtRaw)
+	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
 	if err != nil {
 		return nil, err
 	}
-	pkScript, err = common.AddressToPkScript(conf.Net, mintOrder.RevealTxAddress)
+	pkScript, err = common.AddressToPkScript(conf.Net, chain, mintOrder.RevealTxAddress)
 	taprootInSigner = &common.InputSign{
 		UtxoType: common.Taproot,
 		Index:    int(mintOrder.RevealInputIndex),
@@ -350,7 +355,11 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 		return nil, err
 	}
 
-	err = models.Mrc20MintOrderModelDao().UpdateEntityListForInscribing(mintOrder, []string{commitTxRaw, revealTxRaw}, common.BroadcastTx)
+	err = models.Mrc20MintOrderModelDao().UpdateEntityListForInscribing(
+		chain,
+		mintOrder,
+		[]string{commitTxRaw, revealTxRaw},
+		common.BroadcastTx)
 	if err != nil {
 		return nil, err
 	}

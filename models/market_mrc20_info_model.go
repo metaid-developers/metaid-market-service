@@ -8,6 +8,15 @@ import (
 	"sync"
 )
 
+// AutoStatus is the auto-bridge status historically written by the retired
+// orders.exchange integration; kept for the tb_market_mrc20_info column.
+type AutoStatus int64
+
+const (
+	AutoStatusCreate AutoStatus = 1
+	AutoStatusFinish AutoStatus = 2
+)
+
 type MarketMrc20InfoModel struct {
 	Id          int64      `gorm:"column:id" json:"id"`
 	TickId      string     `gorm:"column:tickId" json:"tickId"`

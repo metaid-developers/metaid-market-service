@@ -7,6 +7,7 @@ type FetchMrc20TickListReq struct {
 	OrderBy    string `json:"order"`
 	SortType   int    `json:"sortType"`
 	SearchTick string `json:"searchTick"`
+	Tag        string `json:"tag"` //"id-coins" lists only the fixed id-coin snapshot
 }
 
 type FetchMrc20TickInfoReq struct {
@@ -26,15 +27,18 @@ type Mrc20AddressUtxosReq struct {
 	TickId  string `json:"tickId"`
 	Cursor  int64  `json:"cursor"`
 	Size    int64  `json:"size"`
+	Source  string `json:"source"`
 }
 
 type Mrc20AddressBalancesReq struct {
 	Address string `json:"address"`
 	Cursor  int64  `json:"cursor"`
 	Size    int64  `json:"size"`
+	Source  string `json:"source"`
 }
 
 type BroadcastTxReq struct {
+	Chain string `json:"chain"`
 	TxHex string `json:"txHex"`
 }
 
@@ -52,6 +56,7 @@ type Mrc20IdCoinsAddressUtxosReq struct {
 	Address string `json:"address"`
 	Cursor  int64  `json:"cursor"`
 	Size    int64  `json:"size"`
+	Source  string `json:"source"`
 }
 
 type Mrc20TickHoldersRequest struct {

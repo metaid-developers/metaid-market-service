@@ -34,10 +34,11 @@ func jobForCheckValidMrc20OrdersValid() {
 			fmt.Printf("[JOB][%s][%s] UtxoId is empty\n", jobName, entity.OrderId)
 			continue
 		}
+		chain := entity.Chain
 		utxoIdStrs := strings.Split(entity.UtxoId, "_")
 		txId := utxoIdStrs[0]
 		vout, _ := strconv.ParseInt(utxoIdStrs[1], 10, 64)
-		utxoInfo := common.GetUtxoInfo(conf.Net, txId, vout)
+		utxoInfo := common.GetUtxoInfo(conf.Net, chain, txId, vout)
 		if utxoInfo == nil {
 			fmt.Printf("[JOB][%s][%s] GetUtxoInfo error\n", jobName, entity.OrderId)
 			continue
@@ -75,10 +76,11 @@ func jobForCheckValidOrdersValid() {
 			fmt.Printf("[JOB][%s][%s] UtxoId is empty\n", jobName, entity.OrderId)
 			continue
 		}
+		chain := entity.Chain
 		utxoIdStrs := strings.Split(entity.UtxoId, "_")
 		txId := utxoIdStrs[0]
 		vout, _ := strconv.ParseInt(utxoIdStrs[1], 10, 64)
-		utxoInfo := common.GetUtxoInfo(conf.Net, txId, vout)
+		utxoInfo := common.GetUtxoInfo(conf.Net, chain, txId, vout)
 		if utxoInfo == nil {
 			fmt.Printf("[JOB][%s][%s] GetUtxoInfo error\n", jobName, entity.OrderId)
 			continue

@@ -78,6 +78,7 @@ type PinInfo struct {
 	Content            string `json:"content"`
 	Pop                string `json:"pop"`
 	PopLv              int    `json:"popLv"`
+	ChainName          string `json:"chainName"`
 }
 
 type MetaIDUserInfo struct {

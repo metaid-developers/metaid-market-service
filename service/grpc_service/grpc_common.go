@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc"
 	"metaid-market-service/conf"
 	"metaid-market-service/protobuf/common_service"
 	"time"
+
+	"google.golang.org/grpc"
 )
 
 type AssetBaseConn struct {
@@ -36,11 +37,12 @@ func (c *AssetBaseConn) dial(addr string) error {
 	c.clientConn, err = grpc.DialContext(ctx, addr, grpc.WithInsecure())
 	if err != nil {
 		fmt.Printf("dial rpc error:%s", err.Error())
+		return err
 	}
 	return nil
 }
 
-func (c *AssetBaseConn) FetchCommonCoinPrice() (*common_service.CommonCoinPriceResp, error) {
+func (c *AssetBaseConn) FetchCommonCoinPrice(coin string) (*common_service.CommonCoinPriceResp, error) {
 	//t := tool.MakeTimestamp()
 	client := common_service.NewCommonServiceClient(c.clientConn)
 	if client == nil {
@@ -48,7 +50,7 @@ func (c *AssetBaseConn) FetchCommonCoinPrice() (*common_service.CommonCoinPriceR
 	}
 
 	req := &common_service.CommonCoinPriceReq{
-		Coin: "BTC",
+		Coin: coin,
 	}
 	resp, err := client.FetchCommonCoinPrice(context.Background(), req)
 	if err != nil {

@@ -3,6 +3,7 @@ package request
 import "metaid-market-service/models"
 
 type RegisterMetaNamePreRequest struct {
+	Chain          string `json:"chain"`
 	MetaName       string `json:"metaName"`
 	Address        string `json:"address"`
 	NetworkFeeRate int64  `json:"networkFeeRate"`

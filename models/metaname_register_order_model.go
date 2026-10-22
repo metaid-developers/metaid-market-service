@@ -2,10 +2,11 @@ package models
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"metaid-market-service/major"
 	"metaid-market-service/tool"
 	"sync"
+
+	"gorm.io/gorm"
 )
 
 type MetanameRegisterOrderModel struct {
@@ -143,7 +144,7 @@ func (_ *metanameRegisterOrderModelDao) Update(q *MetanameRegisterOrderModel) er
 	return nil
 }
 
-func (_ *metanameRegisterOrderModelDao) SaveEntityForInscribing(model *MetanameRegisterOrderModel, txRawList []string, jobFunc func(txRaw string) (string, error)) error {
+func (_ *metanameRegisterOrderModelDao) SaveEntityForInscribing(chain string, model *MetanameRegisterOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		if model == nil {
 			return errors.New("model is nil")
@@ -165,7 +166,7 @@ func (_ *metanameRegisterOrderModelDao) SaveEntityForInscribing(model *MetanameR
 		}
 
 		for _, txRaw := range txRawList {
-			_, err := jobFunc(txRaw)
+			_, err := jobFunc(chain, txRaw)
 			if err != nil {
 				return err
 			}

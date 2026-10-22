@@ -1,8 +1,12 @@
 package request
 
-import "metaid-market-service/models"
+import (
+	"metaid-market-service/common"
+	"metaid-market-service/models"
+)
 
 type ColdDownDummyUtxoRequest struct {
+	Chain         string          `json:"chain"`
 	UtxoType      models.UtxoType `json:"utxoType"`
 	TxId          string          `json:"txId"`
 	Index         int64           `json:"index"`
@@ -14,12 +18,5 @@ type ColdDownDummyUtxoRequest struct {
 	Count         int64           `json:"count"`
 	ChangeAddress string          `json:"changeAddress"`
 	FeeRate       int64           `json:"feeRate"`
-}
-
-type AddAutoCreateBridgeRequest struct {
-	TickId string `json:"tickId"`
-}
-
-type FetchAutoCreateBridgeInfoRequest struct {
-	TickId string `json:"tickId"`
+	SignMode      common.SignMode `json:"signMode"`
 }

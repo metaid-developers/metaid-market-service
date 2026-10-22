@@ -57,6 +57,7 @@ func FetchMrc20OrderPsbt(c *gin.Context) {
 			OrderId:           c.DefaultQuery("orderId", ""),
 			BuyerAddress:      c.DefaultQuery("buyerAddress", ""),
 			BuyerChangeAmount: 0,
+			Chain:             c.DefaultQuery("chain", ""),
 		}
 	)
 	req.BuyerChangeAmount, _ = strconv.ParseUint(buyerChangeAmountStr, 10, 64)

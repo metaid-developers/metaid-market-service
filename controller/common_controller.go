@@ -2,13 +2,15 @@ package controller
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/tool"
 	"net/http"
 	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // @Summary Fetch mrc20 tick info
@@ -43,6 +45,7 @@ func FetchMrc20TickInfo(c *gin.Context) {
 // @Param address query string true "address"
 // @Param cursor query int false "cursor"
 // @Param size query int false "size：max=50"
+// @Param source query string false "source（如 mrc20-v2）"
 // @Success 200 {object} respond.Mrc20BalanceInfoResp ""
 // @Router /api/v1/common/mrc20/address/balance-list [get]
 func FetchMrc20TickAddressBalances(c *gin.Context) {
@@ -52,6 +55,7 @@ func FetchMrc20TickAddressBalances(c *gin.Context) {
 			Address: c.DefaultQuery("address", ""),
 			Cursor:  0,
 			Size:    0,
+			Source:  c.DefaultQuery("source", ""),
 		}
 	)
 	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
@@ -73,6 +77,7 @@ func FetchMrc20TickAddressBalances(c *gin.Context) {
 // @Param tickId query string true "tickId"
 // @Param cursor query int false "cursor"
 // @Param size query int false "size：max=50"
+// @Param source query string false "source（如 mrc20-v2）"
 // @Success 200 {object} respond.Mrc20UtxoResp ""
 // @Router /api/v1/common/mrc20/address/utxo [get]
 func FetchMrc20AddressUtxoList(c *gin.Context) {
@@ -83,6 +88,7 @@ func FetchMrc20AddressUtxoList(c *gin.Context) {
 			Address: c.DefaultQuery("address", ""),
 			Cursor:  0,
 			Size:    0,
+			Source:  c.DefaultQuery("source", ""),
 		}
 	)
 	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
@@ -210,6 +216,7 @@ func FetchMrc20TickList(c *gin.Context) {
 			Completed:  "",
 			OrderBy:    c.DefaultQuery("orderBy", "txcount"),
 			SearchTick: c.DefaultQuery("searchTick", ""),
+			Tag:        c.DefaultQuery("tag", ""),
 		}
 	)
 	req.SortType, _ = strconv.Atoi(c.DefaultQuery("sortType", "-1"))
@@ -217,6 +224,31 @@ func FetchMrc20TickList(c *gin.Context) {
 	req.Cursor, _ = strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
 	req.Size, _ = strconv.ParseInt(c.DefaultQuery("size", "10"), 10, 64)
 	responseModel, err := common_service.FetchMrc20TickList(req)
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(responseModel, tool.MakeTimestamp()-t))
+	return
+}
+
+// @Summary Fetch raw tx hex
+// @Description Fetch raw tx hex by txId
+// @Produce  json
+// @Tags Common
+// @Param txId query string true "txId"
+// @Success 200 {object} respond.FetchRawTxResp ""
+// @Router /api/v1/common/tx/raw [get]
+func FetchRawTx(c *gin.Context) {
+	var (
+		t    int64  = tool.MakeTimestamp()
+		txId string = c.DefaultQuery("txId", "")
+	)
+	if txId == "" {
+		c.JSONP(http.StatusOK, respond.RespErr(errors.New("txId is empty"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	responseModel, err := common_service.FetchRawTx(txId)
 	if err != nil {
 		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
 		return
@@ -338,16 +370,18 @@ func FetchFeeRecommended(c *gin.Context) {
 }
 
 // @Summary Fetch coin price
-// @Description Fetch coin price
+// @Description Fetch coin price, 统一返回 BitcoinPrice 格式（USD 为重点）
 // @Produce  json
 // @Tags Common
-// @Success 200 {object} respond.FeeRecommended ""
+// @Param coin query string false "coin，默认 btc"
+// @Success 200 {object} common_service.BitcoinPrice ""
 // @Router /api/v1/common/coin/price [get]
 func FetchCoinPrice(c *gin.Context) {
 	var (
-		t int64 = tool.MakeTimestamp()
+		t    int64 = tool.MakeTimestamp()
+		coin       = strings.ToLower(c.DefaultQuery("coin", "btc"))
 	)
-	responseModel, err := common_service.GetPriceFormMempoolSpace()
+	responseModel, err := common_service.FetchCoinPrice(coin)
 	if err != nil {
 		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
 		return

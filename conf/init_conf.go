@@ -2,6 +2,7 @@ package conf
 
 import (
 	"fmt"
+
 	"github.com/spf13/viper"
 )
 
@@ -14,15 +15,15 @@ var (
 	RdsMaxOpenConns int    = 0
 	RdsMaxIgleConns int    = 0
 
-	ManDomain            = ""
-	ManBaseDomain        = ""
-	OwnDomain            = ""
-	WalletDomain         = ""
-	OrdersExchangeDomain = ""
-	OrdersExchangeKey    = ""
-	TicketFansDomain     = ""
-	MvcscanDamain        = ""
-	MempoolSpace         = ""
+	ManDomain           = ""
+	ManBaseDomain       = ""
+	OwnDomain           = ""
+	WalletDomain        = ""
+	IdCoinServiceDomain = ""
+	IdCoinServiceKey    = ""
+	TicketFansDomain    = ""
+	MvcscanDamain       = ""
+	MempoolSpace        = ""
 
 	ZmqRawTxUrl = ""
 
@@ -30,9 +31,9 @@ var (
 	RedisPassword     = ""
 	RedisDbUtxo   int = 1
 
-	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk     = "", ""
-	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee = "", ""
-	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg     = "", ""
+	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk, PlatformDogeAddressDummyAsk       = "", "", ""
+	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee, PlatformDogeAddressReceiveFee = "", "", ""
+	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg                                    = "", ""
 
 	PlatformServiceFeeConfigData *ServiceFeeConfig = &ServiceFeeConfig{}
 
@@ -52,17 +53,20 @@ var (
 )
 
 type ServiceFeeConfig struct {
-	ServiceAddress    string `json:"service_address"`
-	PinTradeFee       int64  `json:"pin_trade_fee"`
-	PinTradeFeeRate   int64  `json:"pin_trade_fee_rate"`
-	PinTradeFeeMin    int64  `json:"pin_trade_fee_min"`
-	Mrc20TradeFee     int64  `json:"mrc20_trade_fee"`
-	Mrc20TradeFeeRate int64  `json:"mrc20_trade_fee_rate"`
-	Mrc20TradeFeeMin  int64  `json:"mrc20_trade_fee_min"`
-	DeployFee         int64  `json:"deploy_fee"`
-	MintFee           int64  `json:"mint_fee"`
-	TransferFee       int64  `json:"transfer_fee"`
-	MetaIdInscribeFee int64  `json:"meta_id_inscribe_fee"`
+	ServiceAddress       string `json:"service_address"`
+	DogeServiceAddress   string `json:"doge_service_address"`
+	PinTradeFee          int64  `json:"pin_trade_fee"`
+	PinTradeFeeRate      int64  `json:"pin_trade_fee_rate"`
+	PinTradeFeeMin       int64  `json:"pin_trade_fee_min"`
+	PinTradeFeeMinDoge   int64  `json:"pin_trade_fee_min_doge"`
+	Mrc20TradeFee        int64  `json:"mrc20_trade_fee"`
+	Mrc20TradeFeeRate    int64  `json:"mrc20_trade_fee_rate"`
+	Mrc20TradeFeeMin     int64  `json:"mrc20_trade_fee_min"`
+	Mrc20TradeFeeMinDoge int64  `json:"mrc20_trade_fee_min_doge"`
+	DeployFee            int64  `json:"deploy_fee"`
+	MintFee              int64  `json:"mint_fee"`
+	TransferFee          int64  `json:"transfer_fee"`
+	MetaIdInscribeFee    int64  `json:"meta_id_inscribe_fee"`
 }
 
 type AutoBridgeRuleConfig struct {
@@ -87,8 +91,8 @@ func InitConfig() {
 	ManBaseDomain = viper.GetString("man.base")
 	OwnDomain = viper.GetString("own.domain")
 	WalletDomain = viper.GetString("wallet_node.domain")
-	OrdersExchangeDomain = viper.GetString("orders_exchange.domain")
-	OrdersExchangeKey = viper.GetString("orders_exchange.key")
+	IdCoinServiceDomain = viper.GetString("orders_exchange.domain")
+	IdCoinServiceKey = viper.GetString("orders_exchange.key")
 	TicketFansDomain = viper.GetString("ticket_fans.domain")
 	MvcscanDamain = viper.GetString("mvcscan.domain")
 	MempoolSpace = viper.GetString("mempool_space.domain")
@@ -98,8 +102,8 @@ func InitConfig() {
 
 	ZmqRawTxUrl = viper.GetString("zmq.btc.rawtx_url")
 
-	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk = viper.GetString("platform.dummy.private_key"), viper.GetString("platform.dummy.address")
-	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee = viper.GetString("platform.receive_fee.private_key"), viper.GetString("platform.receive_fee.address")
+	PlatformPrivateKeyDummyAsk, PlatformAddressDummyAsk, PlatformDogeAddressDummyAsk = viper.GetString("platform.dummy.private_key"), viper.GetString("platform.dummy.address"), viper.GetString("platform.dummy.doge_address")
+	PlatformPrivateKeyReceiveFee, PlatformAddressReceiveFee, PlatformDogeAddressReceiveFee = viper.GetString("platform.receive_fee.private_key"), viper.GetString("platform.receive_fee.address"), viper.GetString("platform.receive_fee.doge_address")
 	PlatformPrivateKeySignMsg, PlatformPublicKeySignMsg = viper.GetString("platform.sign_msg.private_key"), viper.GetString("platform.sign_msg.public_key")
 
 	IdCoinsSignPublicKey = viper.GetString("idcoins.public_key")
@@ -113,16 +117,18 @@ func InitConfig() {
 	GrpcAssetBaseAddress = viper.GetString("grpc.asset_base.address")
 
 	PlatformServiceFeeConfigData = &ServiceFeeConfig{
-		ServiceAddress:    viper.GetString("platform.service_fee.service_address"),
-		PinTradeFee:       viper.GetInt64("platform.service_fee.pin_trade_fee"),
-		PinTradeFeeRate:   viper.GetInt64("platform.service_fee.pin_trade_fee_rate"),
-		PinTradeFeeMin:    viper.GetInt64("platform.service_fee.pin_trade_fee_min"),
-		Mrc20TradeFee:     viper.GetInt64("platform.service_fee.mrc20_trade_fee"),
-		Mrc20TradeFeeRate: viper.GetInt64("platform.service_fee.mrc20_trade_fee_rate"),
-		Mrc20TradeFeeMin:  viper.GetInt64("platform.service_fee.mrc20_trade_fee_min"),
-		DeployFee:         viper.GetInt64("platform.service_fee.deploy_fee"),
-		MintFee:           viper.GetInt64("platform.service_fee.mint_fee"),
-		TransferFee:       viper.GetInt64("platform.service_fee.transfer_fee"),
+		ServiceAddress:       viper.GetString("platform.service_fee.service_address"),
+		PinTradeFee:          viper.GetInt64("platform.service_fee.pin_trade_fee"),
+		PinTradeFeeRate:      viper.GetInt64("platform.service_fee.pin_trade_fee_rate"),
+		PinTradeFeeMin:       viper.GetInt64("platform.service_fee.pin_trade_fee_min"),
+		PinTradeFeeMinDoge:   viper.GetInt64("platform.service_fee.pin_trade_fee_min_doge"),
+		Mrc20TradeFee:        viper.GetInt64("platform.service_fee.mrc20_trade_fee"),
+		Mrc20TradeFeeRate:    viper.GetInt64("platform.service_fee.mrc20_trade_fee_rate"),
+		Mrc20TradeFeeMin:     viper.GetInt64("platform.service_fee.mrc20_trade_fee_min"),
+		Mrc20TradeFeeMinDoge: viper.GetInt64("platform.service_fee.mrc20_trade_fee_min_doge"),
+		DeployFee:            viper.GetInt64("platform.service_fee.deploy_fee"),
+		MintFee:              viper.GetInt64("platform.service_fee.mint_fee"),
+		TransferFee:          viper.GetInt64("platform.service_fee.transfer_fee"),
 	}
 
 	AutoBridgeRuleConfigData = &AutoBridgeRuleConfig{
