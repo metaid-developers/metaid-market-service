@@ -3,6 +3,7 @@ package common_service
 import (
 	"errors"
 	"fmt"
+	"math"
 	"metaid-market-service/models"
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/tool"
@@ -119,10 +120,14 @@ func CalMarketPrice(marketInfo *models.MarketMrc20InfoModel) (string, error) {
 	})
 	if len(orderList) > 0 {
 		for _, v := range orderList {
-			amountStr := strconv.FormatInt(v.Amount, 10)
-			amountF, _ := strconv.ParseFloat(amountStr, 64)
+			// 成交量用人类可读数量（AmountStr），旧数据缺失时按 decimals 从最小单位换算
+			amountF, err := strconv.ParseFloat(v.AmountStr, 64)
+			if err != nil || amountF <= 0 {
+				amountF = float64(v.Amount) / math.Pow10(int(marketInfo.Decimals))
+			}
 
-			timestamp := time.Unix(v.Timestamp, 0)
+			// DealTime 是毫秒时间戳（与 24h 查询窗口同一时钟），不能用 time.Unix 按秒解析
+			timestamp := time.UnixMilli(v.DealTime)
 			transactionList = append(transactionList, Transaction{
 				Price:     v.TokenPriceRate,
 				Amount:    amountF,

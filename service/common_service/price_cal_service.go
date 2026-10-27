@@ -26,11 +26,17 @@ func CalculateCurrentPrice(p PriceParams) (float64, error) {
 		return p.FloorPrice, nil
 	}
 
+	// 地板价缺失（无活跃挂单）时以成交价中位数为锚，避免以 0 为锚算出异常价格
+	if p.FloorPrice <= 0 {
+		return medianTransactionPrice(p.Transactions), nil
+	}
+
 	// 步骤1：计算24小时交易量权重
 	volume24h := calculate24hVolume(p.Transactions)
 	volumeWeight := volume24h / 10 // 假设10为基准交易量
-	if volumeWeight > 1 {
-		volumeWeight = 1
+	// 地板价始终占主导，最新成交价最多影响 30%，防止单笔高价成交拉高显示价
+	if volumeWeight > 0.3 {
+		volumeWeight = 0.3
 	}
 
 	// 交易少于3笔时，降低权重系数，防止单笔交易操纵价格
@@ -57,9 +63,9 @@ func CalculateCurrentPrice(p PriceParams) (float64, error) {
 	}
 
 	// 价格上限保护：增加最大涨幅限制，防止价格过度飙升
-	// 如果计算的价格超过地板价的10倍，则将其限制在地板价的10倍以内
-	if currentPrice > p.FloorPrice*10 {
-		currentPrice = p.FloorPrice * 10
+	// 如果计算的价格超过地板价的3倍，则将其限制在地板价的3倍以内
+	if currentPrice > p.FloorPrice*3 {
+		currentPrice = p.FloorPrice * 3
 	}
 
 	return currentPrice, nil
@@ -133,6 +139,21 @@ func enhancedFilterOutliers(latest float64, txs []Transaction, floorPrice float6
 		return medianPrice
 	}
 	return latest
+}
+
+// medianTransactionPrice 返回成交价中位数，用于地板价缺失时兜底
+func medianTransactionPrice(txs []Transaction) float64 {
+	prices := make([]float64, 0, len(txs))
+	for _, tx := range txs {
+		if tx.Price > 0 {
+			prices = append(prices, tx.Price)
+		}
+	}
+	if len(prices) == 0 {
+		return 0
+	}
+	sort.Float64s(prices)
+	return median(prices)
 }
 
 // median 计算中位数
