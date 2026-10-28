@@ -736,6 +736,11 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 			sortType = "desc"
 		}
 	}
+	// finished orders are trade history: the default "timestamp" (listing time) must order by deal time,
+	// otherwise records display dealTime while being sorted by when the sell order was pushed
+	if req.OrderState == models.OrderStateFinish && sortKey == "timestamp" {
+		sortKey = "dealTime"
+	}
 	if req.Size <= 0 || req.Size >= 50 {
 		req.Size = 50
 	}

@@ -220,7 +220,7 @@ func (_ *marketMrc20OrderModelDao) GetListByState(qo *MarketMrc20OrderModel, add
 			filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
 		}
 	}
-	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", sortKey, sortType)).Find(&models)
+	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s, id %s", sortKey, sortType, sortType)).Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
