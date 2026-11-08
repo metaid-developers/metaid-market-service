@@ -519,6 +519,53 @@ func IsBtcUtxoSpentByMempool(chain, txId string, txIndex int64) bool {
 	return strings.Contains(body, "\"spent\":true")
 }
 
+// CheckUtxoSpendWithMempool validates a utxo with asset-base but lets
+// mempool.space decide for btc: the indexer misses unconfirmed change utxos
+// and has spend-flag gaps, which wrongly blocked buyers at take
+// ("PSBT(take): Utxo is spend" reports, 2026-11-09). Returns the utxo's
+// owner address when the indexer knows it ("" otherwise) and whether the
+// utxo must be treated as spent; doge keeps the indexer-only verdict.
+func CheckUtxoSpendWithMempool(net, chain, txId string, txIndex int64) (bool, string) {
+	utxoInfo := GetUtxoInfo(net, chain, txId, txIndex)
+	address := ""
+	if utxoInfo != nil {
+		address = utxoInfo.Address
+	}
+	if chain == "doge" {
+		return utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend", address
+	}
+	return IsBtcUtxoSpentByMempool(chain, txId, txIndex), address
+}
+
+// AddressFromPsbtInput derives the input owner address from the psbt's
+// witness utxo, falling back to the non-witness utxo for legacy inputs; used
+// when the indexer has no record of the utxo.
+func AddressFromPsbtInput(net, chain string, builder *PsbtBuilder, inputIndex int) string {
+	if builder == nil || builder.PsbtUpdater == nil || inputIndex >= len(builder.PsbtUpdater.Upsbt.Inputs) {
+		return ""
+	}
+	pInput := builder.PsbtUpdater.Upsbt.Inputs[inputIndex]
+	var pkScript []byte
+	if pInput.WitnessUtxo != nil {
+		pkScript = pInput.WitnessUtxo.PkScript
+	} else if pInput.NonWitnessUtxo != nil {
+		//legacy input carries the full previous tx; the input's previous
+		//outpoint index selects the output of that tx
+		prevIdx := builder.PsbtUpdater.Upsbt.UnsignedTx.TxIn[inputIndex].PreviousOutPoint.Index
+		if int(prevIdx) < len(pInput.NonWitnessUtxo.TxOut) {
+			pkScript = pInput.NonWitnessUtxo.TxOut[prevIdx].PkScript
+		}
+	}
+	if pkScript == nil {
+		return ""
+	}
+	address, err := PkScriptToAddress(net, chain, hex.EncodeToString(pkScript))
+	if err != nil {
+		return ""
+	}
+	return address
+}
+
 func GetSegwitAddressFromPublicKey(netParams *chaincfg.Params, publicKeyHex string) (string, error) {
 	publicKeyBytes, err := hex.DecodeString(publicKeyHex)
 	if err != nil {

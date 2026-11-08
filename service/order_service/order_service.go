@@ -451,11 +451,14 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	buyerInput := takerAskPsbtBuilder.GetInputs()[4]
 	buyerInputTxId := buyerInput.PreviousOutPoint.Hash.String()
 	buyerInputIndex := buyerInput.PreviousOutPoint.Index
-	utxoInfo := common.GetUtxoInfo(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
-	if utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+	spent, utxoAddress := common.CheckUtxoSpendWithMempool(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
+	if spent {
 		return nil, errors.New(fmt.Sprintf("PSBT(take): Utxo is spend. Please select a different utxo. [%s_%d]", buyerInputTxId, int64(buyerInputIndex)))
 	}
-	buyerAddress = utxoInfo.Address
+	buyerAddress = utxoAddress
+	if buyerAddress == "" {
+		buyerAddress = common.AddressFromPsbtInput(conf.Net, chain, takerAskPsbtBuilder, 4)
+	}
 
 	for _, entity := range entityList {
 		entity.FinalPsbt = finalAskPsbtRaw
@@ -800,18 +803,19 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New(fmt.Sprintf("sell Utxo not found. [%s]", entity.UtxoId))
 	}
 	if !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
-		//Cancel only when a second on-chain source confirms the spend; the
-		//asset-base indexer has gaps and flags unspent utxos as spent/missing.
-		if utxoInfo.SpendStatus != "spend" || (chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, sellUtxoTxId, sellUtxoIndex)) {
-			return nil, errors.New(fmt.Sprintf("sell Utxo state is validating, please retry later. [%s]", entity.UtxoId))
+		//Let mempool.space decide for btc: the asset-base indexer has gaps and
+		//flags unspent utxos as spent/missing, which blocked valid purchases.
+		//Cancel only when the spend is confirmed by the second source.
+		spent, _ := common.CheckUtxoSpendWithMempool(conf.Net, chain, sellUtxoTxId, sellUtxoIndex)
+		if spent {
+			entity.OrderState = models.OrderStateCancel
+			err := models.MarketOrderModelDao().Update(entity)
+			if err != nil {
+				fmt.Printf("[%s] UpdateEntityForConfirm error: %v\n", entity.OrderId, err)
+				return nil, err
+			}
+			return nil, errors.New(fmt.Sprintf("sell Utxo is spend. Please select a different order. [%s]", entity.UtxoId))
 		}
-		entity.OrderState = models.OrderStateCancel
-		err := models.MarketOrderModelDao().Update(entity)
-		if err != nil {
-			fmt.Printf("[%s] UpdateEntityForConfirm error: %v\n", entity.OrderId, err)
-			return nil, err
-		}
-		return nil, errors.New(fmt.Sprintf("sell Utxo is spend. Please select a different order. [%s]", entity.UtxoId))
 	}
 
 	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, entity.SellerAddress)
@@ -1027,11 +1031,14 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	buyerInput := takerAskPsbtBuilder.GetInputs()[4]
 	buyerInputTxId := buyerInput.PreviousOutPoint.Hash.String()
 	buyerInputIndex := buyerInput.PreviousOutPoint.Index
-	utxoInfo := common.GetUtxoInfo(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
-	if utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+	spent, utxoAddress := common.CheckUtxoSpendWithMempool(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
+	if spent {
 		return nil, errors.New(fmt.Sprintf("PSBT(take): Utxo is spend. Please select a different utxo. [%s_%d]", buyerInputTxId, int64(buyerInputIndex)))
 	}
-	buyerAddress = utxoInfo.Address
+	buyerAddress = utxoAddress
+	if buyerAddress == "" {
+		buyerAddress = common.AddressFromPsbtInput(conf.Net, chain, takerAskPsbtBuilder, 4)
+	}
 	entity.BuyerAddress = buyerAddress
 	entity.BuyerIp = ip
 	entity.OrderState = models.OrderStateFinish
