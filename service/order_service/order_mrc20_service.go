@@ -333,6 +333,12 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		return nil, errors.New("Order is closed. ")
 	}
 
+	//Buyer requests may omit the chain param; fall back to the order's own chain
+	//so dummy-utxo selection reads the same tag the take flow writes back to.
+	if chain == "" {
+		chain = entity.Chain
+	}
+
 	if chain != "" && entity.Chain != chain {
 		return nil, errors.New(fmt.Sprintf("Chain not match. %s != %s", entity.Chain, chain))
 	}
@@ -366,6 +372,11 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		return nil, errors.New(fmt.Sprintf("sell Utxo not found. [%s]", entity.UtxoId))
 	}
 	if !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+		//Cancel only when a second on-chain source confirms the spend; the
+		//asset-base indexer has gaps and flags unspent utxos as spent/missing.
+		if utxoInfo.SpendStatus != "spend" || (chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, sellUtxoTxId, sellUtxoIndex)) {
+			return nil, errors.New(fmt.Sprintf("sell Utxo state is validating, please retry later. [%s]", entity.UtxoId))
+		}
 		entity.OrderState = models.OrderStateCancel
 		err := models.MarketMrc20OrderModelDao().Update(entity)
 		if err != nil {

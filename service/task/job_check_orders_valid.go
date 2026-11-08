@@ -43,7 +43,18 @@ func jobForCheckValidMrc20OrdersValid() {
 			fmt.Printf("[JOB][%s][%s] GetUtxoInfo error\n", jobName, entity.OrderId)
 			continue
 		}
-		if !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+		if !utxoInfo.IsExist {
+			//A confirmed listing utxo only disappears by being spent; a missing
+			//record means the indexer is lagging or gapping, never cancel on it.
+			fmt.Printf("[JOB][%s][%s] Utxo not found in indexer, skip cancel. [%s]\n", jobName, entity.OrderId, entity.UtxoId)
+			continue
+		}
+		if utxoInfo.SpendStatus == "spend" {
+			//Cancel only when a second on-chain source confirms the spend.
+			if chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, txId, vout) {
+				fmt.Printf("[JOB][%s][%s] Spend not confirmed by mempool, skip cancel. [%s]\n", jobName, entity.OrderId, entity.UtxoId)
+				continue
+			}
 			entity.OrderState = models.OrderStateCancel
 			err := models.MarketMrc20OrderModelDao().Update(entity)
 			if err != nil {
@@ -85,7 +96,18 @@ func jobForCheckValidOrdersValid() {
 			fmt.Printf("[JOB][%s][%s] GetUtxoInfo error\n", jobName, entity.OrderId)
 			continue
 		}
-		if !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+		if !utxoInfo.IsExist {
+			//A confirmed listing utxo only disappears by being spent; a missing
+			//record means the indexer is lagging or gapping, never cancel on it.
+			fmt.Printf("[JOB][%s][%s] Utxo not found in indexer, skip cancel. [%s]\n", jobName, entity.OrderId, entity.UtxoId)
+			continue
+		}
+		if utxoInfo.SpendStatus == "spend" {
+			//Cancel only when a second on-chain source confirms the spend.
+			if chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, txId, vout) {
+				fmt.Printf("[JOB][%s][%s] Spend not confirmed by mempool, skip cancel. [%s]\n", jobName, entity.OrderId, entity.UtxoId)
+				continue
+			}
 			entity.OrderState = models.OrderStateCancel
 			err := models.MarketOrderModelDao().Update(entity)
 			if err != nil {

@@ -502,6 +502,23 @@ func FetchTxHex(chain, txId string) (string, error) {
 	}
 }
 
+// IsBtcUtxoSpentByMempool cross-checks a btc utxo's spend state against
+// mempool.space. The asset-base indexer has known gaps and reported unspent
+// listing utxos as spent/non-existent, mass-cancelling valid orders
+// (2026-11-08 incident), so destructive actions must confirm with this
+// second source first. Returns false when the source is unavailable or for
+// doge (no mempool.space data) so callers keep their local verdict.
+func IsBtcUtxoSpentByMempool(chain, txId string, txIndex int64) bool {
+	if chain == "doge" {
+		return false
+	}
+	body, _, err := tool.GetUrlAndCode(fmt.Sprintf("%s/api/tx/%s/outspend/%d", conf.MempoolSpace, txId, txIndex), nil, nil)
+	if err != nil || body == "" {
+		return false
+	}
+	return strings.Contains(body, "\"spent\":true")
+}
+
 func GetSegwitAddressFromPublicKey(netParams *chaincfg.Params, publicKeyHex string) (string, error) {
 	publicKeyBytes, err := hex.DecodeString(publicKeyHex)
 	if err != nil {

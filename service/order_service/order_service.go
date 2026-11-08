@@ -770,6 +770,12 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New("Order is closed. ")
 	}
 
+	//Buyer requests may omit the chain param; fall back to the order's own chain
+	//so dummy-utxo selection reads the same tag the take flow writes back to.
+	if chain == "" {
+		chain = entity.Chain
+	}
+
 	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformPinTradeServiceFee(chain, int64(entity.SellPriceAmount))
 
 	//if entity.FeeRate > 0 {
@@ -794,6 +800,11 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 		return nil, errors.New(fmt.Sprintf("sell Utxo not found. [%s]", entity.UtxoId))
 	}
 	if !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend" {
+		//Cancel only when a second on-chain source confirms the spend; the
+		//asset-base indexer has gaps and flags unspent utxos as spent/missing.
+		if utxoInfo.SpendStatus != "spend" || (chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, sellUtxoTxId, sellUtxoIndex)) {
+			return nil, errors.New(fmt.Sprintf("sell Utxo state is validating, please retry later. [%s]", entity.UtxoId))
+		}
 		entity.OrderState = models.OrderStateCancel
 		err := models.MarketOrderModelDao().Update(entity)
 		if err != nil {

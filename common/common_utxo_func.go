@@ -65,6 +65,20 @@ func GetUnoccupiedUtxoList(chain string, limit int64, utxoType models.UtxoType) 
 		UtxoType:      utxoType,
 		UsedState:     models.UsedNo,
 	}, chain, 0, maxLimit)
+	//Historical btc pool rows were saved with an empty chain tag while recycled
+	//dummies come back tagged "btc"; fall back to the other tag so both
+	//generations of the btc dummy pool stay usable. Never cross chains for doge.
+	if len(utxoList) == 0 && chain != "doge" {
+		fallbackChain := "btc"
+		if chain == "btc" {
+			fallbackChain = ""
+		}
+		utxoList, _ = models.MarketUtxoModelDao().GetDummyList(&models.MarketUtxoModel{
+			ConfirmStatus: confirmStatus,
+			UtxoType:      utxoType,
+			UsedState:     models.UsedNo,
+		}, fallbackChain, 0, maxLimit)
+	}
 	if len(utxoList) == 0 {
 		return nil, errors.New("Unoccupied-Utxo: Empty utxo list. Please contact customer service and wait for the platform to add UTXO. ")
 	}
