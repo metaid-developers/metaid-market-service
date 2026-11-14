@@ -82,6 +82,10 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 		})
 	}
 
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
+	if err != nil || !verified {
+		return nil, errors.New("deploy address does not belong to the authenticated public key")
+	}
 	if payload == "" {
 		return nil, errors.New("pin content body is empty")
 	}
@@ -288,15 +292,18 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 		return nil, errors.New("commitTxOutIndex error")
 	}
 
-	//txIn := commitTx.TxIn[0]
-	//utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
-	//if utxoInfo == nil {
-	//	return nil, errors.New("commitTx utxoInfo not exists")
-	//}
-	//address = utxoInfo.Address
-	//if address != deployOrder.IssuerAddress {
-	//	return nil, errors.New("commitTx address not match")
-	//}
+	if err = common.ValidateCommitOutput(conf.Net, chain, commitTx, commitTxOutIndex, deployOrder.RevealTxAddress, deployOrder.MinerFee); err != nil {
+		return nil, errors.New("invalid deploy commit transaction: " + err.Error())
+	}
+	txIn := commitTx.TxIn[0]
+	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
+	if utxoInfo == nil {
+		return nil, errors.New("commitTx utxoInfo not exists")
+	}
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, utxoInfo.Address)
+	if err != nil || !verified || utxoInfo.Address != deployOrder.Address {
+		return nil, errors.New("commitTx address does not match the deploy order wallet")
+	}
 
 	prePsbtRaw = deployOrder.RevealPrePsbtRaw
 	if prePsbtRaw == "" {
@@ -361,7 +368,14 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 		chain,
 		deployOrder,
 		txRawList,
-		common.BroadcastTx)
+		nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = BroadcastInscribeTxs(chain, txRawList); err != nil {
+		return nil, err
+	}
+	err = models.Mrc20DeployOrderModelDao().SaveEntityForInscribing(chain, deployOrder, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +490,14 @@ func Mrc20Deploy(req *request.Mrc20DeployRequest, publicKey, ip string) (*respon
 		chain,
 		entity,
 		txRawList,
-		common.BroadcastTx)
+		nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = BroadcastInscribeTxs(chain, txRawList); err != nil {
+		return nil, err
+	}
+	err = models.Mrc20DeployOrderModelDao().SaveEntityForInscribing(chain, entity, nil, nil)
 	if err != nil {
 		return nil, err
 	}

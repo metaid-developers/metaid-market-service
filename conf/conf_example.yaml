@@ -4,6 +4,10 @@ port: "1234"
 #chain network
 net: "livenet"
 
+# Set a long random value in production. The admin routes stay disabled when empty.
+admin:
+  api_key: ""
+
 #rds
 rds:
   dsn: ""

@@ -9,15 +9,16 @@ import (
 )
 
 func TestAdminColddownDummyUtox(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net string = "livenet"
 
 		// chain     string = "btc"
-		// priKeyHex string = "7939199684693942e52f58f08b13242cb8e58f72e92cbd5599288a6c3334ea1e"
+		// priKeyHex string = examplePrivateKey("ADMIN")
 		// address   string = "bc1qxnqkhzr98pehxyfl27z362nr6yv38rktqyenc5"
 
 		chain     string = "doge"
-		priKeyHex string = "7939199684693942e52f58f08b13242cb8e58f72e92cbd5599288a6c3334ea1e"
+		priKeyHex string = examplePrivateKey("ADMIN")
 		address   string = "D9x3PJ2GQkeEUz7FZUatJBY8KHTbv1QLDq"
 
 		url         string = domain + "/api/v1/admin/utxo/colddown"
@@ -64,7 +65,7 @@ func TestAdminColddownDummyUtox(t *testing.T) {
 		}
 	}
 
-	resp, err := tool.PostUrl(url, req, nil)
+	resp, err := tool.PostUrl(url, req, adminHeaders(priKeyHex))
 	if err != nil {
 		t.Errorf("PostUrl() error = %v,", err)
 		return

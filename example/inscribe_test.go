@@ -15,9 +15,10 @@ import (
 )
 
 func TestMrc20DeployPre(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex   = examplePrivateKey("PRIMARY")
 		address     = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -59,9 +60,10 @@ func TestMrc20DeployPre(t *testing.T) {
 }
 
 func TestMrc20DeployCommit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex     = examplePrivateKey("PRIMARY")
 		address       = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address
@@ -174,9 +176,10 @@ func TestMrc20DeployCommit(t *testing.T) {
 }
 
 func TestMrc20MintPre(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex   = examplePrivateKey("PRIMARY")
 		address     = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -215,9 +218,10 @@ func TestMrc20MintPre(t *testing.T) {
 }
 
 func TestMrc20MintCommit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex     = examplePrivateKey("PRIMARY")
 		address       = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address
@@ -396,9 +400,10 @@ func TestMrc20MintCommit(t *testing.T) {
 }
 
 func TestMrc20MintPreForLegacy(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "8e2a95af06f8e03f1ea2a2b0b85e35757bbd27b8bd03f8cae934bf6f90fa4f71"
+		priKeyHex   = examplePrivateKey("LEGACY")
 		address     = "mnVinwawKEtqyFJk3BHqmaEGkKNGrxYRh9"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -437,9 +442,10 @@ func TestMrc20MintPreForLegacy(t *testing.T) {
 }
 
 func TestMrc20MintCommitForLegacy(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "8e2a95af06f8e03f1ea2a2b0b85e35757bbd27b8bd03f8cae934bf6f90fa4f71"
+		priKeyHex     = examplePrivateKey("LEGACY")
 		address       = "mnVinwawKEtqyFJk3BHqmaEGkKNGrxYRh9"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address
@@ -621,9 +627,10 @@ func TestMrc20MintCommitForLegacy(t *testing.T) {
 }
 
 func TestMrc20MintPreForNestSegwit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "ddecb5d9064b202f6b3f4c154a3f09750ea7b5341134373cc0c679a10cb397bf"
+		priKeyHex   = examplePrivateKey("NESTED")
 		address     = "2NBB3b8PwTTMZRobry8AWkq99s5WBMEJ87D"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -662,9 +669,10 @@ func TestMrc20MintPreForNestSegwit(t *testing.T) {
 }
 
 func TestMrc20MintCommitForNestSegwit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "ddecb5d9064b202f6b3f4c154a3f09750ea7b5341134373cc0c679a10cb397bf"
+		priKeyHex     = examplePrivateKey("NESTED")
 		address       = "2NBB3b8PwTTMZRobry8AWkq99s5WBMEJ87D"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		redeemScript  = ""
@@ -863,9 +871,10 @@ func TestMrc20MintCommitForNestSegwit(t *testing.T) {
 }
 
 func TestMrc20MintPreForTaproot(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "f6d6f6c04cfb465a87135f3ff0b100a510f70819ff15c0c2f6d9c8b287608d9d"
+		priKeyHex   = examplePrivateKey("TAPROOT")
 		address     = "tb1phwnwarkjfd7wmmwsfn9tw59eulx4wgnzhd6russw74hwh68rfy5qc55q0s"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -904,9 +913,10 @@ func TestMrc20MintPreForTaproot(t *testing.T) {
 }
 
 func TestMrc20MintCommitForTaproot(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "f6d6f6c04cfb465a87135f3ff0b100a510f70819ff15c0c2f6d9c8b287608d9d"
+		priKeyHex     = examplePrivateKey("TAPROOT")
 		address       = "tb1phwnwarkjfd7wmmwsfn9tw59eulx4wgnzhd6russw74hwh68rfy5qc55q0s"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address

@@ -108,5 +108,4 @@ func AnyToStr(any interface{}) string {
 			return ret
 		}
 	}
-	return ""
 }

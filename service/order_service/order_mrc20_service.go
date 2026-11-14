@@ -126,6 +126,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			}
 
 			mrc20Info := mrc20InfoList[0]
+			if mrc20Info.ToAddress != sellerAddress {
+				return nil, errors.New("Wrong Psbt: MRC-20 owner does not match the seller. ")
+			}
 
 			tick = mrc20Info.Tick
 			if tickId != mrc20Info.Mrc20Id {
@@ -191,11 +194,20 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		priceAmount = v.Value
 		priceDecimal = 8
 		// priceCoin = "BTC"
+		if priceAmount <= 0 {
+			return nil, errors.New("Wrong Psbt: invalid seller price. ")
+		}
+		if err := common.ValidateMakerAssetInput(conf.Net, chain, psbtBuilder, i, sellerAddress); err != nil {
+			return nil, err
+		}
 	}
 	//if !psbtBuilder.IsComplete() {
 	//	return nil, errors.New("Wrong Psbt: incomplete. ")
 	//}
-	amountDe, _ := decimal.NewFromString(amountStr)
+	amountDe, err := decimal.NewFromString(amountStr)
+	if err != nil || !amountDe.IsPositive() {
+		return nil, errors.New("Wrong Psbt: invalid MRC-20 amount. ")
+	}
 	priceAmountDe := decimal.New(priceAmount, 0)
 	tokenPriceRateDe := priceAmountDe.Div(amountDe)
 	tokenPriceRateStr = tokenPriceRateDe.StringFixed(6)
@@ -495,6 +507,7 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New(fmt.Sprintf("PSBT: NewPsbtBuilder err:%s", err.Error()))
 	}
 	signDummyInputList := make([]*common.SignDummyInput, 0)
+	dummyUtxos := make(map[string]*models.MarketUtxoModel)
 	for i, v := range takerAskPsbtBuilder.GetInputs() {
 		if i == 0 {
 			utxoId := fmt.Sprintf("%s_%d", v.PreviousOutPoint.Hash.String(), v.PreviousOutPoint.Index)
@@ -525,11 +538,15 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 			} else {
 				UtxoType = common.Witness
 			}
+			dummyUtxos[utxoId] = utxoEntity
 			signDummyInputList = append(signDummyInputList, &common.SignDummyInput{
 				OutRaw:   outRaw,
 				UtxoType: UtxoType,
 			})
 		}
+	}
+	if _, err = common.ValidateMrc20TakePsbt(conf.Net, chain, entity, takerAskPsbtBuilder, publicKey, dummyUtxos); err != nil {
+		return nil, errors.New(fmt.Sprintf("PSBT validation failed: %s", err.Error()))
 	}
 	err = common.SignMrc20AskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, signDummyInputList)
 	if err != nil {
@@ -645,13 +662,24 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	if !verified {
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
+	err = models.PrepareMrc20OrderForBroadcast(entity, usedUtxoList, newUtxoList)
+	if err != nil {
+		return nil, err
+	}
+	broadcastTxId, err := common.BroadcastTx(chain, txRaw)
+	if err != nil {
+		return nil, err
+	}
+	if broadcastTxId != txId {
+		return nil, errors.New("broadcast transaction id does not match the prepared order")
+	}
 	err = models.MarketMrc20OrderModelDao().UpdateOrderEntityListForJobFunc(
 		chain,
 		entity,
-		usedUtxoList, newUtxoList,
+		nil, nil,
 		supply,
-		txRaw,
-		common.BroadcastTx)
+		"",
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -722,6 +750,7 @@ func CancelMarketMrc20Order(req *request.CancelMrc20OrderReq, publicKey, ip stri
 
 func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, ip string) (*respond.Mrc20OrderListResp, error) {
 	var (
+		err        error
 		total      int64 = 0
 		entityList []*models.MarketMrc20OrderModel
 		list       []*respond.Mrc20OrderInfo     = make([]*respond.Mrc20OrderInfo, 0)
@@ -744,6 +773,10 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 	if req.SortKey != "" {
 		sortKey = req.SortKey
 	}
+	allowedSortKeys := map[string]bool{"priceAmount": true, "timestamp": true, "tokenPriceRate": true, "dealTime": true}
+	if !allowedSortKeys[sortKey] {
+		return nil, errors.New("unsupported sort key")
+	}
 	if req.SortType != 0 {
 		if req.SortType > 0 {
 			sortType = "asc"
@@ -762,8 +795,14 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 	if req.TickId != "" {
 		filter.TickId = req.TickId
 	}
-	total, _ = models.MarketMrc20OrderModelDao().CountByState(filter, req.Address)
-	entityList, _ = models.MarketMrc20OrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType)
+	total, err = models.MarketMrc20OrderModelDao().CountByState(filter, req.Address)
+	if err != nil {
+		return nil, err
+	}
+	entityList, err = models.MarketMrc20OrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType)
+	if err != nil {
+		return nil, err
+	}
 	for _, v := range entityList {
 		item := &respond.Mrc20OrderInfo{
 			OrderId:           v.OrderId,

@@ -1,6 +1,7 @@
 package admin_service
 
 import (
+	"errors"
 	"fmt"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
@@ -12,6 +13,9 @@ import (
 )
 
 func ColdDownDummyUtxo(req *request.ColdDownDummyUtxoRequest) (string, error) {
+	if req == nil || req.PriKeyHex == "" || req.TxId == "" || req.PerAmount == 0 || req.Count <= 0 || req.Count > 1000 || req.FeeRate <= 0 {
+		return "", errors.New("invalid dummy UTXO funding parameters")
+	}
 	var (
 		netParams *chaincfg.Params = common.GetNetParams(conf.Net, req.Chain)
 		err       error

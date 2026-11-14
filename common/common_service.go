@@ -121,7 +121,11 @@ func newBigIntFromHex(str string) *big.Int {
 // 	},
 // }
 
-func GetNetParams(net, chain string) *chaincfg.Params {
+func GetNetParams(net string, chainArgs ...string) *chaincfg.Params {
+	chain := "btc"
+	if len(chainArgs) > 0 && chainArgs[0] != "" {
+		chain = chainArgs[0]
+	}
 	var (
 		netParams *chaincfg.Params = &chaincfg.MainNetParams
 	)
@@ -166,7 +170,11 @@ func GetPlatformServiceFeeConfigData() *conf.ServiceFeeConfig {
 }
 
 // address to pkScript
-func AddressToPkScript(net, chain, address string) (string, error) {
+func AddressToPkScript(net string, args ...string) (string, error) {
+	if len(args) < 2 {
+		return "", errors.New("chain and address are required")
+	}
+	chain, address := args[0], args[1]
 	netParams := GetNetParams(net, chain)
 	addr, err := btcutil.DecodeAddress(address, netParams)
 	if err != nil {
@@ -181,7 +189,6 @@ func AddressToPkScript(net, chain, address string) (string, error) {
 }
 
 func CheckTaprootAddressType(net, chain, address string) (bool, error) {
-	return false, nil
 	netParams := GetNetParams(net, chain)
 	addr, err := btcutil.DecodeAddress(address, netParams)
 	if err != nil {

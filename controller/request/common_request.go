@@ -1,5 +1,15 @@
 package request
 
+type AuthChallengeReq struct {
+	PublicKey string `json:"publicKey"`
+}
+
+type AuthLoginReq struct {
+	PublicKey string `json:"publicKey"`
+	Signature string `json:"signature"`
+	Nonce     string `json:"nonce"`
+}
+
 type FetchMrc20TickListReq struct {
 	Cursor     int64  `json:"cursor"`
 	Size       int64  `json:"size"`

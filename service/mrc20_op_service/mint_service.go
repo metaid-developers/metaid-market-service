@@ -65,6 +65,10 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		//currentBlockHeight int64 = 0
 	)
 
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
+	if err != nil || !verified {
+		return nil, errors.New("mint output address does not belong to the authenticated public key")
+	}
 	if serviceFee > 546 {
 		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
 			Address: serviceAddress,
@@ -95,18 +99,20 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 
 	mintCountDe, _ := decimal.NewFromString(tickInfo.MintCount)
 	totalMintedDe, _ := decimal.NewFromString(tickInfo.TotalMinted)
-	if address != "n4FSvStqcX5VL1dJd7XgYsiaAzaFtDmQ64" {
-		if totalMintedDe.GreaterThanOrEqual(mintCountDe) {
-			return nil, errors.New("the mint limit has been reached")
-		}
+	if totalMintedDe.GreaterThanOrEqual(mintCountDe) {
+		return nil, errors.New("the mint limit has been reached")
 	}
 
 	for _, pin := range req.MintPins {
 		if pin.PinUtxoTxId == "" || pin.PinUtxoOutValue <= 0 {
 			return nil, errors.New("mint pin parameter error")
 		}
+		verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, pin.Address)
+		if err != nil || !verified {
+			return nil, errors.New("mint PIN address does not belong to the authenticated public key")
+		}
 		mintPinsStr += "," + pin.PinId
-		pinUtxoIds += pinUtxoIds + "," + fmt.Sprintf("%s:%d", pin.PinUtxoTxId, pin.PinUtxoIndex)
+		pinUtxoIds += "," + fmt.Sprintf("%s:%d", pin.PinUtxoTxId, pin.PinUtxoIndex)
 		mintPin := &mrc20_service.MintPin{
 			PinId:           pin.PinId,
 			PinUtxoTxId:     pin.PinUtxoTxId,
@@ -181,6 +187,7 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 			Chain:               chain,
 			OrderId:             orderId,
 			InscribeState:       models.InscribeStatePending,
+			Address:             address,
 			TickId:              tickId,
 			MintPins:            mintPinsStr,
 			TotalFee:            totalFee,
@@ -295,6 +302,9 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 	if len(commitTx.TxOut) <= int(commitTxOutIndex) {
 		return nil, errors.New("commitTxOutIndex error")
 	}
+	if err = common.ValidateRevealPsbtTemplate(conf.Net, chain, mintOrder.RevealPrePsbtRaw, prePsbtRaw, commitTx, commitTxOutIndex, mintOrder.RevealInputIndex, mintOrder.RevealTxAddress, mintOrder.MinerFee); err != nil {
+		return nil, errors.New("invalid mint commit or reveal PSBT: " + err.Error())
+	}
 
 	txIn := commitTx.TxIn[0]
 	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
@@ -302,6 +312,10 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
 	address = utxoInfo.Address
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
+	if err != nil || !verified || (mintOrder.Address != "" && address != mintOrder.Address) {
+		return nil, errors.New("commitTx address does not match the mint order wallet")
+	}
 
 	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
 	if err != nil {
@@ -359,7 +373,14 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 		chain,
 		mintOrder,
 		[]string{commitTxRaw, revealTxRaw},
-		common.BroadcastTx)
+		nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = BroadcastInscribeTxs(chain, []string{commitTxRaw, revealTxRaw}); err != nil {
+		return nil, err
+	}
+	err = models.Mrc20MintOrderModelDao().UpdateEntityListForInscribing(chain, mintOrder, nil, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
+	"metaid-market-service/service/metaname_service"
+	"metaid-market-service/service/mrc20_op_service"
+	"metaid-market-service/service/order_service"
 	"strconv"
 	"strings"
 )
@@ -14,6 +17,7 @@ func JobForCheckRecordConfirm() {
 	jobForCheckMrc20DeployRecordConfirm()
 	jobForCheckMrc20MintRecordConfirm()
 	jobForCheckMrc20TransferRecordConfirm()
+	jobForCheckMetanameRecordConfirm()
 	jobForCheckMrc20PreTransferOrderAskConfirm()
 }
 
@@ -38,6 +42,12 @@ func jobForCheckRecordConfirm() {
 			continue
 		}
 
+		if entity.FinalPsbt != "" {
+			if err := order_service.RetryPinOrderBroadcast(entity); err != nil {
+				fmt.Printf("[JOB][%s][%s] Retry broadcast error: %v\n", jobName, entity.OrderId, err)
+				continue
+			}
+		}
 		// check confirm
 		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
@@ -79,6 +89,12 @@ func jobForCheckMrc20RecordConfirm() {
 			continue
 		}
 
+		if entity.FinalPsbt != "" {
+			if err := order_service.RetryMrc20OrderBroadcast(entity); err != nil {
+				fmt.Printf("[JOB][%s][%s] Retry broadcast error: %v\n", jobName, entity.OrderId, err)
+				continue
+			}
+		}
 		// check confirm
 		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
@@ -120,6 +136,10 @@ func jobForCheckMrc20DeployRecordConfirm() {
 			continue
 		}
 
+		if err := mrc20_op_service.RetryDeployInscription(entity); err != nil {
+			fmt.Printf("[JOB][%s][%s] Retry deploy broadcast error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
 		// check confirm
 		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
@@ -161,6 +181,10 @@ func jobForCheckMrc20MintRecordConfirm() {
 			continue
 		}
 
+		if err := mrc20_op_service.RetryMintInscription(entity); err != nil {
+			fmt.Printf("[JOB][%s][%s] Retry mint broadcast error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
 		// check confirm
 		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
@@ -202,6 +226,10 @@ func jobForCheckMrc20TransferRecordConfirm() {
 			continue
 		}
 
+		if err := mrc20_op_service.RetryTransferInscription(entity); err != nil {
+			fmt.Printf("[JOB][%s][%s] Retry transfer broadcast error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
 		// check confirm
 		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
 		if err != nil {
@@ -315,4 +343,31 @@ func jobForCheckMrc20PreTransferOrderAskConfirm() {
 		}
 	}
 	fmt.Printf("[JOB][%s] check asset-utxo confirmed Mrc20 pre Transfer end. entityList: %d\n", jobName, len(entityList))
+}
+
+func jobForCheckMetanameRecordConfirm() {
+	jobName := "CheckMetanameRegisterConfirm"
+	entityList, _ := models.MetanameRegisterOrderModelDao().GetListAsc(
+		&models.MetanameRegisterOrderModel{InscribeState: models.InscribeStateFinish, ConfirmationState: models.ConfirmationStateUnconfirmed},
+		0, 100)
+	for _, entity := range entityList {
+		if entity.TxId == "" {
+			continue
+		}
+		if err := metaname_service.RetryRegisterInscription(entity); err != nil {
+			fmt.Printf("[JOB][%s][%s] Retry metaname broadcast error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
+		txInfo, err := common_service.GetTxInfo(entity.Chain, entity.TxId)
+		if err != nil {
+			continue
+		}
+		if txInfo.Confirmed {
+			entity.ConfirmationState = models.ConfirmationStateConfirmed
+			entity.BlockHeight = txInfo.Height
+			if err := models.MetanameRegisterOrderModelDao().Update(entity); err != nil {
+				fmt.Printf("[JOB][%s][%s] Update error: %v\n", jobName, entity.OrderId, err)
+			}
+		}
+	}
 }

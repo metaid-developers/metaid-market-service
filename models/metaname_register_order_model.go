@@ -145,37 +145,24 @@ func (_ *metanameRegisterOrderModelDao) Update(q *MetanameRegisterOrderModel) er
 }
 
 func (_ *metanameRegisterOrderModelDao) SaveEntityForInscribing(chain string, model *MetanameRegisterOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
-	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
-		if model == nil {
-			return errors.New("model is nil")
-		}
-
+	if jobFunc != nil {
+		return errors.New("broadcast must run outside the database transaction")
+	}
+	if model == nil {
+		return errors.New("model is nil")
+	}
+	return major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		model.RedeemScript = ""
 		model.ControlBlockWitness = ""
-		//model.RevealTxPrivateKey = ""
-		//model.RevealTxAddress = ""
 		model.RevealPrePsbtRaw = ""
 		model.RevealFinalPsbtRaw = ""
-		model.CommitTxRaw = ""
-		model.RevealTxRaw = ""
+		model.RevealTxPrivateKey = ""
+		if len(txRawList) == 0 {
+			model.CommitTxRaw = ""
+			model.RevealTxRaw = ""
+		}
 		model.InscribeState = InscribeStateFinish
 		model.ConfirmationState = ConfirmationStateUnconfirmed
-
-		if err := tx.Save(model).Error; err != nil {
-			return err
-		}
-
-		for _, txRaw := range txRawList {
-			_, err := jobFunc(chain, txRaw)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
+		return tx.Save(model).Error
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }

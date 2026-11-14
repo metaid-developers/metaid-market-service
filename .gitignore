@@ -28,5 +28,3 @@ log/*
 
 conf/conf_*.yaml
 !conf/conf_example.yaml
-
-example/common.go

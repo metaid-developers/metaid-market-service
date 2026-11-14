@@ -30,7 +30,7 @@ func PostUrl(url string, data interface{}, headers map[string]string) (string, e
 			request.Header.Set(key, headers[key])
 		}
 	}
-	client := http.Client{}
+	client := http.Client{Timeout: 15 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
 		return "", err
@@ -63,7 +63,7 @@ func PostUrlAndCode(url string, data interface{}, headers map[string]string) (st
 			request.Header.Set(key, headers[key])
 		}
 	}
-	client := http.Client{}
+	client := http.Client{Timeout: 15 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
 		return "", 500, err
@@ -84,7 +84,7 @@ func GetUrlForSingle(url string) (string, error) {
 	}
 
 	request.Header.Set("Content-type", "application/json;charset=UTF-8")
-	client := http.Client{}
+	client := http.Client{Timeout: 15 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
 		fmt.Println("client.Do Err:", err)

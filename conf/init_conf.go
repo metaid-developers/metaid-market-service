@@ -50,6 +50,8 @@ var (
 	AutoBridgeRuleConfigData *AutoBridgeRuleConfig = &AutoBridgeRuleConfig{}
 
 	Host string = ""
+
+	AdminAPIKey string = ""
 )
 
 type ServiceFeeConfig struct {
@@ -137,4 +139,5 @@ func InitConfig() {
 	}
 
 	Host = viper.GetString("host")
+	AdminAPIKey = viper.GetString("admin.api_key")
 }

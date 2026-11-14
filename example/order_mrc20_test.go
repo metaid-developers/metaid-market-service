@@ -6,9 +6,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
-	"log"
 	"metaid-market-service/common"
-	"metaid-market-service/controller/auth"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/models"
 	"metaid-market-service/tool"
@@ -16,9 +14,10 @@ import (
 )
 
 func TestPushMarketMrc20Order(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net       string = "testnet"
-		priKeyHex        = "ddecb5d9064b202f6b3f4c154a3f09750ea7b5341134373cc0c679a10cb397bf"
+		priKeyHex        = examplePrivateKey("NESTED")
 		address          = "2NBB3b8PwTTMZRobry8AWkq99s5WBMEJ87D"
 
 		txId     string = "5e726d77f43f65977194d71374e09f2b6b50576de1232e42f9a1229f6b067b92" //mrc20-utxo
@@ -117,10 +116,11 @@ func TestPushMarketMrc20Order(t *testing.T) {
 }
 
 func TestFetchMrc20OrderPsbt(t *testing.T) {
+	requireIntegration(t)
 	var (
 		//orderId         string = "136519bb16d5158c54ff8c5bbb474ad42b34a5faf4f25cb6adcf199225963b91"
 		orderId         string = "acd99b9403e62ff36c331e2a35c79f2f7ee526093cee98ae9e7bfa8763025ebb"
-		buyerPrivateKey string = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		buyerPrivateKey string = examplePrivateKey("PRIMARY")
 		buyerAddress    string = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 
 		url   string = domain + "/api/v1/market/mrc20/order/psbt"
@@ -142,6 +142,7 @@ func TestFetchMrc20OrderPsbt(t *testing.T) {
 }
 
 func TestTakeMarketMrc20Order(t *testing.T) {
+	requireIntegration(t)
 	type buyerUtxo struct {
 		TxId   string
 		Index  uint32
@@ -150,7 +151,7 @@ func TestTakeMarketMrc20Order(t *testing.T) {
 	var (
 		net             string = "testnet"
 		orderId         string = "136519bb16d5158c54ff8c5bbb474ad42b34a5faf4f25cb6adcf199225963b91"
-		buyerPrivateKey string = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		buyerPrivateKey string = examplePrivateKey("PRIMARY")
 		buyerAddress    string = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _            = common.AddressToPkScript(net, buyerAddress)
 		changeAddress   string = buyerAddress
@@ -273,32 +274,17 @@ func TestTakeMarketMrc20Order(t *testing.T) {
 }
 
 func TestCancelMarketMrc20Order(t *testing.T) {
+	requireIntegration(t)
 	var (
 		orderId string = "136519bb16d5158c54ff8c5bbb474ad42b34a5faf4f25cb6adcf199225963b91"
 		url     string = domain + "/api/v1/market/mrc20/order/cancel"
 		req            = &request.CancelOrderReq{
 			OrderId: orderId,
 		}
-		priKeyHex string = "ddecb5d9064b202f6b3f4c154a3f09750ea7b5341134373cc0c679a10cb397bf"
-		headers          = map[string]string{
-			"X-Signature":  "",
-			"X-Public-Key": "",
-		}
+		priKeyHex string = examplePrivateKey("NESTED")
+		headers          = map[string]string{}
 	)
-	privateKeyBytes, err := hex.DecodeString(priKeyHex)
-	if err != nil {
-		log.Fatal(err)
-	}
-	privateKey, _ := btcec.PrivKeyFromBytes(privateKeyBytes)
-	publicKey := hex.EncodeToString(privateKey.PubKey().SerializeCompressed())
-
-	headers["X-Public-Key"] = publicKey
-
-	signature, err := auth.SignTextMessage("metaid.market", priKeyHex)
-	if err != nil {
-		log.Fatal(err)
-	}
-	headers["X-Signature"] = signature
+	headers = addHeaders(priKeyHex)
 	resp, err := tool.PostUrl(url, req, headers)
 	if err != nil {
 		t.Errorf("PostUrl() error = %v,", err)
@@ -308,9 +294,10 @@ func TestCancelMarketMrc20Order(t *testing.T) {
 }
 
 func TestFetchMrc20OrderPsbtForTaproot(t *testing.T) {
+	requireIntegration(t)
 	var (
 		orderId         string = "acd99b9403e62ff36c331e2a35c79f2f7ee526093cee98ae9e7bfa8763025ebb"
-		buyerPrivateKey string = "f6d6f6c04cfb465a87135f3ff0b100a510f70819ff15c0c2f6d9c8b287608d9d"
+		buyerPrivateKey string = examplePrivateKey("TAPROOT")
 		buyerAddress    string = "tb1phwnwarkjfd7wmmwsfn9tw59eulx4wgnzhd6russw74hwh68rfy5qc55q0s"
 
 		url   string = domain + "/api/v1/market/mrc20/order/psbt"
@@ -332,6 +319,7 @@ func TestFetchMrc20OrderPsbtForTaproot(t *testing.T) {
 }
 
 func TestTakeMarketMrc20OrderForTaproot(t *testing.T) {
+	requireIntegration(t)
 	type buyerUtxo struct {
 		TxId   string
 		Index  uint32
@@ -340,7 +328,7 @@ func TestTakeMarketMrc20OrderForTaproot(t *testing.T) {
 	var (
 		net             string = "testnet"
 		orderId         string = "acd99b9403e62ff36c331e2a35c79f2f7ee526093cee98ae9e7bfa8763025ebb"
-		buyerPrivateKey string = "f6d6f6c04cfb465a87135f3ff0b100a510f70819ff15c0c2f6d9c8b287608d9d"
+		buyerPrivateKey string = examplePrivateKey("TAPROOT")
 		buyerAddress    string = "tb1phwnwarkjfd7wmmwsfn9tw59eulx4wgnzhd6russw74hwh68rfy5qc55q0s"
 		pkScript, _            = common.AddressToPkScript(net, buyerAddress)
 		changeAddress   string = buyerAddress

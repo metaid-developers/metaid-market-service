@@ -79,7 +79,14 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		if len(preOutList) > len(req.AssetIds) && i < 2 {
 			continue
 		}
-		assetId := assetIds[i]
+		assetIndex := i
+		if len(preOutList) > len(req.AssetIds) {
+			assetIndex = i - 2
+		}
+		if assetIndex < 0 || assetIndex >= len(assetIds) {
+			return nil, errors.New("Wrong Psbt: asset ids and inputs not match. ")
+		}
+		assetId := assetIds[assetIndex]
 
 		out := outList[i]
 		sellerPriceAmount := out.Value
@@ -130,6 +137,9 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		if err != nil {
 			return nil, errors.New(fmt.Sprintf("PSBT(Single): AddPartialSigIn err:%s", err.Error()))
 		}
+		if err := common.ValidateMakerAssetInput(conf.Net, chain, itembuilder, 0, sellerAddress); err != nil {
+			return nil, err
+		}
 
 		psbtRaw, err := itembuilder.ToString()
 		if err != nil {
@@ -174,6 +184,9 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		}
 		if chain != pinInfo.ChainName {
 			return nil, errors.New("Chain name not match. ")
+		}
+		if assetId != pinInfo.Id || pinInfo.Address != sellerAddress {
+			return nil, errors.New("Asset id or owner does not match the seller. ")
 		}
 
 		orderId := fmt.Sprintf("%s_%s_%s_%s", assetLocalUtxoId, assetId, assetType, sellerAddress)
@@ -277,6 +290,9 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 		feeAmountForPlatform int64    = 0
 		chain                string   = ""
 	)
+	if len(req.OrderIds) == 0 || len(req.OrderIds) > 20 {
+		return nil, errors.New("batch order count must be between 1 and 20")
+	}
 	for _, v := range req.OrderIds {
 		entity, err := models.MarketOrderModelDao().GetOne(&models.MarketOrderModel{
 			OrderId: v,
@@ -289,6 +305,12 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 		}
 
 		if entity != nil {
+			if entity.OrderState != models.OrderStateCreate {
+				return nil, errors.New("Order is closed. ")
+			}
+			if chain != "" && chain != entity.Chain {
+				return nil, errors.New("batch orders must use one chain")
+			}
 			chain = entity.Chain
 			isLegacy, err := common.CheckLegacyAddressType(conf.Net, entity.Chain, entity.SellerAddress)
 			if err != nil {
@@ -306,6 +328,10 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 		}
 	}
 
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, req.BuyerAddress)
+	if err != nil || !verified {
+		return nil, errors.New("buyer address does not belong to the authenticated public key")
+	}
 	for _, v := range orderEntityList {
 		psbtRawList = append(psbtRawList, v.MakerPsbt)
 		outValueList = append(outValueList, v.OutValue)
@@ -361,6 +387,24 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), req.TakerPsbtRaw)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT: NewPsbtBuilder err:%s", err.Error()))
+	}
+	dummyUtxos := make(map[string]*models.MarketUtxoModel)
+	for i, input := range takerAskPsbtBuilder.GetInputs() {
+		if i != 0 && i != 1 && i != offsetDummyInputIndex {
+			continue
+		}
+		utxoId := fmt.Sprintf("%s_%d", input.PreviousOutPoint.Hash.String(), input.PreviousOutPoint.Index)
+		utxoEntity, err := models.MarketUtxoModelDao().GetOne(&models.MarketUtxoModel{UtxoId: utxoId})
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		if utxoEntity == nil {
+			return nil, errors.New(fmt.Sprintf("Utxo not found: %s. ", utxoId))
+		}
+		dummyUtxos[utxoId] = utxoEntity
+	}
+	if _, err = common.ValidateBatchPinTakePsbt(conf.Net, chain, entityList, takerAskPsbtBuilder, publicKey, dummyUtxos); err != nil {
+		return nil, errors.New(fmt.Sprintf("PSBT validation failed: %s", err.Error()))
 	}
 	err = common.BatchSignAskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, len(req.OrderIds))
 	if err != nil {
@@ -448,7 +492,8 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	}
 
 	buyerAddress := ""
-	buyerInput := takerAskPsbtBuilder.GetInputs()[4]
+	firstBuyerInput := 2 + len(entityList) + 1
+	buyerInput := takerAskPsbtBuilder.GetInputs()[firstBuyerInput]
 	buyerInputTxId := buyerInput.PreviousOutPoint.Hash.String()
 	buyerInputIndex := buyerInput.PreviousOutPoint.Index
 	spent, utxoAddress := common.CheckUtxoSpendWithMempool(conf.Net, chain, buyerInputTxId, int64(buyerInputIndex))
@@ -457,7 +502,7 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	}
 	buyerAddress = utxoAddress
 	if buyerAddress == "" {
-		buyerAddress = common.AddressFromPsbtInput(conf.Net, chain, takerAskPsbtBuilder, 4)
+		buyerAddress = common.AddressFromPsbtInput(conf.Net, chain, takerAskPsbtBuilder, firstBuyerInput)
 	}
 
 	for _, entity := range entityList {
@@ -483,12 +528,23 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	if !verified {
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
+	err = models.PrepareBatchPinOrdersForBroadcast(entityList, usedUtxoList, newUtxoList)
+	if err != nil {
+		return nil, err
+	}
+	broadcastTxId, err := common.BroadcastTx(chain, txRaw)
+	if err != nil {
+		return nil, err
+	}
+	if broadcastTxId != txId {
+		return nil, errors.New("broadcast transaction id does not match the prepared batch")
+	}
 	err = models.MarketOrderModelDao().BatchUpdateOrderEntityListForJobFunc(
 		chain,
 		entityList,
-		usedUtxoList, newUtxoList,
-		txRaw,
-		common.BroadcastTx)
+		nil, nil,
+		"",
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -634,6 +690,9 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 			if chain != pinInfo.ChainName {
 				return nil, errors.New("Chain name not match. ")
 			}
+			if assetId != pinInfo.Id || pinInfo.Address != sellerAddress {
+				return nil, errors.New("Asset id or owner does not match the seller. ")
+			}
 		}
 
 	}
@@ -651,6 +710,12 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 			return nil, errors.New("Address does not match in output. ")
 		}
 		sellerPriceAmount = v.Value
+		if sellerPriceAmount <= 0 {
+			return nil, errors.New("Wrong Psbt: invalid seller price. ")
+		}
+		if err := common.ValidateMakerAssetInput(conf.Net, chain, psbtBuilder, i, sellerAddress); err != nil {
+			return nil, err
+		}
 	}
 
 	//if !psbtBuilder.IsComplete() {
@@ -900,6 +965,7 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 		return nil, errors.New(fmt.Sprintf("PSBT: NewPsbtBuilder err:%s", err.Error()))
 	}
 	signDummyInputList := make([]*common.SignDummyInput, 0)
+	dummyUtxos := make(map[string]*models.MarketUtxoModel)
 	for i, v := range takerAskPsbtBuilder.GetInputs() {
 		if i == 0 || i == 1 || i == 3 {
 			utxoId := fmt.Sprintf("%s_%d", v.PreviousOutPoint.Hash.String(), v.PreviousOutPoint.Index)
@@ -931,11 +997,15 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 			} else {
 				UtxoType = common.Witness
 			}
+			dummyUtxos[utxoId] = utxoEntity
 			signDummyInputList = append(signDummyInputList, &common.SignDummyInput{
 				OutRaw:   outRaw,
 				UtxoType: UtxoType,
 			})
 		}
+	}
+	if _, err = common.ValidatePinTakePsbt(conf.Net, chain, entity, takerAskPsbtBuilder, publicKey, dummyUtxos); err != nil {
+		return nil, errors.New(fmt.Sprintf("PSBT validation failed: %s", err.Error()))
 	}
 
 	err = common.SignAskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, signDummyInputList)
@@ -1055,12 +1125,23 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	if !verified {
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
+	err = models.PreparePinOrderForBroadcast(entity, usedUtxoList, newUtxoList)
+	if err != nil {
+		return nil, err
+	}
+	broadcastTxId, err := common.BroadcastTx(chain, txRaw)
+	if err != nil {
+		return nil, err
+	}
+	if broadcastTxId != txId {
+		return nil, errors.New("broadcast transaction id does not match the prepared order")
+	}
 	err = models.MarketOrderModelDao().UpdateOrderEntityListForJobFunc(
 		chain,
 		entity,
-		usedUtxoList, newUtxoList,
-		txRaw,
-		common.BroadcastTx)
+		nil, nil,
+		"",
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1118,6 +1199,7 @@ func CancelMarketOrder(req *request.CancelOrderReq, publicKey, ip string) (*resp
 
 func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) (*respond.OrderListResp, error) {
 	var (
+		err          error
 		total        int64 = 0
 		entityList   []*models.MarketOrderModel
 		list         []*respond.OrderInfo     = make([]*respond.OrderInfo, 0)
@@ -1141,6 +1223,10 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 	}
 	if req.SortKey != "" {
 		sortKey = req.SortKey
+	}
+	allowedSortKeys := map[string]bool{"sellPriceAmount": true, "timestamp": true, "assetLevel": true, "dealTime": true}
+	if !allowedSortKeys[sortKey] {
+		return nil, errors.New("unsupported sort key")
 	}
 	if req.SortType != 0 {
 		if req.SortType > 0 {
@@ -1171,8 +1257,14 @@ func FetchMarketOrders(req *request.FetchMarketOrdersReq, publicKey, ip string) 
 		}
 	}
 
-	total, _ = models.MarketOrderModelDao().CountByState(filter, req.Address, prefixPath, filterPinIds)
-	entityList, _ = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType, prefixPath, filterPinIds)
+	total, err = models.MarketOrderModelDao().CountByState(filter, req.Address, prefixPath, filterPinIds)
+	if err != nil {
+		return nil, err
+	}
+	entityList, err = models.MarketOrderModelDao().GetListByState(filter, req.Address, req.Cursor, req.Size, sortKey, sortType, prefixPath, filterPinIds)
+	if err != nil {
+		return nil, err
+	}
 	for _, v := range entityList {
 		item := &respond.OrderInfo{
 			Chain:             v.Chain,

@@ -21,6 +21,7 @@ func Run() {
 
 	router := gin.Default()
 	router.Use(Cors())
+	router.Use(RequestProtection())
 	router.Use(Logger())
 	//router.Use(middleware.ResponseTime())
 
@@ -29,6 +30,9 @@ func Run() {
 
 	v1 := router.Group("/api/v1")
 	{
+		v1.POST("/auth/challenge", AuthChallenge)
+		v1.POST("/auth/login", AuthLogin)
+		v1.POST("/auth/logout", AuthLogout)
 		v1.POST("/auth/test", auth.AuthSignMiddleware(), TestAuth)
 
 		v1.POST("/market/order/push/batch", auth.AuthSignMiddleware(), BatchPushMarketOrder)
@@ -99,9 +103,9 @@ func Run() {
 		v1.GET("/common/coin/price", FetchCoinPrice)
 
 		v1.GET("/common/tx/raw", FetchRawTx)
-		v1.POST("/common/tx/broadcast", BroadcastTx)
+		v1.POST("/common/tx/broadcast", auth.AuthSignMiddleware(), BroadcastTx)
 
-		v1.POST("/admin/utxo/colddown", ColdDownDummyUtxo)
+		v1.POST("/admin/utxo/colddown", auth.AdminMiddleware(), ColdDownDummyUtxo)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")
@@ -117,8 +121,7 @@ func Cors() gin.HandlerFunc {
 		//if origin != "" {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		c.Header("Access-Control-Allow-Headers", "Content-Type,AccessToken,X-CSRF-Token, Authorization,X-API-KEY,X-Signature,X-Public-Key")
-		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Headers", "Content-Type,AccessToken,X-CSRF-Token, Authorization,X-API-KEY,X-Signature,X-Public-Key,X-Nonce,X-Session")
 		c.Set("content-type", "application/json")
 		//}
 		if method == "OPTIONS" {

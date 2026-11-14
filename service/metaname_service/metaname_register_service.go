@@ -10,6 +10,7 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
+	"metaid-market-service/service/mrc20_op_service"
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/tool"
 	"strings"
@@ -263,6 +264,9 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 	if len(commitTx.TxOut) <= int(commitTxOutIndex) {
 		return nil, errors.New("commitTxOutIndex error")
 	}
+	if err = common.ValidateCommitOutput(net, chain, commitTx, commitTxOutIndex, metanameRegisterOrder.RevealTxAddress, metanameRegisterOrder.MinerFee); err != nil {
+		return nil, errors.New("invalid metaname commit transaction: " + err.Error())
+	}
 
 	txIn := commitTx.TxIn[0]
 	utxoInfo := common.GetUtxoInfo(net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
@@ -342,7 +346,14 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 		chain,
 		metanameRegisterOrder,
 		txRawList,
-		common.BroadcastTx)
+		nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = mrc20_op_service.BroadcastInscribeTxs(chain, txRawList); err != nil {
+		return nil, err
+	}
+	err = models.MetanameRegisterOrderModelDao().SaveEntityForInscribing(chain, metanameRegisterOrder, nil, nil)
 	if err != nil {
 		return nil, err
 	}

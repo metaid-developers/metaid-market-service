@@ -2,55 +2,38 @@ package auth
 
 import (
 	"errors"
-	"fmt"
-	"github.com/gin-gonic/gin"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/tool"
 	"net/http"
-)
 
-const (
-	verifyMessage string = "metaid.market"
+	"github.com/gin-gonic/gin"
 )
 
 var (
-	AuthErrParams1                 error = errors.New("Auth params is empty(signature)")
-	AuthErrParams2                 error = errors.New("Auth params is empty(public-key)")
-	AuthErrParamsVerifiedSignErr   error = errors.New("Auth verified signature err")
-	AuthErrParamsVerifiedSignWrong error = errors.New("Auth verified signature wrong")
+	AuthErrParams1               error = errors.New("Auth session is empty")
+	AuthErrParamsVerifiedSignErr error = errors.New("Auth session is invalid or expired")
 )
 
 func AuthSignMiddleware() gin.HandlerFunc {
+	return AuthSignMiddlewareWithRepository(redisSessionRepository{})
+}
+
+func AuthSignMiddlewareWithRepository(repository SessionRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		t := tool.MakeTimestamp()
-		signatureStr := c.Request.Header.Get("X-Signature")
-		if signatureStr == "" {
+		token := c.GetHeader("X-Session")
+		if token == "" {
 			c.JSON(http.StatusUnauthorized, respond.RespErr(AuthErrParams1, tool.MakeTimestamp()-t, respond.HttpsCodeErrorAuth))
 			c.Abort()
 			return
 		}
-		publicKeyStr := c.Request.Header.Get("X-Public-Key")
-		if publicKeyStr == "" {
-			c.JSON(http.StatusUnauthorized, respond.RespErr(AuthErrParams2, tool.MakeTimestamp()-t, respond.HttpsCodeErrorAuth))
-			c.Abort()
-			return
-		}
-
-		verified, err := VerifyTextSign(verifyMessage, signatureStr, publicKeyStr)
+		session, err := ValidateSession(token, repository)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, respond.RespErr(AuthErrParamsVerifiedSignErr, tool.MakeTimestamp()-t, respond.HttpsCodeErrorAuth))
 			c.Abort()
 			return
 		}
-
-		if !verified {
-			c.JSON(http.StatusUnauthorized, respond.RespErr(AuthErrParamsVerifiedSignWrong, tool.MakeTimestamp()-t, respond.HttpsCodeErrorAuth))
-			c.Abort()
-			return
-		}
-
-		fmt.Printf("signature: %s, publicKey: %s\n", signatureStr, publicKeyStr)
-		c.Set("publicKey", publicKeyStr)
+		c.Set("publicKey", session.PublicKey)
 		c.Next()
 	}
 }

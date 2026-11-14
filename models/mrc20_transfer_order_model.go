@@ -140,33 +140,31 @@ func (_ *mrc20TransferOrderModelDao) Update(q *Mrc20TransferOrderModel) error {
 }
 
 func (_ *mrc20TransferOrderModelDao) UpdateEntityListForInscribing(chain string, q *Mrc20TransferOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
-	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
-		nowTime := tool.MakeTimestamp()
-
-		sv := q.Version
-		q.Version += 1
-		q.UpdateTime = nowTime
-		q.CommitTxRaw = ""
+	if jobFunc != nil {
+		return errors.New("broadcast must run outside the database transaction")
+	}
+	if q == nil {
+		return errors.New("transfer order is nil")
+	}
+	return major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
+		q.Version++
+		q.UpdateTime = tool.MakeTimestamp()
 		q.RevealPrePsbtRaw = ""
 		q.RevealMidPsbtRaw = ""
-		q.RevealFinalPsbtRaw = ""
+		q.RevealTxPrivateKey = ""
+		if len(txRawList) == 0 {
+			q.CommitTxRaw = ""
+			q.RevealFinalPsbtRaw = ""
+		}
 		q.InscribeState = InscribeStateFinish
 		q.ConfirmationState = ConfirmationStateUnconfirmed
-		if err := tx.Save(q).Where(map[string]interface{}{"version": sv, "id": q.Id}).Error; err != nil {
-			return err
+		result := tx.Where("id = ? AND version = ?", q.Id, q.Version-1).Save(q)
+		if result.Error != nil {
+			return result.Error
 		}
-
-		for _, txRaw := range txRawList {
-			_, err := jobFunc(chain, txRaw)
-			if err != nil {
-				return err
-			}
+		if result.RowsAffected != 1 {
+			return errors.New("transfer order state conflict")
 		}
-
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }

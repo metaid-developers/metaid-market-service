@@ -133,8 +133,12 @@ func (_ *marketMrc20OrderModelDao) SetForPushOrder(model *MarketMrc20OrderModel,
 			sv := marketTickInfo.Version
 			marketTickInfo.Version += 1
 			marketTickInfo.UpdateTime = updateTime
-			if err := tx.Save(marketTickInfo).Where(map[string]interface{}{"version": sv, "id": marketTickInfo.Id}).Error; err != nil {
-				return err
+			result := tx.Where("id = ? AND version = ?", marketTickInfo.Id, sv).Save(marketTickInfo)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("market info update conflict")
 			}
 		} else {
 			marketTickInfo = &MarketMrc20InfoModel{
@@ -195,16 +199,18 @@ func (_ *marketMrc20OrderModelDao) GetList(qo *MarketMrc20OrderModel, offset, li
 	return models, nil
 }
 
+func buildMrc20AddressFilter(qo *MarketMrc20OrderModel, address string) (string, []interface{}) {
+	if qo.OrderState != OrderStateFinish || address == "" {
+		return "", nil
+	}
+	qo.SellerAddress = ""
+	return "(sellerAddress = ? OR buyerAddress = ?)", []interface{}{address, address}
+}
+
 func (_ *marketMrc20OrderModelDao) CountByState(qo *MarketMrc20OrderModel, address string) (int64, error) {
 	var count int64
-	filter := ""
-	if qo.OrderState == OrderStateFinish {
-		qo.SellerAddress = ""
-		if address != "" {
-			filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
-		}
-	}
-	tx := major.GetSqlDB().Model(&MarketMrc20OrderModel{}).Where(qo).Where(filter).Count(&count)
+	filter, args := buildMrc20AddressFilter(qo, address)
+	tx := major.GetSqlDB().Model(&MarketMrc20OrderModel{}).Where(qo).Where(filter, args...).Count(&count)
 	if tx.Error != nil {
 		return 0, tx.Error
 	}
@@ -213,14 +219,8 @@ func (_ *marketMrc20OrderModelDao) CountByState(qo *MarketMrc20OrderModel, addre
 
 func (_ *marketMrc20OrderModelDao) GetListByState(qo *MarketMrc20OrderModel, address string, offset, limit int64, sortKey, sortType string) ([]*MarketMrc20OrderModel, error) {
 	var models []*MarketMrc20OrderModel
-	filter := ""
-	if qo.OrderState == OrderStateFinish {
-		qo.SellerAddress = ""
-		if address != "" {
-			filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
-		}
-	}
-	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s, id %s", sortKey, sortType, sortType)).Find(&models)
+	filter, args := buildMrc20AddressFilter(qo, address)
+	tx := major.GetSqlDB().Where(qo).Where(filter, args...).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s, id %s", sortKey, sortType, sortType)).Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
@@ -285,6 +285,9 @@ func (_ *marketMrc20OrderModelDao) Update(q *MarketMrc20OrderModel) error {
 	if tx.Error != nil {
 		return tx.Error
 	}
+	if tx.RowsAffected != 1 {
+		return errors.New("order update conflict")
+	}
 	return nil
 }
 
@@ -307,8 +310,12 @@ func (_ *marketMrc20OrderModelDao) UpdateForPushAndCancel(q *MarketMrc20OrderMod
 		sv := q.Version
 		q.Version += 1
 		q.UpdateTime = updateTime
-		if err := tx.Save(q).Where(map[string]interface{}{"version": sv, "id": q.Id}).Error; err != nil {
-			return err
+		result := tx.Where("id = ? AND version = ?", q.Id, sv).Save(q)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("order update conflict")
 		}
 
 		floorPrice := float64(0)
@@ -345,8 +352,12 @@ func (_ *marketMrc20OrderModelDao) UpdateForPushAndCancel(q *MarketMrc20OrderMod
 			sv := marketTickInfo.Version
 			marketTickInfo.Version += 1
 			marketTickInfo.UpdateTime = updateTime
-			if err := tx.Save(marketTickInfo).Where(map[string]interface{}{"version": sv, "id": marketTickInfo.Id}).Error; err != nil {
-				return err
+			result := tx.Where("id = ? AND version = ?", marketTickInfo.Id, sv).Save(marketTickInfo)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("market info update conflict")
 			}
 		} else {
 			marketTickInfo = &MarketMrc20InfoModel{
@@ -405,26 +416,42 @@ func (_ *marketMrc20OrderModelDao) BatchSaveList(list []*MarketMrc20OrderModel) 
 }
 
 func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(chain string, q *MarketMrc20OrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, supply string, txRaw string, jobFunc func(chain, txRaw string) (string, error)) error {
+	if jobFunc != nil {
+		return errors.New("broadcast must run outside the database transaction")
+	}
+	if q == nil || q.FinalPsbt == "" {
+		return errors.New("prepared order transaction is missing")
+	}
 	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
 
 		updateTime := nowTime
 		q.DealTime = nowTime
+		q.OrderState = OrderStateFinish
+		q.ConfirmationState = ConfirmationStateUnconfirmed
 		sv := q.Version
-		q.Version += 1
+		q.Version++
 		q.UpdateTime = updateTime
 		q.TakerPsbt = ""
 		q.MakerPsbt = ""
 		q.FinalPsbt = ""
-		if err := tx.Save(q).Where(map[string]interface{}{"version": sv, "id": q.Id}).Error; err != nil {
-			return err
+		result := tx.Where("id = ? AND version = ? AND orderState = ? AND finalPsbt <> ''", q.Id, sv, OrderStateFinish).Save(q)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("order finalization conflict")
 		}
 		for _, utxo := range usedUtxoList {
 			av := utxo.Version
-			utxo.Version += 1
+			utxo.Version++
 			utxo.UpdateTime = updateTime
-			if err := tx.Save(utxo).Where(map[string]interface{}{"version": av, "id": utxo.Id}).Error; err != nil {
-				return err
+			result := tx.Where("id = ? AND version = ?", utxo.Id, av).Save(utxo)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("dummy UTXO finalization conflict")
 			}
 		}
 		for _, utxo := range newUtxoList {
@@ -484,8 +511,12 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(chain string,
 			sv := marketTickInfo.Version
 			marketTickInfo.Version += 1
 			marketTickInfo.UpdateTime = updateTime
-			if err := tx.Save(marketTickInfo).Where(map[string]interface{}{"version": sv, "id": marketTickInfo.Id}).Error; err != nil {
-				return err
+			result := tx.Where("id = ? AND version = ?", marketTickInfo.Id, sv).Save(marketTickInfo)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("market info update conflict")
 			}
 		} else {
 
@@ -517,10 +548,6 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(chain string,
 			}
 		}
 
-		_, err = jobFunc(chain, txRaw)
-		if err != nil {
-			return err
-		}
 		return nil
 	})
 	if err != nil {
