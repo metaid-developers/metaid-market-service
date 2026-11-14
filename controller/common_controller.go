@@ -339,6 +339,10 @@ func CheckUtxoInfo(c *gin.Context) {
 		requestModel *request.CheckUtxoInfoReq
 	)
 	if c.ShouldBindJSON(&requestModel) == nil {
+		if requestModel == nil || len(requestModel.OutPoints) == 0 || len(requestModel.OutPoints) > 1000 {
+			c.JSONP(http.StatusBadRequest, respond.RespErr(errors.New("outPoints must contain 1 to 1000 items"), tool.MakeTimestamp()-t, respond.HttpsCodeError))
+			return
+		}
 		responseModel, err := common_service.CheckUtxoInfo(requestModel)
 		if err != nil {
 			c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))

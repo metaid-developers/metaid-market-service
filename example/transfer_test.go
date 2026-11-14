@@ -12,9 +12,10 @@ import (
 )
 
 func TestMrc20TransferPreForLegacy(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "8e2a95af06f8e03f1ea2a2b0b85e35757bbd27b8bd03f8cae934bf6f90fa4f71"
+		priKeyHex   = examplePrivateKey("LEGACY")
 		address     = "mnVinwawKEtqyFJk3BHqmaEGkKNGrxYRh9"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -66,9 +67,10 @@ func TestMrc20TransferPreForLegacy(t *testing.T) {
 }
 
 func TestMrc20TransferCommitForLegacy(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "8e2a95af06f8e03f1ea2a2b0b85e35757bbd27b8bd03f8cae934bf6f90fa4f71"
+		priKeyHex     = examplePrivateKey("LEGACY")
 		address       = "mnVinwawKEtqyFJk3BHqmaEGkKNGrxYRh9"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address
@@ -259,9 +261,10 @@ func TestMrc20TransferCommitForLegacy(t *testing.T) {
 //2024/06/24 14:14:28 restore taproot address tb1pslytra085eljsj5sf9sjfes5gjmghzy7xznwrpr6qy0qrlkfh5hqaydnuj
 
 func TestMrc20TransferPreForSigwet(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net         = "testnet"
-		priKeyHex   = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex   = examplePrivateKey("PRIMARY")
 		address     = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _ = common.AddressToPkScript(net, address)
 
@@ -313,9 +316,10 @@ func TestMrc20TransferPreForSigwet(t *testing.T) {
 }
 
 func TestMrc20TransferCommitForSigwet(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex     = examplePrivateKey("PRIMARY")
 		address       = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address

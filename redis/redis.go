@@ -74,12 +74,10 @@ func newOnePool(endpoint, password string, db int) *redis.Pool {
 			c, err := redis.Dial("tcp", endpoint, redis.DialPassword(password))
 			if err != nil {
 				panic(err.Error())
-				return nil, err
 			}
 			if _, err = c.Do("SELECT", db); err != nil {
 				c.Close()
 				panic(err.Error())
-				return nil, err
 			}
 			return c, err
 		},

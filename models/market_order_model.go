@@ -127,28 +127,33 @@ func (_ *marketOrderModelDao) GetList(qo *MarketOrderModel, offset, limit int64)
 	return models, nil
 }
 
-func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefixPath string, notInAssetIds []string) (int64, error) {
-	var count int64
-	filter := ""
+func buildMarketOrderFilter(qo *MarketOrderModel, address, prefixPath string, notInAssetIds []string) (string, []interface{}) {
+	conditions := make([]string, 0, 3)
+	args := make([]interface{}, 0, 2+len(notInAssetIds))
 	if qo.OrderState == OrderStateFinish {
 		qo.SellerAddress = ""
-		filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
+		conditions = append(conditions, "(sellerAddress = ? OR buyerAddress = ?)")
+		args = append(args, address, address)
 	}
 	if prefixPath != "" {
-		if filter != "" {
-			filter += fmt.Sprintf(" and assetPath like '%s%%'", prefixPath)
-		} else {
-			filter = fmt.Sprintf("assetPath like '%s%%'", prefixPath)
-		}
+		conditions = append(conditions, "assetPath LIKE ?")
+		args = append(args, prefixPath+"%")
 	}
 	if len(notInAssetIds) > 0 {
-		if filter != "" {
-			filter += fmt.Sprintf(" and assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
-		} else {
-			filter = fmt.Sprintf("assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
+		placeholders := make([]string, len(notInAssetIds))
+		for i, assetId := range notInAssetIds {
+			placeholders[i] = "?"
+			args = append(args, assetId)
 		}
+		conditions = append(conditions, fmt.Sprintf("assetId NOT IN (%s)", strings.Join(placeholders, ",")))
 	}
-	tx := major.GetSqlDB().Model(&MarketOrderModel{}).Where(qo).Where(filter).Count(&count)
+	return strings.Join(conditions, " AND "), args
+}
+
+func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefixPath string, notInAssetIds []string) (int64, error) {
+	var count int64
+	filter, args := buildMarketOrderFilter(qo, address, prefixPath, notInAssetIds)
+	tx := major.GetSqlDB().Model(&MarketOrderModel{}).Where(qo).Where(filter, args...).Count(&count)
 	if tx.Error != nil {
 		return 0, tx.Error
 	}
@@ -157,26 +162,8 @@ func (_ *marketOrderModelDao) CountByState(qo *MarketOrderModel, address, prefix
 
 func (_ *marketOrderModelDao) GetListByState(qo *MarketOrderModel, address string, offset, limit int64, sortKey, sortType, prefixPath string, notInAssetIds []string) ([]*MarketOrderModel, error) {
 	var models []*MarketOrderModel
-	filter := ""
-	if qo.OrderState == OrderStateFinish {
-		qo.SellerAddress = ""
-		filter = fmt.Sprintf("sellerAddress = '%s' or buyerAddress = '%s'", address, address)
-	}
-	if prefixPath != "" {
-		if filter != "" {
-			filter += fmt.Sprintf(" and assetPath like '%s%%'", prefixPath)
-		} else {
-			filter = fmt.Sprintf("assetPath like '%s%%'", prefixPath)
-		}
-	}
-	if len(notInAssetIds) > 0 {
-		if filter != "" {
-			filter += fmt.Sprintf(" and assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
-		} else {
-			filter = fmt.Sprintf("assetId not in ('%s')", strings.Join(notInAssetIds, "','"))
-		}
-	}
-	tx := major.GetSqlDB().Where(qo).Where(filter).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", sortKey, sortType)).Find(&models)
+	filter, args := buildMarketOrderFilter(qo, address, prefixPath, notInAssetIds)
+	tx := major.GetSqlDB().Where(qo).Where(filter, args...).Limit(int(limit)).Offset(int(offset)).Order(fmt.Sprintf("%s %s", sortKey, sortType)).Find(&models)
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
@@ -214,6 +201,9 @@ func (_ *marketOrderModelDao) Update(q *MarketOrderModel) error {
 	if tx.Error != nil {
 		return tx.Error
 	}
+	if tx.RowsAffected != 1 {
+		return errors.New("order update conflict")
+	}
 	return nil
 }
 
@@ -242,26 +232,40 @@ func (_ *marketOrderModelDao) BatchSaveList(list []*MarketOrderModel) error {
 }
 
 func (_ *marketOrderModelDao) UpdateOrderEntityListForJobFunc(chain string, q *MarketOrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, txRaw string, jobFunc func(chain, txRaw string) (string, error)) error {
-	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
+	if jobFunc != nil {
+		return errors.New("broadcast must run outside the database transaction")
+	}
+	if q == nil || q.FinalPsbt == "" {
+		return errors.New("prepared order transaction is missing")
+	}
+	return major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
-
-		updateTime := nowTime
 		q.DealTime = nowTime
+		q.OrderState = OrderStateFinish
+		q.ConfirmationState = ConfirmationStateUnconfirmed
 		sv := q.Version
-		q.Version += 1
-		q.UpdateTime = updateTime
+		q.Version++
+		q.UpdateTime = nowTime
 		q.TakerPsbt = ""
 		q.MakerPsbt = ""
 		q.FinalPsbt = ""
-		if err := tx.Save(q).Where(map[string]interface{}{"version": sv, "id": q.Id}).Error; err != nil {
-			return err
+		result := tx.Where("id = ? AND version = ? AND orderState = ? AND finalPsbt <> ''", q.Id, sv, OrderStateFinish).Save(q)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("order finalization conflict")
 		}
 		for _, utxo := range usedUtxoList {
 			av := utxo.Version
-			utxo.Version += 1
-			utxo.UpdateTime = updateTime
-			if err := tx.Save(utxo).Where(map[string]interface{}{"version": av, "id": utxo.Id}).Error; err != nil {
-				return err
+			utxo.Version++
+			utxo.UpdateTime = nowTime
+			result := tx.Where("id = ? AND version = ?", utxo.Id, av).Save(utxo)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("dummy UTXO finalization conflict")
 			}
 		}
 		for _, utxo := range newUtxoList {
@@ -271,42 +275,47 @@ func (_ *marketOrderModelDao) UpdateOrderEntityListForJobFunc(chain string, q *M
 				return err
 			}
 		}
-
-		_, err := jobFunc(chain, txRaw)
-		if err != nil {
-			return err
-		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (_ *marketOrderModelDao) BatchUpdateOrderEntityListForJobFunc(chain string, qList []*MarketOrderModel, usedUtxoList, newUtxoList []*MarketUtxoModel, txRaw string, jobFunc func(chain, txRaw string) (string, error)) error {
-	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
+	if jobFunc != nil {
+		return errors.New("broadcast must run outside the database transaction")
+	}
+	return major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
 		nowTime := tool.MakeTimestamp()
-
-		updateTime := nowTime
 		for _, q := range qList {
+			if q == nil || q.FinalPsbt == "" {
+				return errors.New("prepared batch transaction is missing")
+			}
 			q.DealTime = nowTime
+			q.OrderState = OrderStateFinish
+			q.ConfirmationState = ConfirmationStateUnconfirmed
 			sv := q.Version
-			q.Version += 1
-			q.UpdateTime = updateTime
+			q.Version++
+			q.UpdateTime = nowTime
 			q.TakerPsbt = ""
 			q.MakerPsbt = ""
 			q.FinalPsbt = ""
-			if err := tx.Save(q).Where(map[string]interface{}{"version": sv, "id": q.Id}).Error; err != nil {
-				return err
+			result := tx.Where("id = ? AND version = ? AND orderState = ? AND finalPsbt <> ''", q.Id, sv, OrderStateFinish).Save(q)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("batch order finalization conflict")
 			}
 		}
 		for _, utxo := range usedUtxoList {
 			av := utxo.Version
-			utxo.Version += 1
-			utxo.UpdateTime = updateTime
-			if err := tx.Save(utxo).Where(map[string]interface{}{"version": av, "id": utxo.Id}).Error; err != nil {
-				return err
+			utxo.Version++
+			utxo.UpdateTime = nowTime
+			result := tx.Where("id = ? AND version = ?", utxo.Id, av).Save(utxo)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("dummy UTXO finalization conflict")
 			}
 		}
 		for _, utxo := range newUtxoList {
@@ -316,15 +325,6 @@ func (_ *marketOrderModelDao) BatchUpdateOrderEntityListForJobFunc(chain string,
 				return err
 			}
 		}
-
-		_, err := jobFunc(chain, txRaw)
-		if err != nil {
-			return err
-		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }

@@ -3,9 +3,7 @@ package example
 import (
 	"encoding/hex"
 	"fmt"
-	"log"
 	"metaid-market-service/common"
-	"metaid-market-service/controller/auth"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/models"
 	"metaid-market-service/tool"
@@ -17,10 +15,11 @@ import (
 )
 
 func TestPushMarketOrder(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net       string = "testnet"
 		chain     string = ""
-		priKeyHex string = "f0f4d09a90ff279d25036b11da569690e60bcc5cbab0474eeb271f3623f0f483"
+		priKeyHex string = examplePrivateKey("SELLER")
 		address   string = "2Mw4oj2jNTboEauHBhNyDLJwtGSNWu5rybM"
 
 		txId     string = "40b028882478db9b0cff1862d1c05458317be231dbfeaa5094f17da2a49e10a7" // pin text
@@ -120,12 +119,13 @@ func TestPushMarketOrder(t *testing.T) {
 }
 
 func TestPushMarketOrderByLegacy(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net string = "livenet"
 
 		// btc
 		// chain           string = "btc"
-		// priKeyHex       string = "766b9d706b2f97ae066dd1cdf994181fe8712f51d9493b54b03fab9759ab5893"
+		// priKeyHex       string = examplePrivateKey("LEGACY_SELLER")
 		// address         string = "1LdFYY1CLsmGRJwTXKsod4NscAFn3iUbCA"
 		// txId            string = "a6142806cced5e24a972da0fd0250ae17567470906a6ef90bd665fc614b3026e" // pin image
 		// outIndex        uint32 = 0
@@ -137,7 +137,7 @@ func TestPushMarketOrderByLegacy(t *testing.T) {
 
 		// doge
 		chain           string = "doge"
-		priKeyHex       string = "766b9d706b2f97ae066dd1cdf994181fe8712f51d9493b54b03fab9759ab5893"
+		priKeyHex       string = examplePrivateKey("LEGACY_SELLER")
 		address         string = "DQmM5nwqeHfYxK84FusNApYUVHz5Kc9RYc"
 		txId            string = "adf719b9c8d2051bf21d340e6777cfd27b344d63c2cc3d033adeb29669bf4ba0" // pin image
 		outIndex        uint32 = 0
@@ -264,10 +264,11 @@ func TestPushMarketOrderByLegacy(t *testing.T) {
 }
 
 func TestPushMarketOrderByNestSegwit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net       string = "testnet"
 		chain     string = ""
-		priKeyHex string = "f0f4d09a90ff279d25036b11da569690e60bcc5cbab0474eeb271f3623f0f483"
+		priKeyHex string = examplePrivateKey("SELLER")
 		address   string = "2Mw4oj2jNTboEauHBhNyDLJwtGSNWu5rybM"
 		txId      string = "40b028882478db9b0cff1862d1c05458317be231dbfeaa5094f17da2a49e10a7" // pin text
 		outIndex  uint32 = 0
@@ -414,16 +415,17 @@ func TestPushMarketOrderByNestSegwit(t *testing.T) {
 }
 
 func TestFetchOrderPsbt(t *testing.T) {
+	requireIntegration(t)
 	var (
 		// btc
 		// orderId string = "6de267ab59fca7d4c71dce14a8a499b97faad4897759dc0b919e9b5591f0d610"
-		// buyerPrivateKey string = "990cb917c774e0120db8f1f8dce7d59ea7ed2fbf7f9bf0d033990fc52c1edb25"
+		// buyerPrivateKey string = examplePrivateKey("BUYER")
 		// buyerAddress    string = "1FZ4vXoU2dQ2owkxBP48szvgcjAzq6kCT4"
 
 		// doge
 		chain           string = "doge"
 		orderId         string = "6b17f9a0c6080ea72a11b54d232cfb0961b3a9299f976909aa8d76a3ca1e1f52"
-		buyerPrivateKey string = "990cb917c774e0120db8f1f8dce7d59ea7ed2fbf7f9bf0d033990fc52c1edb25"
+		buyerPrivateKey string = examplePrivateKey("BUYER")
 		buyerAddress    string = "DKhATnk7L3JKLwwYuy3hRm6HVruJ8k5MGS"
 
 		url   string = domain + "/api/v1/market/order/psbt"
@@ -444,6 +446,7 @@ func TestFetchOrderPsbt(t *testing.T) {
 }
 
 func TestTakeMarketOrder(t *testing.T) {
+	requireIntegration(t)
 	type buyerUtxo struct {
 		TxId     string
 		Index    uint32
@@ -457,14 +460,14 @@ func TestTakeMarketOrder(t *testing.T) {
 		// btc
 		// chain           string = "btc"
 		// orderId         string = "6de267ab59fca7d4c71dce14a8a499b97faad4897759dc0b919e9b5591f0d610"
-		// buyerPrivateKey string = "990cb917c774e0120db8f1f8dce7d59ea7ed2fbf7f9bf0d033990fc52c1edb25"
+		// buyerPrivateKey string = examplePrivateKey("BUYER")
 		// buyerAddress    string = "1FZ4vXoU2dQ2owkxBP48szvgcjAzq6kCT4"
 		// takePsbt        string = "70736274ff0100fd690102000000048201135d7e9ced51bf6d0871c9091389631f855039cc96b0a67f877ed2e6e6790300000000ffffffff8201135d7e9ced51bf6d0871c9091389631f855039cc96b0a67f877ed2e6e6790400000000ffffffffa7109ea4a27df19450aafedb31e27b315854c0d16218ff0c9bdb78248828b0400000000000ffffffff8201135d7e9ced51bf6d0871c9091389631f855039cc96b0a67f877ed2e6e6790000000000ffffffff06b004000000000000160014d910fd9fa9e480b4061b322a7547130b11ee7f8b22020000000000001600149fa258b1d06f08584c469486e86d708689b312cdd00700000000000017a91429e816fccc05e73675666bc940753df27dc30d44875802000000000000160014d910fd9fa9e480b4061b322a7547130b11ee7f8b5802000000000000160014d910fd9fa9e480b4061b322a7547130b11ee7f8bd0070000000000001600147d5a964c8d7c5b670955acf6f8e1432ed566b730000000000001011f5802000000000000160014d910fd9fa9e480b4061b322a7547130b11ee7f8b010304010000000001011f5802000000000000160014d910fd9fa9e480b4061b322a7547130b11ee7f8b0103040100000000010120220200000000000017a91429e816fccc05e73675666bc940753df27dc30d4487010717160014639cde9772c1dd0ade831eadf7353f57e0f3875d01086b0247304402206f88be3f977b3db76ee862934b9df3290f50933112ed356f90b039b509c2199402203e4ee216e3964ca963fa56e50be35025d697a2bb8627467516158416e6e1c1088321027586afcd7a2cca8cfee999d81aae12bb9fe1a893425589f131db1fbdcd36a3110001011fb004000000000000160014d910fd9fa9e480b4061b322a7547130b11ee7f8b0103040100000000000000000000"
 
 		// doge
 		chain           string = "doge"
 		orderId         string = "6b17f9a0c6080ea72a11b54d232cfb0961b3a9299f976909aa8d76a3ca1e1f52"
-		buyerPrivateKey string = "990cb917c774e0120db8f1f8dce7d59ea7ed2fbf7f9bf0d033990fc52c1edb25"
+		buyerPrivateKey string = examplePrivateKey("BUYER")
 		buyerAddress    string = "DKhATnk7L3JKLwwYuy3hRm6HVruJ8k5MGS"
 		takePsbt        string = "70736274ff0100fd5801020000000483fca8664acebcf3ee8ca99e7c99f1cbe415f41177a2fe2f88ebc1fb57259f830000000000ffffffff83fca8664acebcf3ee8ca99e7c99f1cbe415f41177a2fe2f88ebc1fb57259f830100000000ffffffffa04bbf6996b2de3a033dccc2634d347bd2cf77670e341df21b05d2c8b919f7ad0000000000ffffffff1b7434e34cdd5cc70177c3f3bb9a4cae9483c51c0333302d0ab14b4f1ea9a48c0200000000ffffffff0580841e00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac200b2000000000001976a9149fa258b1d06f08584c469486e86d708689b312cd88acc0c62d00000000001976a914d7458146ad85e527d87f8020845ee8118312000b88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac00000000000100fd6a01020000000145303889866a2fb1e41707c6db8abb05ef08f2c4f59677729472994e12a3020c000000006b483045022100b6ce677093f9ab59414ad97c4ead814ac26c669c565af3692c5d7c5ad61d0b220220237ed09ca907438d1b4f71fc0648aee7e359f6e54becb3fba04ea44b6a3bef43012102da6011dcf627140ec3f00f8cd4e2ce36f17077b2ef8bd5c371bbb7f454fe2c56ffffffff0640420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ace01a2d00000000001976a914541a9019cb940c3bb519d41818b1b04ba4832bad88ac0000000001012200000000000000001976a914000000000000000000000000000000000000000088ac01030401000000000100fd6a01020000000145303889866a2fb1e41707c6db8abb05ef08f2c4f59677729472994e12a3020c000000006b483045022100b6ce677093f9ab59414ad97c4ead814ac26c669c565af3692c5d7c5ad61d0b220220237ed09ca907438d1b4f71fc0648aee7e359f6e54becb3fba04ea44b6a3bef43012102da6011dcf627140ec3f00f8cd4e2ce36f17077b2ef8bd5c371bbb7f454fe2c56ffffffff0640420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac40420f00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ace01a2d00000000001976a914541a9019cb940c3bb519d41818b1b04ba4832bad88ac0000000001012200000000000000001976a914000000000000000000000000000000000000000088ac01030401000000000100fd76010200000002297529b858362c0229aaa71287dbb932fc4b6fd5064fbec9966effaf1b07a522010000006b483045022100f6c83d64e977cac5b9969de07a7c19cdee803337b2c605d7bb48645a0132447002201d3f54f527cd63693a930477fa50e3fc473fa8fc8cf58451877ab161bbb591b20121028645862c2ddc0224fe3b28bc861a5b383babbaf82573904ea1a92fbba751ef6affffffff1b7434e34cdd5cc70177c3f3bb9a4cae9483c51c0333302d0ab14b4f1ea9a48c030000006b4830450221009882be7607c4ddb4167bb9499e05f4bac0018c356366f9147920c1d9d1b0256d02203ed524288896933642abc5fc7c0db14b9963e023567d6b927f7dafd6a26985ca0121028645862c2ddc0224fe3b28bc861a5b383babbaf82573904ea1a92fbba751ef6affffffff02200b2000000000001976a914d7458146ad85e527d87f8020845ee8118312000b88acee62f002000000001976a914541a9019cb940c3bb519d41818b1b04ba4832bad88ac0000000022020388ed50b94b7e2288f0448f3a66db4282bb792a155888dd088ebd80888f476dc44730440220618ba12c5c7e68f4051d5126092dc0edad10f3a98d06e5aeb9157431e12ac3880220307d29366d84daf45537e218b73c9929019eff06933a29811462474434e6085283010304830000000001012280841e00000000001976a9147dc48b73f0d2b289040635c508e2c4f7784150ba88ac01030401000000000000000000"
 
@@ -562,33 +565,18 @@ func TestTakeMarketOrder(t *testing.T) {
 }
 
 func TestCancelMarketOrder(t *testing.T) {
+	requireIntegration(t)
 	var (
 		orderId string = "6de267ab59fca7d4c71dce14a8a499b97faad4897759dc0b919e9b5591f0d610"
 		url     string = domain + "/api/v1/market/order/cancel"
 		req            = &request.CancelOrderReq{
 			OrderId: orderId,
 		}
-		//priKeyHex string = "766b9d706b2f97ae066dd1cdf994181fe8712f51d9493b54b03fab9759ab5893"
-		priKeyHex string = "f0f4d09a90ff279d25036b11da569690e60bcc5cbab0474eeb271f3623f0f483"
-		headers          = map[string]string{
-			"X-Signature":  "",
-			"X-Public-Key": "",
-		}
+		//priKeyHex string = examplePrivateKey("LEGACY_SELLER")
+		priKeyHex string = examplePrivateKey("SELLER")
+		headers          = map[string]string{}
 	)
-	privateKeyBytes, err := hex.DecodeString(priKeyHex)
-	if err != nil {
-		log.Fatal(err)
-	}
-	privateKey, _ := btcec.PrivKeyFromBytes(privateKeyBytes)
-	publicKey := hex.EncodeToString(privateKey.PubKey().SerializeCompressed())
-
-	headers["X-Public-Key"] = publicKey
-
-	signature, err := auth.SignTextMessage("metaid.market", priKeyHex)
-	if err != nil {
-		log.Fatal(err)
-	}
-	headers["X-Signature"] = signature
+	headers = addHeaders(priKeyHex)
 	resp, err := tool.PostUrl(url, req, headers)
 	if err != nil {
 		t.Errorf("PostUrl() error = %v,", err)
@@ -598,10 +586,11 @@ func TestCancelMarketOrder(t *testing.T) {
 }
 
 func TestLegacySigSingle(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net       string = "testnet"
 		chain     string = ""
-		priKeyHex string = "b7b93c5c9374405b68613cd37be719dfa5b78f630da0950675b79c6c64fcab3a"
+		priKeyHex string = examplePrivateKey("LEGACY")
 		address   string = "miGitBv1eh5c5UTppu3jHKAkdRfDbrV9jN"
 		txId      string = "f034a43bf648e9f39c16fa79148c80669e400b7905f84008ec1995c1cc28e6db" // pin image
 		outIndex  uint32 = 0

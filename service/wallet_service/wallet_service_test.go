@@ -2,10 +2,14 @@ package wallet_service
 
 import (
 	"fmt"
+	"os"
 	"testing"
 )
 
 func TestFetchBrc20PoolKey(t *testing.T) {
+	if os.Getenv("METAID_MARKET_EXAMPLE_INTEGRATION") != "1" {
+		t.Skip("external wallet service test is disabled by default")
+	}
 	//conf.InitDevConfig()
 	var (
 		host string = ""

@@ -558,7 +558,6 @@ func SignAskTakerPsbtRawInDummy(net, chain string, unSignDummyAskPsbtBuilder *Ps
 		UtxoType:    signDummyInputList[0].UtxoType,
 		Amount:      dummyInputAmount1,
 	})
-	fmt.Printf("inputSigns[0]: %+v\n", inputSigns[0])
 	inputSigns = append(inputSigns, &InputSign{
 		Index:       1, //1
 		OutRaw:      signDummyInputList[1].OutRaw,

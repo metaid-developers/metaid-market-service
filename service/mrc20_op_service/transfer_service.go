@@ -52,6 +52,10 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		extra   map[string]interface{} = make(map[string]interface{})
 	)
 
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, changeAddress)
+	if err != nil || !verified {
+		return nil, errors.New("transfer change address does not belong to the authenticated public key")
+	}
 	serviceFee, serviceAddress = common.GetPlatformServiceFeeConfigData().TransferFee, common.GetPlatformServiceFeeConfigData().ServiceAddress
 	if serviceFee > 546 {
 		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
@@ -64,6 +68,10 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 	for _, v := range req.Transfers {
 		if v.Amount == "" || v.UtxoOutValue <= 0 || v.UtxoTxId == "" {
 			return nil, errors.New("transfer request parameter error")
+		}
+		verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, v.Address)
+		if err != nil || !verified {
+			return nil, errors.New("transfer input address does not belong to the authenticated public key")
 		}
 		transferMrc20 := &mrc20_service.TransferMrc20{
 			Address:       v.Address,
@@ -167,6 +175,7 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 			OrderId:             orderId,
 			Payload:             payload,
 			InscribeState:       models.InscribeStatePending,
+			Address:             changeAddress,
 			TickId:              tickId,
 			TotalFee:            totalFee,
 			MinerFee:            minerFee,
@@ -279,6 +288,9 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 	if len(commitTx.TxOut) <= int(commitTxOutIndex) {
 		return nil, errors.New("commitTxOutIndex error")
 	}
+	if err = common.ValidateRevealPsbtTemplate(conf.Net, chain, transferOrder.RevealPrePsbtRaw, prePsbtRaw, commitTx, commitTxOutIndex, transferOrder.RevealInputIndex, transferOrder.RevealTxAddress, transferOrder.MinerFee); err != nil {
+		return nil, errors.New("invalid transfer commit or reveal PSBT: " + err.Error())
+	}
 
 	txIn := commitTx.TxIn[0]
 	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
@@ -286,6 +298,10 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
 	address = utxoInfo.Address
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
+	if err != nil || !verified || (transferOrder.Address != "" && address != transferOrder.Address) {
+		return nil, errors.New("commitTx address does not match the transfer order wallet")
+	}
 
 	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
 	if err != nil {
@@ -343,8 +359,15 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 		chain,
 		transferOrder,
 		[]string{commitTxRaw, revealTxRaw},
-		common.BroadcastTx,
+		nil,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if err = BroadcastInscribeTxs(chain, []string{commitTxRaw, revealTxRaw}); err != nil {
+		return nil, err
+	}
+	err = models.Mrc20TransferOrderModelDao().UpdateEntityListForInscribing(chain, transferOrder, nil, nil)
 	if err != nil {
 		return nil, err
 	}

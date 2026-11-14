@@ -9,8 +9,9 @@ import (
 )
 
 func TestIdCoinsValidRefundPre(t *testing.T) {
+	requireIntegration(t)
 	var (
-		//priKeyHex = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		//priKeyHex = examplePrivateKey("PRIMARY")
 		//address   = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		//orderId   = "b9a8e097bccc24132e11d68ff9206c16b623e67c72cc57f114eeacc0506c2210"
 		//orderId = "id_coins_mint_outside_5bff13d5602857af613a9f0259b494b3bde53b747f820871f964591bdf"
@@ -18,7 +19,7 @@ func TestIdCoinsValidRefundPre(t *testing.T) {
 		//orderId = "id_coins_mint_outside_dba5a3bc833715ad1df03671287582255fb617415c0a9ea54a8a1f9ebd0cd664"
 		orderId = "dba5a3bc833715ad1df03671287582255fb617415c0a9ea54a8a1f9ebd0cd664"
 
-		priKeyHex = "c92b5412f75905c1b78af96d61b4c12b3a53d2f6d5a74cd57a32de90596e77cb"
+		priKeyHex = examplePrivateKey("IDCOIN")
 		address   = "bc1q0xmpakvxxtrp2t40rz2p457s2sy9hw937kyyct"
 
 		url string = domain + "/api/v1/id-coins/invalid/refund/pre"
@@ -41,6 +42,7 @@ func TestIdCoinsValidRefundPre(t *testing.T) {
 }
 
 func TestIdCoinsValidRefundCommit(t *testing.T) {
+	requireIntegration(t)
 	type feeUtxo struct {
 		TxId   string
 		Index  uint32
@@ -48,11 +50,11 @@ func TestIdCoinsValidRefundCommit(t *testing.T) {
 	}
 	var (
 		//net           = "testnet"
-		//priKeyHex     = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		//priKeyHex     = examplePrivateKey("PRIMARY")
 		//address       = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 
 		net           = "livenet"
-		priKeyHex     = "c92b5412f75905c1b78af96d61b4c12b3a53d2f6d5a74cd57a32de90596e77cb"
+		priKeyHex     = examplePrivateKey("IDCOIN")
 		address       = "bc1q0xmpakvxxtrp2t40rz2p457s2sy9hw937kyyct"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address

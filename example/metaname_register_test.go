@@ -9,8 +9,9 @@ import (
 )
 
 func TestMetaNameRegisterPre(t *testing.T) {
+	requireIntegration(t)
 	var (
-		priKeyHex = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex = examplePrivateKey("PRIMARY")
 		address   = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 
 		url string = domain + "/api/v1/metaname/register/pre"
@@ -36,9 +37,10 @@ func TestMetaNameRegisterPre(t *testing.T) {
 }
 
 func TestMetaNameRegisterCommit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex     = examplePrivateKey("PRIMARY")
 		address       = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address

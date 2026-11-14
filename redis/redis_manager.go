@@ -104,3 +104,16 @@ func GetUtxoInfoKeyValueList(keyPrefix string) ([]string, []int, error) {
 	}
 	return keyList, valueList, nil
 }
+
+func DbUtxo() int {
+	return redisDbUtxo
+}
+
+func (r *RedisManager) Consume(db int, key string) (interface{}, error) {
+	c := r.pools[db].Get()
+	if c == nil {
+		return nil, errors.New("get redis connection error")
+	}
+	defer c.Close()
+	return c.Do("EVAL", "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value", 1, key)
+}

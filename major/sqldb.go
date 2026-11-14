@@ -15,7 +15,6 @@ var (
 
 func InitSqlConfig() {
 	dsn := conf.RdsDsn
-	fmt.Println(dsn)
 	gdb, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(fmt.Errorf("DB init error %s", err.Error()))

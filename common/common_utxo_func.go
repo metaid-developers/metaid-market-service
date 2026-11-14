@@ -44,8 +44,8 @@ func GetUnoccupiedUtxoList(chain string, limit int64, utxoType models.UtxoType) 
 	default:
 		return nil, errors.New("Unoccupied-Utxo: wrong type")
 	}
-	unoccupiedUtxoLock.RLock()
-	defer unoccupiedUtxoLock.RUnlock()
+	unoccupiedUtxoLock.Lock()
+	defer unoccupiedUtxoLock.Unlock()
 
 	utxoIdKeyList, sortIndexList, _ = redis.GetUtxoInfoKeyValueList(redisKeyPrefix)
 	for _, v := range sortIndexList {
@@ -112,7 +112,10 @@ func GetUnoccupiedUtxoList(chain string, limit int64, utxoType models.UtxoType) 
 		v.PkScript = hex.EncodeToString(pkScriptByte)
 	}
 
-	cacheUtxoList(unoccupiedUtxoList)
+	if err := cacheUtxoList(unoccupiedUtxoList); err != nil {
+		ReleaseUtxoList(unoccupiedUtxoList)
+		return nil, err
+	}
 	return unoccupiedUtxoList, nil
 }
 
@@ -136,7 +139,7 @@ func ReleaseUtxoList(utxoList []*models.MarketUtxoModel) {
 	}
 }
 
-func cacheUtxoList(utxoList []*models.MarketUtxoModel) {
+func cacheUtxoList(utxoList []*models.MarketUtxoModel) error {
 	for _, v := range utxoList {
 		cacheUtxoType := redis.UtxoTypeDummy_
 		switch v.UtxoType {
@@ -149,11 +152,11 @@ func cacheUtxoList(utxoList []*models.MarketUtxoModel) {
 		default:
 			continue
 		}
-		_, err := redis.SetRedisUtxoInfo(cacheUtxoType, v.UtxoId, int(v.SortIndex))
-		if err != nil {
-			fmt.Printf("SetRedisUtxoInfo err:%s\n", err.Error())
+		if _, err := redis.SetRedisUtxoInfo(cacheUtxoType, v.UtxoId, int(v.SortIndex)); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
 //func GetSaveStartIndex(net string, utxoType models.UtxoType, perAmount int64) int64 {

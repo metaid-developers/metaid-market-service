@@ -9,8 +9,9 @@ import (
 )
 
 func TestIdCoinsMintPre(t *testing.T) {
+	requireIntegration(t)
 	var (
-		priKeyHex = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex = examplePrivateKey("PRIMARY")
 		address   = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		tickId    = "5bff13d5602857af613a9f0259b494b3bde53b747f820871f964591bdf972e3fi0"
 
@@ -38,9 +39,10 @@ func TestIdCoinsMintPre(t *testing.T) {
 }
 
 func TestIdCoinsMintCommit(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "testnet"
-		priKeyHex     = "d4e34195c8a62d5773bfb2ce65056defe30c4cbc8ef4ac8a4074728e04ff5c34"
+		priKeyHex     = examplePrivateKey("PRIMARY")
 		address       = "tb1qe6r2e0d7kl92ul489g7r7kfm4hz66qndtr88ft"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address
@@ -163,8 +165,9 @@ func TestIdCoinsMintCommit(t *testing.T) {
 }
 
 func TestIdCoinsMintPreL(t *testing.T) {
+	requireIntegration(t)
 	var (
-		priKeyHex = "c92b5412f75905c1b78af96d61b4c12b3a53d2f6d5a74cd57a32de90596e77cb"
+		priKeyHex = examplePrivateKey("IDCOIN")
 		address   = "bc1q0xmpakvxxtrp2t40rz2p457s2sy9hw937kyyct"
 		tickId    = "8ce590918a3d493631ab9d9e3bbc89e322f3dd08354af87f97c07218818b78f4i0"
 
@@ -192,9 +195,10 @@ func TestIdCoinsMintPreL(t *testing.T) {
 }
 
 func TestIdCoinsMintCommitL(t *testing.T) {
+	requireIntegration(t)
 	var (
 		net           = "livenet"
-		priKeyHex     = "c92b5412f75905c1b78af96d61b4c12b3a53d2f6d5a74cd57a32de90596e77cb"
+		priKeyHex     = examplePrivateKey("IDCOIN")
 		address       = "bc1q0xmpakvxxtrp2t40rz2p457s2sy9hw937kyyct"
 		pkScript, _   = common.AddressToPkScript(net, address)
 		changeAddress = address
