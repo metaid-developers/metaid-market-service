@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"metaid-market-service/conf"
@@ -233,4 +234,52 @@ func secondInputMustHash(t *testing.T, id string) *chainhash.Hash {
 
 func secondInputID(input Input) string {
 	return input.OutTxId + "_1"
+}
+
+func testWitness(items ...[]byte) []byte {
+	var buffer bytes.Buffer
+	_ = wire.WriteVarInt(&buffer, 0, uint64(len(items)))
+	for _, item := range items {
+		_ = wire.WriteVarInt(&buffer, 0, uint64(len(item)))
+		buffer.Write(item)
+	}
+	return buffer.Bytes()
+}
+
+func TestValidateExpectedInputFinalizedSighashEncoding(t *testing.T) {
+	buyerPublicKey, buyerAddress, sellerAddress, dummyAddress := setupTakeValidation(t)
+	_, builder, _ := validMrc20Take(t, buyerPublicKey, buyerAddress, sellerAddress, dummyAddress)
+	expectedID := takeInputID(builder.GetInputs()[1])
+	signature := []byte{0x30, 0x01, 0x02, 0x83}
+	builder.PsbtUpdater.Upsbt.Inputs[1].SighashType = 0
+	builder.PsbtUpdater.Upsbt.Inputs[1].FinalScriptWitness = testWitness(signature, []byte{0x02, 0x03})
+	if err := validateExpectedInput(builder, 1, expectedID, txscript.SigHashSingle|txscript.SigHashAnyOneCanPay); err != nil {
+		t.Fatalf("finalized witness signature was rejected: %v", err)
+	}
+
+	schnorr := make([]byte, 65)
+	schnorr[len(schnorr)-1] = 0x83
+	builder.PsbtUpdater.Upsbt.Inputs[1].FinalScriptWitness = testWitness(schnorr)
+	if err := validateExpectedInput(builder, 1, expectedID, txscript.SigHashSingle|txscript.SigHashAnyOneCanPay); err != nil {
+		t.Fatalf("finalized Schnorr signature was rejected: %v", err)
+	}
+
+	builder.PsbtUpdater.Upsbt.Inputs[1].FinalScriptWitness = testWitness([]byte{0x30, 0x01, 0x02, 0x81}, []byte{0x02, 0x03})
+	if err := validateExpectedInput(builder, 1, expectedID, txscript.SigHashSingle|txscript.SigHashAnyOneCanPay); err == nil {
+		t.Fatal("signature with wrong sighash was accepted")
+	}
+
+	builder.PsbtUpdater.Upsbt.Inputs[1].FinalScriptWitness = nil
+	script, err := txscript.NewScriptBuilder().AddData(signature).AddData([]byte{0x02, 0x03}).Script()
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder.PsbtUpdater.Upsbt.Inputs[1].FinalScriptSig = script
+	if err := validateExpectedInput(builder, 1, expectedID, txscript.SigHashSingle|txscript.SigHashAnyOneCanPay); err != nil {
+		t.Fatalf("legacy signature was rejected: %v", err)
+	}
+	builder.PsbtUpdater.Upsbt.Inputs[1].FinalScriptSig = []byte{0x01, 0x02}
+	if err := validateExpectedInput(builder, 1, expectedID, txscript.SigHashSingle|txscript.SigHashAnyOneCanPay); err == nil {
+		t.Fatal("script without a valid signature was accepted")
+	}
 }

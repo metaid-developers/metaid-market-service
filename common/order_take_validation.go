@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"metaid-market-service/models"
@@ -63,6 +64,71 @@ func validateUniqueInputs(builder *PsbtBuilder) error {
 	return nil
 }
 
+func signatureHasSighash(signature []byte, sighash txscript.SigHashType) bool {
+	return len(signature) > 1 && signature[0] == 0x30 && signature[len(signature)-1] == byte(sighash)
+}
+
+func witnessHasSighash(finalScriptWitness []byte, sighash txscript.SigHashType) bool {
+	reader := bytes.NewReader(finalScriptWitness)
+	count, err := wire.ReadVarInt(reader, 0)
+	if err != nil || count == 0 {
+		return false
+	}
+	for i := uint64(0); i < count; i++ {
+		size, err := wire.ReadVarInt(reader, 0)
+		if err != nil || size == 0 {
+			return false
+		}
+		item := make([]byte, size)
+		if _, err := reader.Read(item); err != nil {
+			return false
+		}
+		if signatureHasSighash(item, sighash) || ((len(item) == 64 || len(item) == 65) && item[len(item)-1] == byte(sighash)) {
+			return true
+		}
+	}
+	return false
+}
+
+func inputHasSighash(builder *PsbtBuilder, index int, sighash txscript.SigHashType) bool {
+	input := builder.PsbtUpdater.Upsbt.Inputs[index]
+	for _, partialSig := range input.PartialSigs {
+		if signatureHasSighash(partialSig.Signature, sighash) {
+			return true
+		}
+	}
+	if witnessHasSighash(input.FinalScriptWitness, sighash) {
+		return true
+	}
+	if len(input.FinalScriptSig) > 0 {
+		pushes, err := txscript.PushedData(input.FinalScriptSig)
+		if err == nil {
+			for _, push := range pushes {
+				if signatureHasSighash(push, sighash) {
+					return true
+				}
+			}
+		}
+	}
+	if len(input.TaprootKeySpendSig) > 0 && input.TaprootKeySpendSig[len(input.TaprootKeySpendSig)-1] == byte(sighash) {
+		return true
+	}
+	for _, sig := range input.TaprootScriptSpendSig {
+		if len(sig.Signature) > 0 && sig.Signature[len(sig.Signature)-1] == byte(sighash) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateInputSighash(builder *PsbtBuilder, index int, sighash txscript.SigHashType) error {
+	input := builder.PsbtUpdater.Upsbt.Inputs[index]
+	if input.SighashType == sighash || (input.SighashType == 0 && inputHasSighash(builder, index, sighash)) {
+		return nil
+	}
+	return fmt.Errorf("unexpected sighash at input %d: %d, want %d", index, input.SighashType, sighash)
+}
+
 func validateExpectedInput(builder *PsbtBuilder, index int, expectedID string, sighash txscript.SigHashType) error {
 	if index < 0 || index >= len(builder.GetInputs()) {
 		return fmt.Errorf("missing transaction input %d", index)
@@ -70,10 +136,7 @@ func validateExpectedInput(builder *PsbtBuilder, index int, expectedID string, s
 	if got := takeInputID(builder.GetInputs()[index]); got != expectedID {
 		return fmt.Errorf("unexpected input %d: %s, want %s", index, got, expectedID)
 	}
-	if got := builder.PsbtUpdater.Upsbt.Inputs[index].SighashType; got != sighash {
-		return fmt.Errorf("unexpected sighash at input %d: %d, want %d", index, got, sighash)
-	}
-	return nil
+	return validateInputSighash(builder, index, sighash)
 }
 
 func validateExpectedOutput(net, chain string, builder *PsbtBuilder, index int, address string, value int64) error {
@@ -404,8 +467,8 @@ func ValidateMakerAssetInput(net, chain string, builder *PsbtBuilder, index int,
 		return errors.New("maker asset input is missing")
 	}
 	input := builder.PsbtUpdater.Upsbt.Inputs[index]
-	if input.SighashType != txscript.SigHashSingle|txscript.SigHashAnyOneCanPay {
-		return errors.New("maker asset input must use SIGHASH_SINGLE_ANYONECANPAY")
+	if err := validateInputSighash(builder, index, txscript.SigHashSingle|txscript.SigHashAnyOneCanPay); err != nil {
+		return err
 	}
 	if len(input.PartialSigs) == 0 && len(input.FinalScriptWitness) == 0 && len(input.FinalScriptSig) == 0 && len(input.TaprootKeySpendSig) == 0 && len(input.TaprootScriptSpendSig) == 0 {
 		return errors.New("maker asset input is not signed")
