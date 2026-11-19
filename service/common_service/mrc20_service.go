@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -1119,9 +1120,87 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 	}, nil
 }
 
+const mrc20PriceListCacheTTL = 10 * time.Second
+
+type mrc20PriceListCall struct {
+	done chan struct{}
+	resp *respond.Mrc20TickMarketPriceListResp
+	err  error
+}
+
+type mrc20PriceListCache struct {
+	mu       sync.Mutex
+	ttl      time.Duration
+	now      func() time.Time
+	cached   *respond.Mrc20TickMarketPriceListResp
+	cachedAt time.Time
+	inflight *mrc20PriceListCall
+}
+
+func newMrc20PriceListCache(ttl time.Duration, now func() time.Time) *mrc20PriceListCache {
+	if now == nil {
+		now = time.Now
+	}
+	return &mrc20PriceListCache{
+		ttl: ttl,
+		now: now,
+	}
+}
+
+func (c *mrc20PriceListCache) getOrLoad(loader func() (*respond.Mrc20TickMarketPriceListResp, error)) (*respond.Mrc20TickMarketPriceListResp, error) {
+	c.mu.Lock()
+	if c.cached != nil && c.now().Sub(c.cachedAt) < c.ttl {
+		resp := c.cached
+		c.mu.Unlock()
+		return resp, nil
+	}
+	if c.inflight != nil {
+		call := c.inflight
+		c.mu.Unlock()
+		<-call.done
+		return call.resp, call.err
+	}
+	call := &mrc20PriceListCall{done: make(chan struct{})}
+	c.inflight = call
+	c.mu.Unlock()
+
+	defer func() {
+		if r := recover(); r != nil {
+			c.mu.Lock()
+			c.inflight = nil
+			c.mu.Unlock()
+			call.err = fmt.Errorf("panic in price-list loader: %v", r)
+			close(call.done)
+			panic(r)
+		}
+	}()
+
+	resp, err := loader()
+
+	c.mu.Lock()
+	if err == nil && resp != nil {
+		c.cached = resp
+		c.cachedAt = c.now()
+	}
+	c.inflight = nil
+	c.mu.Unlock()
+
+	call.resp = resp
+	call.err = err
+	close(call.done)
+	return resp, err
+}
+
+var globalMrc20PriceListCache = newMrc20PriceListCache(mrc20PriceListCacheTTL, time.Now)
+
 func FetchMrc20TickMarketPriceList(req *request.FetchMrc20TickMarketPriceListReq) (*respond.Mrc20TickMarketPriceListResp, error) {
+	return globalMrc20PriceListCache.getOrLoad(loadMrc20TickMarketPriceList)
+}
+
+func loadMrc20TickMarketPriceList() (*respond.Mrc20TickMarketPriceListResp, error) {
 	var (
 		marketList []*models.MarketMrc20InfoModel
+		err        error
 
 		total int64                               = 0
 		list  []*respond.Mrc20TickMarketPriceInfo = make([]*respond.Mrc20TickMarketPriceInfo, 0)
@@ -1130,8 +1209,11 @@ func FetchMrc20TickMarketPriceList(req *request.FetchMrc20TickMarketPriceListReq
 	btcUsdDe, _ := decimal.NewFromString(btcUsd)
 	satUsdDe := btcUsdDe.Div(decimal.New(100000000, 0))
 
-	total, _ = models.MarketMrc20InfoModelDao().Count(&models.MarketMrc20InfoModel{})
-	marketList, _ = models.MarketMrc20InfoModelDao().GetAll(&models.MarketMrc20InfoModel{})
+	marketList, err = models.MarketMrc20InfoModelDao().GetAll(&models.MarketMrc20InfoModel{})
+	if err != nil {
+		return nil, err
+	}
+	total = int64(len(marketList))
 	for _, v := range marketList {
 		price := "0"
 		priceUsd := "0.00"
