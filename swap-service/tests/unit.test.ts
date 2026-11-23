@@ -1,4 +1,8 @@
 import * as assert from 'assert'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import { SwapEngine, axios, loadSwapContractsFast, scrypt } from '../src/core-bridge'
 import {
   quoteAddLiquidity,
   quoteRemoveLiquidity,
@@ -6,6 +10,8 @@ import {
   quoteSwapTokenToMvc,
 } from '../src/quote'
 import { AsyncKeyedQueue } from '../src/pool-store'
+import { deriveContractHashArray } from '../src/pool-admin'
+import { createSwapServer } from '../src/server'
 
 async function main() {
   console.log('=== swap-service Unit & Regression Tests ===')
@@ -74,6 +80,132 @@ async function main() {
   assert.deepStrictEqual(events, ['start-1', 'end-1', 'start-2', 'end-2', 'start-3', 'end-3'])
   console.log('  [PASS] Per-pool AsyncKeyedQueue FIFO serialization (no overlapping execution)')
 
+  // 7. Admin contractHashArray derivation matches verified mainnet SPACE/MVST pool byte-for-byte
+  const poolsJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'pools.json'), 'utf8'))
+  const mvstPool = poolsJson.pools[0]
+  const contracts = loadSwapContractsFast()
+  const chain = new SwapEngine.MetaletChainClient({
+    apiBase: 'https://www.metalet.space/wallet-api/v4/mvc',
+    net: 'livenet',
+  })
+  const liveState = await SwapEngine.loadPoolState(
+    chain,
+    mvstPool.bootstrapHead.poolTxid,
+    mvstPool.bootstrapHead.lpGenesisTxid,
+    mvstPool.bootstrapHead.lpGenesisVout
+  )
+  const derived = deriveContractHashArray({
+    contracts,
+    swapContractID: mvstPool.contract.swapContractID,
+    tokenID: mvstPool.contract.tokenID,
+    tokenScriptCodeHash: mvstPool.contract.tokenScriptCodeHash,
+    ownerAddressHashHex: liveState.ownerAddress.toString('hex'),
+  })
+  assert.strictEqual(derived.contractHashRootHex, mvstPool.contract.contractHashRoot)
+  assert.strictEqual(derived.contractHashArrayHex, mvstPool.contract.contractHashArrayHex)
+  console.log('  [PASS] Admin deriveContractHashArray matches live mainnet SPACE/MVST contractHashRoot byte-for-byte')
+
+  // 8. Admin HTTP endpoints: auth guard (503/401/403), whitelist rejection, on-chain auto-import, hot-register & hot-remove
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'swap-admin-test-'))
+  const tmpPoolsFile = path.join(tmpDir, 'pools.json')
+  const tmpDataDir = path.join(tmpDir, 'data')
+  fs.writeFileSync(
+    tmpPoolsFile,
+    JSON.stringify({ whitelistSwapCodeHashes: poolsJson.whitelistSwapCodeHashes, pools: [] }, null, 2)
+  )
+
+  const prevEnv = {
+    SWAP_POOLS_FILE: process.env.SWAP_POOLS_FILE,
+    SWAP_DATA_DIR: process.env.SWAP_DATA_DIR,
+    SWAP_ADMIN_TOKEN: process.env.SWAP_ADMIN_TOKEN,
+  }
+  try {
+    // 8a. Disabled when SWAP_ADMIN_TOKEN is unset -> 503
+    process.env.SWAP_POOLS_FILE = tmpPoolsFile
+    process.env.SWAP_DATA_DIR = tmpDataDir
+    delete process.env.SWAP_ADMIN_TOKEN
+    const srvDisabled = createSwapServer()
+    await new Promise<void>((r) => srvDisabled.server.listen(0, '127.0.0.1', r))
+    const port1 = (srvDisabled.server.address() as any).port
+    const res503 = await axios.get(`http://127.0.0.1:${port1}/internal/swap/admin/pools`, {
+      validateStatus: () => true,
+    })
+    assert.strictEqual(res503.status, 503, `Expected 503 without SWAP_ADMIN_TOKEN, got ${res503.status}`)
+    await new Promise<void>((r) => srvDisabled.server.close(() => r()))
+
+    // 8b. Enabled with token -> 401/403 checks + import + hot activation + whitelist reject + delete
+    const testToken = 'test-secret-admin-token-9988'
+    process.env.SWAP_ADMIN_TOKEN = testToken
+    const srv = createSwapServer()
+    await new Promise<void>((r) => srv.server.listen(0, '127.0.0.1', r))
+    const port = (srv.server.address() as any).port
+    const base = `http://127.0.0.1:${port}`
+
+    const res401 = await axios.get(`${base}/internal/swap/admin/pools`, { validateStatus: () => true })
+    assert.strictEqual(res401.status, 401)
+    const res403 = await axios.get(`${base}/internal/swap/admin/pools`, {
+      headers: { 'X-Swap-Admin-Token': 'wrong-token' },
+      validateStatus: () => true,
+    })
+    assert.strictEqual(res403.status, 403)
+
+    // Import real mainnet SPACE/MVST pool with ONLY poolTxid + lpGenesisTxid (zero manual contract fields!)
+    const impRes = await axios.post(
+      `${base}/internal/swap/admin/pools/import`,
+      {
+        poolId: 'space-mvst-imported',
+        poolTxid: mvstPool.bootstrapHead.poolTxid,
+        lpGenesisTxid: mvstPool.bootstrapHead.lpGenesisTxid,
+        lpGenesisVout: mvstPool.bootstrapHead.lpGenesisVout,
+      },
+      { headers: { 'X-Swap-Admin-Token': testToken } }
+    )
+    assert.strictEqual(impRes.status, 200)
+    assert.strictEqual(impRes.data.code, 0)
+    assert.strictEqual(impRes.data.data.entry.contract.contractHashRoot, mvstPool.contract.contractHashRoot)
+    assert.strictEqual(impRes.data.data.entry.token2.symbol, 'MVST')
+    assert.strictEqual(impRes.data.data.entry.token2.decimals, 8)
+
+    // Public GET /internal/swap/pools immediately serves the hot-imported pool without restart
+    const pubList = await axios.get(`${base}/internal/swap/pools`)
+    assert.strictEqual(pubList.data.data.pools.length, 1)
+    assert.strictEqual(pubList.data.data.pools[0].poolId, 'space-mvst-imported')
+
+    // Reject unwhitelisted pool registration
+    const badEntry = JSON.parse(JSON.stringify(impRes.data.data.entry))
+    badEntry.poolId = 'bad-pool'
+    badEntry.contract.swapCodeHash = '0000000000000000000000000000000000000000'
+    const badRes = await axios.post(
+      `${base}/internal/swap/admin/pools/register`,
+      { entry: badEntry },
+      { headers: { 'X-Swap-Admin-Token': testToken }, validateStatus: () => true }
+    )
+    assert.strictEqual(badRes.status, 500)
+    assert.ok(String(badRes.data.message).includes('not in whitelistSwapCodeHashes'))
+
+    // Hot-remove pool and verify persisted pools.json is clean
+    const delRes = await axios.delete(`${base}/internal/swap/admin/pools/space-mvst-imported`, {
+      headers: { 'X-Swap-Admin-Token': testToken },
+    })
+    assert.strictEqual(delRes.status, 200)
+    const pubListAfter = await axios.get(`${base}/internal/swap/pools`)
+    assert.strictEqual(pubListAfter.data.data.pools.length, 0)
+    const persisted = JSON.parse(fs.readFileSync(tmpPoolsFile, 'utf8'))
+    assert.strictEqual(persisted.pools.length, 0)
+
+    await new Promise<void>((r) => srv.server.close(() => r()))
+    console.log('  [PASS] Admin HTTP endpoints (503/401/403 auth, on-chain auto-import, whitelist guard, hot register/remove)')
+  } finally {
+    if (prevEnv.SWAP_POOLS_FILE === undefined) delete process.env.SWAP_POOLS_FILE
+    else process.env.SWAP_POOLS_FILE = prevEnv.SWAP_POOLS_FILE
+    if (prevEnv.SWAP_DATA_DIR === undefined) delete process.env.SWAP_DATA_DIR
+    else process.env.SWAP_DATA_DIR = prevEnv.SWAP_DATA_DIR
+    if (prevEnv.SWAP_ADMIN_TOKEN === undefined) delete process.env.SWAP_ADMIN_TOKEN
+    else process.env.SWAP_ADMIN_TOKEN = prevEnv.SWAP_ADMIN_TOKEN
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+
+  void scrypt
   console.log('=== ALL UNIT TESTS PASSED ===')
 }
 

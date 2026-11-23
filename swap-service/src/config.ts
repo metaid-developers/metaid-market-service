@@ -49,8 +49,27 @@ export interface ServiceConfig {
   dataDir: string
   sessionTtlMs: number
   poolLockTimeoutMs: number
+  adminToken?: string
   whitelistSwapCodeHashes: string[]
   pools: PoolRegistryEntry[]
+}
+
+export function savePoolsRegistry(
+  poolsFile: string,
+  whitelistSwapCodeHashes: string[],
+  pools: PoolRegistryEntry[]
+): void {
+  const dir = path.dirname(poolsFile)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  const payload = {
+    whitelistSwapCodeHashes,
+    pools,
+  }
+  const tmpFile = `${poolsFile}.tmp.${process.pid}.${Date.now()}`
+  fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2) + '\n', 'utf8')
+  fs.renameSync(tmpFile, poolsFile)
 }
 
 export function loadConfig(): ServiceConfig {
@@ -76,6 +95,7 @@ export function loadConfig(): ServiceConfig {
     dataDir,
     sessionTtlMs: Number(process.env.SWAP_SESSION_TTL_MS || String(5 * 60 * 1000)),
     poolLockTimeoutMs: Number(process.env.SWAP_LOCK_TIMEOUT_MS || String(45 * 1000)),
+    adminToken: process.env.SWAP_ADMIN_TOKEN || undefined,
     whitelistSwapCodeHashes: whitelist,
     pools,
   }

@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "start": "ts-node --transpile-only src/server.ts",
+    "admin:pool": "ts-node --transpile-only scripts/admin-pool.ts",
     "test:unit": "ts-node --transpile-only tests/unit.test.ts",
     "test:acceptance": "ts-node --transpile-only tests/mainnet-acceptance.ts"
   },

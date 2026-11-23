@@ -28,3 +28,5 @@ log/*
 
 conf/conf_*.yaml
 !conf/conf_example.yaml
+swap-service/data/
+swap-service/node_modules/

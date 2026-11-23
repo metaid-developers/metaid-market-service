@@ -1,8 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import axios from 'axios'
-import { PoolRegistryEntry, ServiceConfig } from './config'
-import { SwapEngine, TokenSwapProto, scrypt } from './core-bridge'
+import { PoolRegistryEntry, ServiceConfig, savePoolsRegistry } from './config'
+import { SwapEngine, TokenSwapProto, axios, loadSwapContractsFast, scrypt } from './core-bridge'
 
 export interface PersistedPoolHead {
   poolTxid: string
@@ -117,7 +116,7 @@ export class PoolStore {
       net: config.net,
       higunBase: config.higunUrl,
     })
-    this.contracts = SwapEngine.loadSwapContracts()
+    this.contracts = loadSwapContractsFast()
     this.poolQueue = new AsyncKeyedQueue()
     this.headsFile = path.join(config.dataDir, 'pool-heads.json')
     this.historyFile = path.join(config.dataDir, 'tx-history.json')
@@ -387,5 +386,96 @@ export class PoolStore {
     if (filter?.poolId) list = list.filter((r) => r.poolId === filter.poolId)
     list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     return list.slice(0, filter?.limit || 50)
+  }
+
+  listRegistryEntries(): { whitelistSwapCodeHashes: string[]; pools: PoolRegistryEntry[] } {
+    return {
+      whitelistSwapCodeHashes: [...this.config.whitelistSwapCodeHashes],
+      pools: [...this.config.pools],
+    }
+  }
+
+  /**
+   * Hot-registers (or updates when overwrite=true) a whitelist-verified pool in memory
+   * and atomically persists it to pools.json + pool-heads.json without requiring a restart.
+   */
+  async registerPool(
+    entry: PoolRegistryEntry,
+    options?: {
+      overwrite?: boolean
+      rawTxsToSeed?: Array<{ txid: string; rawHex: string }>
+    }
+  ): Promise<PoolLiveView> {
+    if (!entry.verified) {
+      throw new Error(`Pool ${entry.poolId} must have verified=true`)
+    }
+    if (!this.config.whitelistSwapCodeHashes.includes(entry.contract.swapCodeHash)) {
+      throw new Error(
+        `Pool ${entry.poolId} swapCodeHash ${entry.contract.swapCodeHash} is not in whitelistSwapCodeHashes`
+      )
+    }
+
+    const existingIdx = this.config.pools.findIndex((p) => p.poolId === entry.poolId)
+    if (existingIdx >= 0 && !options?.overwrite) {
+      throw new Error(`Pool "${entry.poolId}" already exists (pass overwrite=true to update)`)
+    }
+    const dupContract = this.config.pools.find(
+      (p) => p.contract.swapContractID === entry.contract.swapContractID && p.poolId !== entry.poolId
+    )
+    if (dupContract) {
+      throw new Error(
+        `swapContractID ${entry.contract.swapContractID} is already registered under poolId "${dupContract.poolId}"`
+      )
+    }
+
+    if (options?.rawTxsToSeed) {
+      for (const item of options.rawTxsToSeed) {
+        this.chain.seedRawTx(item.txid, item.rawHex)
+        this.recordBroadcastedTxUtxoChanges(item.rawHex)
+      }
+    }
+
+    // Verify pool head is readable and live before committing registry state
+    const state = await SwapEngine.loadPoolState(
+      this.chain,
+      entry.bootstrapHead.poolTxid,
+      entry.bootstrapHead.lpGenesisTxid,
+      entry.bootstrapHead.lpGenesisVout
+    )
+
+    if (existingIdx >= 0) {
+      this.config.pools[existingIdx] = entry
+    } else {
+      this.config.pools.push(entry)
+    }
+
+    this.heads.set(entry.poolId, {
+      poolTxid: entry.bootstrapHead.poolTxid,
+      lpGenesisTxid: entry.bootstrapHead.lpGenesisTxid,
+      lpGenesisVout: entry.bootstrapHead.lpGenesisVout,
+      updatedAt: new Date().toISOString(),
+    })
+    this.cachedStates.set(entry.poolId, state)
+
+    savePoolsRegistry(this.config.poolsFile, this.config.whitelistSwapCodeHashes, this.config.pools)
+    this.persistHeads()
+
+    return this.formatPoolView(entry, state)
+  }
+
+  /**
+   * Hot-removes a pool from memory and atomically updates pools.json.
+   */
+  removePool(poolId: string): PoolRegistryEntry {
+    const idx = this.config.pools.findIndex((p) => p.poolId === poolId)
+    if (idx < 0) {
+      throw new Error(`Pool "${poolId}" not found`)
+    }
+    const [removed] = this.config.pools.splice(idx, 1)
+    this.cachedStates.delete(poolId)
+    this.heads.delete(poolId)
+    savePoolsRegistry(this.config.poolsFile, this.config.whitelistSwapCodeHashes, this.config.pools)
+    this.persistHeads()
+    return removed
   }
 }

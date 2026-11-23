@@ -1,8 +1,10 @@
 import * as http from 'http'
+import * as crypto from 'crypto'
 import { URL } from 'url'
 import { loadConfig } from './config'
 import { PoolStore } from './pool-store'
 import { SwapSessionManager } from './session-manager'
+import { inspectOnChainPoolAndBuildEntry } from './pool-admin'
 import {
   quoteAddLiquidity,
   quoteRemoveLiquidity,
@@ -10,6 +12,32 @@ import {
   quoteSwapTokenToMvc,
 } from './quote'
 import { TokenSwapProto } from './core-bridge'
+
+function verifyAdminAuth(req: http.IncomingMessage, expectedToken?: string): { ok: boolean; status: number; message: string } {
+  if (!expectedToken) {
+    return {
+      ok: false,
+      status: 503,
+      message: 'Admin endpoints are disabled (set SWAP_ADMIN_TOKEN env var to enable)',
+    }
+  }
+  const headerToken =
+    typeof req.headers['x-swap-admin-token'] === 'string'
+      ? req.headers['x-swap-admin-token'].trim()
+      : ''
+  const authHeader = typeof req.headers['authorization'] === 'string' ? req.headers['authorization'].trim() : ''
+  const bearerToken = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : ''
+  const provided = headerToken || bearerToken
+  if (!provided) {
+    return { ok: false, status: 401, message: 'Missing admin token (use X-Swap-Admin-Token or Authorization: Bearer)' }
+  }
+  const a = Buffer.from(provided, 'utf8')
+  const b = Buffer.from(expectedToken, 'utf8')
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return { ok: false, status: 403, message: 'Invalid admin token' }
+  }
+  return { ok: true, status: 200, message: 'ok' }
+}
 
 function readBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -32,8 +60,8 @@ function sendJson(res: http.ServerResponse, status: number, payload: any) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Swap-Admin-Token',
   })
   res.end(body)
 }
@@ -47,8 +75,8 @@ export function createSwapServer() {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Swap-Admin-Token',
       })
       return res.end()
     }
@@ -231,6 +259,91 @@ export function createSwapServer() {
         const limit = Number(url.searchParams.get('limit') || '50')
         const list = store.listTxHistory({ address, poolId, limit })
         return sendJson(res, 200, { code: 0, message: 'ok', data: { list } })
+      }
+
+      // ================= Admin-only Pool Management Routes =================
+      // Protected by SWAP_ADMIN_TOKEN; NOT exposed through public Go /api/v1/swap proxy.
+      if (p.startsWith('/internal/swap/admin/')) {
+        const auth = verifyAdminAuth(req, config.adminToken)
+        if (!auth.ok) {
+          return sendJson(res, auth.status, { code: auth.status, message: auth.message })
+        }
+
+        // GET /internal/swap/admin/pools
+        if (req.method === 'GET' && p === '/internal/swap/admin/pools') {
+          return sendJson(res, 200, {
+            code: 0,
+            message: 'ok',
+            data: store.listRegistryEntries(),
+          })
+        }
+
+        // POST /internal/swap/admin/pools/import
+        if (req.method === 'POST' && p === '/internal/swap/admin/pools/import') {
+          const body = await readBody(req)
+          const inspected = await inspectOnChainPoolAndBuildEntry({
+            chain: store.chain,
+            contracts: store.contracts,
+            whitelistSwapCodeHashes: config.whitelistSwapCodeHashes,
+            input: {
+              poolId: body.poolId,
+              pairName: body.pairName,
+              poolTxid: body.poolTxid,
+              lpGenesisTxid: body.lpGenesisTxid,
+              lpGenesisVout: body.lpGenesisVout,
+              tokenSymbol: body.tokenSymbol,
+              tokenName: body.tokenName,
+              tokenDecimals: body.tokenDecimals,
+              lpSymbol: body.lpSymbol,
+              contractHashArrayHex: body.contractHashArrayHex,
+            },
+          })
+          const dryRun = Boolean(body.dryRun)
+          if (dryRun) {
+            return sendJson(res, 200, {
+              code: 0,
+              message: 'dry-run verified',
+              data: { dryRun: true, entry: inspected.entry, onChain: inspected.onChain },
+            })
+          }
+          const liveView = await store.registerPool(inspected.entry, {
+            overwrite: Boolean(body.overwrite),
+          })
+          return sendJson(res, 200, {
+            code: 0,
+            message: 'pool imported and activated',
+            data: { dryRun: false, pool: liveView, entry: inspected.entry },
+          })
+        }
+
+        // POST /internal/swap/admin/pools/register
+        if (req.method === 'POST' && p === '/internal/swap/admin/pools/register') {
+          const body = await readBody(req)
+          if (!body || !body.entry) {
+            return sendJson(res, 400, { code: 400, message: 'entry payload is required' })
+          }
+          const liveView = await store.registerPool(body.entry, {
+            overwrite: Boolean(body.overwrite),
+            rawTxsToSeed: Array.isArray(body.rawTxsToSeed) ? body.rawTxsToSeed : undefined,
+          })
+          return sendJson(res, 200, {
+            code: 0,
+            message: 'pool registered and activated',
+            data: { pool: liveView, entry: body.entry },
+          })
+        }
+
+        // DELETE /internal/swap/admin/pools/:poolId
+        const adminDelMatch = p.match(/^\/internal\/swap\/admin\/pools\/([^/]+)$/)
+        if (req.method === 'DELETE' && adminDelMatch) {
+          const poolId = decodeURIComponent(adminDelMatch[1])
+          const removed = store.removePool(poolId)
+          return sendJson(res, 200, {
+            code: 0,
+            message: 'pool removed',
+            data: { removed },
+          })
+        }
       }
 
       return sendJson(res, 404, { code: 404, message: `Route not found: ${req.method} ${p}` })
