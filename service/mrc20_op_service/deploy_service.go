@@ -13,6 +13,7 @@ import (
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/service/parse_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
@@ -85,6 +86,9 @@ func Mrc20DeployPre(req *request.Mrc20DeployPreRequest, publicKey, ip string) (*
 	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
 	if err != nil || !verified {
 		return nil, errors.New("deploy address does not belong to the authenticated public key")
+	}
+	if err := risk_service.CheckAddress(chain, address); err != nil {
+		return nil, err
 	}
 	if payload == "" {
 		return nil, errors.New("pin content body is empty")
@@ -304,6 +308,9 @@ func Mrc20DeployCommit(req *request.Mrc20DeployCommitRequest, publicKey, ip stri
 	if err != nil || !verified || utxoInfo.Address != deployOrder.Address {
 		return nil, errors.New("commitTx address does not match the deploy order wallet")
 	}
+	if err := risk_service.CheckTransferCommit(chain, deployOrder.Address, utxoInfo.Address, commitTx); err != nil {
+		return nil, err
+	}
 
 	prePsbtRaw = deployOrder.RevealPrePsbtRaw
 	if prePsbtRaw == "" {
@@ -421,6 +428,9 @@ func Mrc20Deploy(req *request.Mrc20DeployRequest, publicKey, ip string) (*respon
 		return nil, errors.New("commitTx utxoInfo not exists")
 	}
 	address = utxoInfo.Address
+	if err := risk_service.CheckTransferCommit(chain, address, address, commitTx); err != nil {
+		return nil, err
+	}
 	isMetaIdPin, pin, txOuts, err = parse_service.ParseTxPin(req.RevealTxRaw)
 	if err != nil {
 		return nil, err

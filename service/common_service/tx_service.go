@@ -11,6 +11,7 @@ import (
 	"metaid-market-service/protobuf/doge_service"
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/mempool_space_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 	"strings"
 )
@@ -20,6 +21,9 @@ func BroadcastTx(req *request.BroadcastTxReq) (*respond.BroadcastTxResp, error) 
 		txId string
 		err  error
 	)
+	if err = risk_service.CheckRawBtcTx(req.Chain, req.TxHex); err != nil {
+		return nil, err
+	}
 	txId, err = common.BroadcastTx(req.Chain, req.TxHex)
 	if err != nil {
 		return nil, err

@@ -12,6 +12,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_op_service"
 	"metaid-market-service/service/mrc20_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 	"strings"
 
@@ -90,6 +91,14 @@ func RegisterMetaNamePre(req *request.RegisterMetaNamePreRequest, publicKey, ip 
 	}
 	if !verified {
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
+	}
+	if err := risk_service.CheckAddress(chain, registerAddress); err != nil {
+		return nil, err
+	}
+	if receiveAddress != registerAddress {
+		if err := risk_service.CheckAddress(chain, receiveAddress); err != nil {
+			return nil, err
+		}
 	}
 
 	//check if metaname is exist
@@ -276,6 +285,9 @@ func RegisterMetaNameCommit(req *request.RegisterMetaNameCommitRequest, publicKe
 	address = utxoInfo.Address
 	if address != metanameRegisterOrder.RegisterAddress {
 		return nil, errors.New("commitTx address not match")
+	}
+	if err := risk_service.CheckTransferCommit(chain, metanameRegisterOrder.RegisterAddress, address, commitTx); err != nil {
+		return nil, err
 	}
 
 	prePsbtRaw = metanameRegisterOrder.RevealPrePsbtRaw

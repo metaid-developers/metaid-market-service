@@ -12,6 +12,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/man_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
@@ -77,6 +78,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 	if !verified {
 		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
 	}
+	if blocked, _ := risk_service.DefaultEngine().IsAddressBlacklisted(sellerAddress); blocked {
+		return nil, risk_service.ErrBlockedStolenAsset
+	}
 
 	isLegacy, err := common.CheckLegacyAddressType(conf.Net, chain, sellerAddress)
 	if err != nil {
@@ -111,6 +115,7 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		preTxId := v.PreviousOutPoint.Hash.String()
 		preTxIndex := v.PreviousOutPoint.Index
 		mrc20UtxoId = fmt.Sprintf("%s_%d", preTxId, preTxIndex)
+		riskHints := risk_service.ExtractPsbtHints(psbtBuilder, preTxId)
 
 		var tickInfo *common_service.TickInfo
 		if askType == models.AskTypeNone {
@@ -128,6 +133,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 			mrc20Info := mrc20InfoList[0]
 			if mrc20Info.ToAddress != sellerAddress {
 				return nil, errors.New("Wrong Psbt: MRC-20 owner does not match the seller. ")
+			}
+			if mrc20Info.FromAddress != "" {
+				riskHints = append(riskHints, risk_service.TaintHint{FromAddress: mrc20Info.FromAddress})
 			}
 
 			tick = mrc20Info.Tick
@@ -176,6 +184,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		if totalMintDe.GreaterThan(decimal.Zero) {
 			supplyDe := totalMintDe.Mul(amtPerMintDe)
 			supply = supplyDe.String()
+		}
+		if err := risk_service.CheckMrc20OrderListing(chain, sellerAddress, mrc20UtxoId, outValue, riskHints); err != nil {
+			return nil, err
 		}
 	}
 
@@ -359,6 +370,10 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 		return nil, errors.New("The asset-utxo of this order is waiting for confirmation. " +
 			"Please wait for the confirmation or select a different order. ")
 	}
+	if err := risk_service.CheckMrc20OrderListing(chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
+		_ = risk_service.CancelBlockedMrc20Order(entity, "Blocked stolen asset")
+		return nil, err
+	}
 
 	feeAmountForPlatform, _, feeRateStr, _ = common.GetPlatformMrc20TradeServiceFee(chain, int64(entity.PriceAmount))
 
@@ -374,6 +389,9 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 
 	if entity.SellerAddress == req.BuyerAddress {
 		return nil, errors.New("Buyer address is same as seller. ")
+	}
+	if err := risk_service.CheckAddress(chain, req.BuyerAddress); err != nil {
+		return nil, err
 	}
 
 	sellUtxoIdStrs := strings.Split(entity.UtxoId, "_")
@@ -481,6 +499,10 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 		return nil, errors.New("Order is closed. ")
 	}
 	chain = entity.Chain
+	if err := risk_service.CheckMrc20OrderListing(chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
+		_ = risk_service.CancelBlockedMrc20Order(entity, "Blocked stolen asset")
+		return nil, err
+	}
 
 	tickInfo, err = man_service.FetchMrc20TickInfo(entity.TickId, "")
 	if err != nil {
@@ -545,8 +567,12 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 			})
 		}
 	}
-	if _, err = common.ValidateMrc20TakePsbt(conf.Net, chain, entity, takerAskPsbtBuilder, publicKey, dummyUtxos); err != nil {
+	validatedBuyerAddr, err := common.ValidateMrc20TakePsbt(conf.Net, chain, entity, takerAskPsbtBuilder, publicKey, dummyUtxos)
+	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT validation failed: %s", err.Error()))
+	}
+	if err := risk_service.CheckBuyerTakePsbt(chain, validatedBuyerAddr, takerAskPsbtBuilder, 2); err != nil {
+		return nil, err
 	}
 	err = common.SignMrc20AskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, signDummyInputList)
 	if err != nil {
@@ -804,6 +830,16 @@ func FetchMarketMrc20Orders(req *request.FetchMarketMrc20OrdersReq, publicKey, i
 		return nil, err
 	}
 	for _, v := range entityList {
+		if v.OrderState == models.OrderStateCreate && risk_service.IsOrderBlockedFast(v.SellerAddress, v.UtxoId) {
+			if total > 0 {
+				total--
+			}
+			blockedOrder := v
+			go func() {
+				_ = risk_service.CancelBlockedMrc20Order(blockedOrder, "Blocked stolen asset")
+			}()
+			continue
+		}
 		item := &respond.Mrc20OrderInfo{
 			OrderId:           v.OrderId,
 			UtxoId:            v.UtxoId,

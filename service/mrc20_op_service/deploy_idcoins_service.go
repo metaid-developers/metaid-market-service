@@ -13,6 +13,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_service"
 	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/service/wallet_service"
 	"metaid-market-service/tool"
 	"strings"
@@ -26,11 +27,17 @@ func BuildIdCoinsPre(req *request.BuildIdCoinsPreRequest, publicKey, ip string) 
 	if strings.ToLower(req.Tick) == "wukong" {
 		return nil, errors.New("tick error")
 	}
+	if err := risk_service.CheckAddress("btc", req.IssuerAddress); err != nil {
+		return nil, err
+	}
 
 	return buildIdCoinsPreFromOrders(req, publicKey, ip)
 }
 
 func BuildIdCoinsCommit(req *request.BuildIdCoinsCommitRequest, publicKey, ip string) (*respond.BuildIdCoinsCommitResp, error) {
+	if err := risk_service.CheckRawBtcTx("btc", req.CommitTxRaw); err != nil {
+		return nil, err
+	}
 	return buildIdCoinsCommitFromOrder(req, publicKey, ip)
 }
 

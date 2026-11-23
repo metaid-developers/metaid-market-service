@@ -106,6 +106,9 @@ func Run() {
 		v1.POST("/common/tx/broadcast", auth.AuthSignMiddleware(), BroadcastTx)
 
 		v1.POST("/admin/utxo/colddown", auth.AdminMiddleware(), ColdDownDummyUtxo)
+		v1.GET("/admin/blacklist/list", auth.AdminMiddleware(), ListMarketBlacklist)
+		v1.POST("/admin/blacklist/upsert", auth.AdminMiddleware(), UpsertMarketBlacklist)
+		v1.POST("/admin/blacklist/sweep", auth.AdminMiddleware(), SweepBlockedMarketOrders)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")

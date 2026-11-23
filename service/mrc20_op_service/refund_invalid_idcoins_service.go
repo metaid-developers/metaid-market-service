@@ -4,13 +4,20 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/risk_service"
 )
 
 func RefundIdCoinsInvalidLpPre(req *request.RefundIdCoinsValidPreRequest, publicKey, ip string) (*respond.RefundIdCoinsValidPreResp, error) {
+	if err := risk_service.CheckAddress("btc", req.Address); err != nil {
+		return nil, err
+	}
 	return RefundIdCoinsInvalidLpPreFromOrders(req, publicKey, ip)
 }
 
 func RefundIdCoinsInvalidLpCommit(req *request.RefundIdCoinsValidCommitRequest, publicKey, ip string) (*respond.RefundIdCoinsValidCommitResp, error) {
+	if err := risk_service.CheckPsbtInputs("btc", "", req.PsbtRaw); err != nil {
+		return nil, err
+	}
 	return RefundIdCoinsInvalidLpCommitFromOrder(req, publicKey, ip)
 }
 

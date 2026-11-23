@@ -14,6 +14,7 @@ import (
 	"metaid-market-service/service/man_service"
 	"metaid-market-service/service/mvcscan_service"
 	"metaid-market-service/service/own_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/service/ticket_service"
 	"metaid-market-service/tool"
 	"strconv"
@@ -676,6 +677,9 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 }
 
 func FetchMrc20TickAddressShovels(req *request.Mrc20AddressShovelsReq) (*respond.Mrc20ShovelResp, error) {
+	if err := risk_service.CheckAddress("btc", req.Address); err != nil {
+		return nil, err
+	}
 	var (
 		mrc20Resp *man_service.Mrc20ShovelResp
 		err       error
@@ -688,6 +692,9 @@ func FetchMrc20TickAddressShovels(req *request.Mrc20AddressShovelsReq) (*respond
 	}
 	if mrc20Resp != nil {
 		for _, v := range mrc20Resp.List {
+			if v.Output != "" && risk_service.IsUtxoTainted(v.ChainName, v.Output, v.OutputValue, v.GenesisHeight) {
+				continue
+			}
 			list = append(list, &respond.ShovelInfo{
 				Id:                 v.Id,
 				Number:             v.Number,
@@ -804,6 +811,9 @@ func FetchMrc20TickAddressBalances(req *request.Mrc20AddressBalancesReq) (*respo
 }
 
 func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc20UtxoResp, error) {
+	if err := risk_service.CheckAddress("btc", req.Address); err != nil {
+		return nil, err
+	}
 	if isMrc20V2Source(req.Source) {
 		tickIds := []string{}
 		if req.TickId != "" {
@@ -828,6 +838,10 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 
 		list := make([]*respond.Mrc20Utxo, 0, len(grpcResp.GetDetail()))
 		for _, v := range grpcResp.GetDetail() {
+			vUtxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
+			if risk_service.IsUtxoTainted(v.GetChain(), vUtxoId, v.GetSatoshi(), v.GetBlockHeight()) {
+				continue
+			}
 			mrc20InfoList := make([]*respond.Mrc20Info, 0, len(v.GetMrc20S()))
 			for _, m := range v.GetMrc20S() {
 				mrc20InfoList = append(mrc20InfoList, &respond.Mrc20Info{
@@ -904,6 +918,9 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				continue
 			}
 			utxoId := strings.Replace(v.TxPoint, ":", "_", -1)
+			if risk_service.IsUtxoTainted(v.Chain, utxoId, v.PointValue, v.BlockHeight) {
+				continue
+			}
 			orderEntityFinish, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
 				UtxoId:        utxoId,
 				SellerAddress: req.Address,
@@ -1245,6 +1262,9 @@ func loadMrc20TickMarketPriceList() (*respond.Mrc20TickMarketPriceListResp, erro
 }
 
 func FetchMrc20IdCoinsTickAddressUtxos(req *request.Mrc20IdCoinsAddressUtxosReq) (*respond.Mrc20UtxoResp, error) {
+	if err := risk_service.CheckAddress("btc", req.Address); err != nil {
+		return nil, err
+	}
 	var (
 		err            error
 		list           []*respond.Mrc20Utxo = make([]*respond.Mrc20Utxo, 0)
@@ -1273,6 +1293,10 @@ func FetchMrc20IdCoinsTickAddressUtxos(req *request.Mrc20IdCoinsAddressUtxosReq)
 
 	if grpcResp != nil {
 		for _, v := range grpcResp.GetDetail() {
+			vUtxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
+			if risk_service.IsUtxoTainted(v.GetChain(), vUtxoId, v.GetSatoshi(), v.GetBlockHeight()) {
+				continue
+			}
 
 			mrc20InfoList := make([]*respond.Mrc20Info, 0)
 			for _, m := range v.GetMrc20S() {

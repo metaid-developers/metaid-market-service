@@ -12,6 +12,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/mrc20_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
@@ -69,6 +70,9 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 	if err != nil || !verified {
 		return nil, errors.New("mint output address does not belong to the authenticated public key")
 	}
+	if err := risk_service.CheckAddress(chain, address); err != nil {
+		return nil, err
+	}
 	if serviceFee > 546 {
 		otherOuts = append(otherOuts, &mrc20_service.OtherOut{
 			Address: serviceAddress,
@@ -110,6 +114,9 @@ func Mrc20MintPre(req *request.Mrc20MintPreRequest, publicKey, ip string) (*resp
 		verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, pin.Address)
 		if err != nil || !verified {
 			return nil, errors.New("mint PIN address does not belong to the authenticated public key")
+		}
+		if err := risk_service.CheckUtxo(chain, pin.Address, fmt.Sprintf("%s_%d", pin.PinUtxoTxId, pin.PinUtxoIndex), pin.PinUtxoOutValue); err != nil {
+			return nil, err
 		}
 		mintPinsStr += "," + pin.PinId
 		pinUtxoIds += "," + fmt.Sprintf("%s:%d", pin.PinUtxoTxId, pin.PinUtxoIndex)
@@ -315,6 +322,9 @@ func Mrc20MintCommit(req *request.Mrc20MintCommitRequest, publicKey, ip string) 
 	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
 	if err != nil || !verified || (mintOrder.Address != "" && address != mintOrder.Address) {
 		return nil, errors.New("commitTx address does not match the mint order wallet")
+	}
+	if err := risk_service.CheckTransferCommit(chain, mintOrder.Address, address, commitTx); err != nil {
+		return nil, err
 	}
 
 	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)
