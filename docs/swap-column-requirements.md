@@ -1,6 +1,6 @@
 # MetaID.market「Swap」栏目需求文档（含技术交接）
 
-> 日期：2026-11-23　状态：待产品方评审
+> 日期：2026-11-23　状态：钱包已定（Metalet），待确认非托管模式后进入开发
 > 读者：接手开发的新 Agent / 开发者（假定读者对 MVC 合约没有任何前序上下文）
 > 本文是交接的**唯一权威入口**。过程记录见 `mvcswap-core-mainnet/docs/MAINNET-VALIDATION-STATE.md`，两者冲突时以本文为准。
 
@@ -72,7 +72,7 @@ Swap 栏目只处理 **MVC 链上的 MetaContract FT**，与 BTC 链上的 MRC20
 
 ### 3.2 签名与信任模型
 
-- **建议采用非托管模式**：后端负责构造整笔交易（包括所有合约输入的解锁脚本，这些不需要用户私钥），前端让用户钱包对其中属于用户的输入签名，然后广播。资金全程不经过平台地址。
+- **采用非托管模式**（钱包已定 Metalet 后的自然选择；最终确认以 8.1 的钱包签名实验为准）：后端负责构造整笔交易（包括所有合约输入的解锁脚本，这些不需要用户私钥），前端让用户钱包对其中属于用户的输入签名，然后广播。资金全程不经过平台地址。
 - 原 MVCSwap 采用的是另一种模式：用户先把资产签名转给服务端控制的地址，再由服务端代为执行合约。这种模式平台需要托管资金，不建议沿用。
 - 采用建议模式的前提是钱包能对"包含合约输入的整笔交易"签名。**这一点还没有验证**，是当前最大的未知项，见 8.1。
 
@@ -274,16 +274,17 @@ MVC 的合约是 UTXO 模型：每个操作要花一到多笔交易，后一笔�
 
 下面这些**没有**在主网上跑过。请不要把它们当成已知可行。
 
-### 8.1 钱包签名（风险最高，先做）
+### 8.1 钱包签名（先做：验证调用形态，而非验证"能不能"）
 
-钱包已确定为 Metalet（见 3.1），但整个主网验证阶段，所有签名都是用本地私钥文件直接完成的，**没有经过任何钱包**。需要验证 Metalet 能否完成两件事：
+钱包已确定为 Metalet（见 3.1）。**Metalet 具备本项目所需的签名能力，这一点有生产级证据**——原 MVCSwap 的全部兑换就是经 Metalet 完成的，其中包含"含合约输入的交易"。本文档写作时全部签名用本地私钥文件直接完成，未经过钱包；**待验证的不是能力本身，而是这些接口在我们合约形态下的确切调用细节**：
 
-1. 对一笔包含合约输入的交易，只对其中属于用户的 P2PKH 输入签名（并保持其它输入的解锁脚本原样不动）。
-2. 对 Token 转账（操作码 1）生成用户签名 `senderSig`。
+1. `window.metaidwallet.signTransaction({ transaction })`（原 MVCSwap 用法见 `mvcswap/src/lib/metaWallet.js` 第 131 行）：对传入的原始交易签名。需验证：能否只对交易中属于用户的 P2PKH 输入签名，并**保持其它输入（合约解锁脚本）原样不动**；返回的签名/公钥格式如何拼入解锁脚本。
+2. Token 转账（操作码 1）的用户签名 `senderSig`：其签名对象是"以 Token 脚本为 scriptCode 的预镜像"，非标准 P2PKH 签名。原 MVCSwap 的 Token 转账走 `window.metaidwallet.transfer({ datas, noBroadcast })`（同一文件第 102-121 行）或 mvc-contract SDK 浏览器内签名，有成熟路径；需按我们的合约形态适配。
+3. `window.metaidwallet.getMvcBalance()`、`getAddress()`、`getNetwork()` / `switchNetwork()`：余额、地址、网络切换。MetaID.market 前端 `src/typing.d.ts` 与 `src/models/wallet.ts` 已有声明和 BTC 侧用法，可直接照搬。
 
-线索：原 MVCSwap 前端调用过 `window.metaidwallet.signTransaction({ transaction })` 和 `window.metaidwallet.transfer({ broadcast: false })`（见 `mvcswap/src/lib/metaWallet.js` 第 84、131 行），说明钱包有相关接口，但它接收的格式、返回的内容，以及能否满足上面两点，都没有核实。MetaID.market 现有代码里没有对 MVC 交易签名的先例。
+**做法建议**：把第 1、2 项做成最小可运行实验——用我们主网上真实的池子 UTXO 与 Token，构造交易后经 Metalet 签名并广播小额验证，通过后把调用封装固化进 swap-service 的约定。
 
-如果钱包做不到第 1 点，3.2 建议的架构就不成立，需要重新设计（退回托管模式，或请钱包增加接口）。所以这一项必须最先验证，它的结果决定后面怎么做。
+如果验证发现 Metalet 无法满足第 1 点（例如签名时强制重写其它输入的解锁脚本），架构需要调整（例如把用户输入拆到独立交易，或采用 3.2 的托管模式）——这就是本项排第一的原因。
 
 ### 8.2 每种操作只在主网跑过"第一笔"
 
@@ -386,13 +387,28 @@ MVC 已经没有测试网。主网验证全程用的小额真钱。请遵守：
 ### 10.3 测试钱包
 
 - 地址 `18HzEZDJ9wPxueKDCu1jvg1T5WtadHvNLd`，私钥文件 `mvcswap-core-mainnet/scripts/.keys/main.json`（已加入 `.gitignore`）。
-- 余额 96,460,932 sats（约 0.96 SPACE），持有 LP 120,100 和 153,343,581 MVST（约 1.53 亿）。
+- 余额 96,460,932 sats（约 0.96 SPACE），持有 LP 120,100 和 153,343,581 MVST。
 - **这是测试资金，不能当作任何生产用途的密钥；任何时候都不要提交或外传。**
 
 ### 10.4 访问链上数据
 
 - 验证脚本默认走 metalet 的公开接口 `https://www.metalet.space/wallet-api/v4/mvc`（本机可达，但有偶发限流）。用法见 `scripts/mainnet-lib.ts`。
+  - 已验证可用的端点：`GET /address/utxo-list?net=livenet&address=`、`GET /tx/raw?net=livenet&txId=`、`POST /tx/broadcast`（body `{net, rawTx}`）。信封 `{code:0, data}`；注意 raw 返回字段是小写 `hex`、broadcast 返回字段是大写 `TxId`。**偶发失败必须重试**（曾因瞬时限流拿到错误数据，白部署了两个池子；原则：读不到就中止，不要用推算值顶替）。
 - 生产的 `open-api-mvc` 由我们自己控制，但本开发机访问超时。切换方式见 `mainnet-lib.ts` 顶部的 `API_PROVIDER`。
+
+### 10.6 Metalet 钱包接口速查（前端与签名实验用）
+
+均来自已核实的源码与生产用法（原 MVCSwap `src/lib/metaWallet.js`、`token.scrypttest.ts`）：
+
+| 调用 | 说明 |
+|---|---|
+| `window.metaidwallet.getMvcBalance()` | 返回 `{address, confirmed, total, unconfirmed}`（`metaid-market-frontend/src/typing.d.ts` 已声明） |
+| `window.metaidwallet.getAddress()` / `getNetwork()` / `switchNetwork()` | 地址与网络（`src/models/wallet.ts` 有 BTC 侧用法可照搬） |
+| `window.metaidwallet.transfer({ address, amount, broadcast: false })` | 构造并签名 MVC 转账；`broadcast:false` 时返回原始交易不广播 |
+| `window.metaidwallet.transfer({ datas, broadcast: false })` | 原 MVCSwap 的 Token 转账入口（`datas` 为含合约输入的预构造交易数据） |
+| `window.metaidwallet.signTransaction({ transaction })` | 对原始交易签名 |
+
+**给合约交易签名时的两条红线**（详见 8.1/7.11）：签名不得改动其它输入的解锁脚本；合约交易广播必须 `uncheckedSerialize`。
 
 ### 10.5 关于临时目录
 
