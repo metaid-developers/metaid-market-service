@@ -109,6 +109,17 @@ func Run() {
 		v1.GET("/admin/blacklist/list", auth.AdminMiddleware(), ListMarketBlacklist)
 		v1.POST("/admin/blacklist/upsert", auth.AdminMiddleware(), UpsertMarketBlacklist)
 		v1.POST("/admin/blacklist/sweep", auth.AdminMiddleware(), SweepBlockedMarketOrders)
+
+		// MVC AMM Swap (proxied to internal swap-service)
+		v1.GET("/swap/pools", SwapListPools)
+		v1.GET("/swap/pools/:poolId", SwapGetPool)
+		v1.POST("/swap/quote", SwapQuote)
+		v1.GET("/swap/positions", SwapPositions)
+		v1.GET("/swap/history", SwapHistory)
+		v1.GET("/swap/tx/:txid", SwapTxStatus)
+		v1.POST("/swap/session/start", SwapSessionStart)
+		v1.POST("/swap/session/:id/sign", SwapSessionSign)
+		v1.POST("/swap/session/:id/cancel", SwapSessionCancel)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")

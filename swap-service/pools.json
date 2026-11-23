@@ -1,0 +1,46 @@
+{
+  "whitelistSwapCodeHashes": [
+    "84c4452c13885d1538977e500e47f767910c668c"
+  ],
+  "pools": [
+    {
+      "poolId": "space-mvst-test",
+      "pairName": "SPACE / MVST",
+      "verified": true,
+      "token1": {
+        "symbol": "SPACE",
+        "name": "MicroVisionChain",
+        "decimals": 8
+      },
+      "token2": {
+        "symbol": "MVST",
+        "name": "MVCSwapValTest",
+        "decimals": 8,
+        "tokenID": "5ec98a884f16931190f2fad564da7ac0a4a18436",
+        "codeHash": "f725449d154e41a996412433cc41148e4355c7cc"
+      },
+      "lpToken": {
+        "symbol": "SPACE-MVST LP",
+        "decimals": 8,
+        "tokenID": "464c42b44cec98c5035f99ebb97807eae655a691",
+        "codeHash": "f725449d154e41a996412433cc41148e4355c7cc"
+      },
+      "contract": {
+        "swapContractID": "5b041b1dae4a49f2cb7281e085f996533285738f",
+        "swapSensibleID": "272e2e03a4803df495b7a3cd1b3c9db85201169a0962eb16fcd37610ecedd6b200000000",
+        "tokenID": "5ec98a884f16931190f2fad564da7ac0a4a18436",
+        "tokenScriptCodeHash": "f725449d154e41a996412433cc41148e4355c7cc",
+        "lpTokenID": "464c42b44cec98c5035f99ebb97807eae655a691",
+        "fetchTokenHash": "6ce8671b3a82a53f057002104b69069e2e502571",
+        "swapCodeHash": "84c4452c13885d1538977e500e47f767910c668c",
+        "contractHashRoot": "4446a52d23f5a1766c8c532a8a9e348bf7efd009",
+        "contractHashArrayHex": "b140bb4f5284ce0bc442230771d990c398417f3c0b557c65600d0f84dcea1f23bfefbfb036707544283bce62f7ccb0b925d55a7213919a85c08374a371767486d59cb8db2ba694406114c5d581e3c6a33792488257eafad432be83b72893e5927a368bc65ca311186282ddab7c7c93144cdaafc870d62ac7"
+      },
+      "bootstrapHead": {
+        "poolTxid": "d3fe473604bc7f223d98d0a8f48efbe6484cc6c3556a1c349cc6eea3ae7ec251",
+        "lpGenesisTxid": "10d5cb193b83118caa525d5575a680c74c626d5f9f9392c858fd463154e3144f",
+        "lpGenesisVout": 2
+      }
+    }
+  ]
+}

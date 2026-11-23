@@ -1,0 +1,14 @@
+{
+  "name": "metaid-market-swap-service",
+  "version": "0.1.0",
+  "description": "Internal non-custodial MVCSwap AMM contract transaction builder, pool sync & serial queue service",
+  "private": true,
+  "scripts": {
+    "start": "ts-node --transpile-only src/server.ts",
+    "test:unit": "ts-node --transpile-only tests/unit.test.ts",
+    "test:acceptance": "ts-node --transpile-only tests/mainnet-acceptance.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  }
+}

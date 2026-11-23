@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-11-23T12:27:28.992Z",
+  "results": [
+    {
+      "group": "phase1_t2m",
+      "index": 2,
+      "execTxid": "2377048e19bdc0fcb3d2008eb01c1206bf2994a8b5726e95b019e67cdc78ebcf",
+      "details": {
+        "tokenIn": "15000000",
+        "mvcOut": "2009",
+        "projFee": "0"
+      }
+    },
+    {
+      "group": "phase1_t2m",
+      "index": 3,
+      "execTxid": "5e86604c73ff565e542e50a91197d5d60d3cdb8ba2ac43a0c43ede25d8bd58cf",
+      "details": {
+        "tokenIn": "15000000",
+        "mvcOut": "1966",
+        "projFee": "0"
+      }
+    },
+    {
+      "group": "phase1_concurrent",
+      "index": 1,
+      "execTxid": "01dfa7a539e4a048592dfea6ede1ba26651257afb0be0b2386e53cd050e388c2",
+      "details": {
+        "mvcIn": "4000",
+        "tokenOut": "30020173",
+        "projFee": "0"
+      }
+    },
+    {
+      "group": "phase1_concurrent",
+      "index": 2,
+      "execTxid": "7e80519b7c580cd3fbd896f1e1b19322fd280e7c3bde51005a5591443ac0c7ea",
+      "details": {
+        "mvcIn": "4500",
+        "tokenOut": "32271552",
+        "projFee": "0"
+      }
+    },
+    {
+      "group": "phase2_addliq",
+      "index": 1,
+      "execTxid": "f3754ceebccf77468a2ecb62f8abc1104a718d9d857e20ca1c1da591cb9b1710",
+      "details": {
+        "mvcAdded": "5000",
+        "tokenAdded": "35102379",
+        "lpMinted": "3143"
+      }
+    },
+    {
+      "group": "phase2_addliq",
+      "index": 2,
+      "execTxid": "10d5cb193b83118caa525d5575a680c74c626d5f9f9392c858fd463154e3144f",
+      "details": {
+        "mvcAdded": "6000",
+        "tokenAdded": "42122855",
+        "lpMinted": "3772"
+      }
+    },
+    {
+      "group": "phase2_removeliq",
+      "index": 1,
+      "execTxid": "48d5c2538c9bd6764afd1e1c77efd75303ffb1b83aca4fb53fe6cb205d21f759",
+      "details": {
+        "lpBurned": "3143",
+        "mvcOut": "4998",
+        "tokenOut": "35093322"
+      }
+    },
+    {
+      "group": "phase2_removeliq",
+      "index": 2,
+      "execTxid": "d3fe473604bc7f223d98d0a8f48efbe6484cc6c3556a1c349cc6eea3ae7ec251",
+      "details": {
+        "lpBurned": "3772",
+        "mvcOut": "5999",
+        "tokenOut": "42116452"
+      }
+    }
+  ]
+}

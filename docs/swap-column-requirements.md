@@ -471,3 +471,41 @@ MVC 已经没有测试网。主网验证全程用的小额真钱。请遵守：
 | 已成交的兑换（可作报价的回归值） | 输入 10,000 sats，当时储备 120,100 / 2,000,000,000，输出 153,343,581，平台手续费 0 |
 
 其余参数（`contractHashRoot`、各操作合约代码哈希、`lpTokenID` 等）见 `scripts/mainnet-state.json`。
+
+---
+
+## 附录 B：已完成的 Phase 0 – Phase 4 实现与 MVC 主网实测记录
+
+### B.1 关键技术结论与踩坑记录
+1. **Metalet 浏览器插件非托管签名接口结论**：
+   - 使用 `window.metaidwallet.signTransaction({ transaction: { txHex, scriptHex, inputIndex, satoshis, sigtype: 0x41 } })`（注意字段为 `scriptHex`，而非 `scryptHex`）。
+   - 该接口返回 `{ signature: { publicKey, r, s, sig, sigtype, txid } }`（`returnsTransaction=false`），不会篡改合约解锁脚本，也不会在插件内序列化未解锁的合约输入。
+   - 同时覆盖两类签名：P2PKH 手续费/兑换输入签名，以及 MetaContract Token op=1 的 `senderSig`（直接绕过 `meta-contract@0.4.10` 中 `FtManager.transfer` 硬编码 5 个 codehash 的限制）。
+2. **Metalet v4 FT 历史分页限制修复**：
+   - `/address/contract/ft/tx-list` 单页仅返回 10 条记录并通过 `flag` 游标翻页。若不分页会导致已花费的旧 FT UTXO 被重复选中，造成广播时报 `missing-inputs`。`swap-engine.ts` 已对 `getFtTxList` 与 `getSpaceUtxos` 补齐循环分页拉取直至 `flag === '0'`。
+3. **动态手续费估算与并发串行化**：
+   - 交易体积随合并 UTXO 数量与 `prevCustomData` 回溯变化，通过一次离线组装测字节长度后重算 `prep` 输入并二次组装，确保费率充足且不浪费。
+   - `swap-service` 内置按 `poolId` 隔离的 `AsyncKeyedQueue` FIFO 串行锁与 0-conf 本地 UTXO 追踪，确保同池并发交易按序衔接不撞池头。
+
+### B.2 Phase 0b 主网脚本实测交易（离线 `.verify()` 通过后广播）
+| 用例 | 方向/操作 | MVC Mainnet TxID |
+|---|---|---|
+| `swap2` | SPACE → MVST (10,000 sats，含完整 `prevCustomData` 回溯) | `09f391f1585f5533e8269a1ba0d2ebf5f118b9454f5d671fc31f394e458c465b` |
+| `swap-projfee` | SPACE → MVST (2,000,000 sats，`projFee = 1,000` sats) | `639327bfd65fe3f0c5db9cb19aa757afbdcaee26a10edc3dbb3002968c200107` |
+| `swap-t2m` | MVST → SPACE (1,359,053,226 MVST → 1,965,565 sats) | `2ea617bceb53b5e944eaeb1d0f4afe89f33339157c12149d0d7b4c601400a94f` |
+| `addliq2` | 添加流动性 (10,000 sats + 85,017,037 MVST → +6,920 LP) | `1631aa8c9cab85084741c6d8f7b597f4916f294285dfc7c1e547d0c57a60f178` |
+| `removeliq` | 移除流动性 (销毁 6,920 LP → 9,998 sats + 85,007,813 MVST) | `142165a610ae548f4a4c83e754d27df90e901b040606e2b1b734e77f15a99151` |
+
+### B.3 Phase 1 & 2 服务端 HTTP 联调主网验收（12/12 全部成功）
+完整记录见 `swap-service/data/acceptance-results.json`：
+- **Phase 1A**（连续 3 笔 SPACE → MVST）：`ca71d66e…`、`1eede9c7…`、`5611c1e5…`
+- **Phase 1B**（连续 3 笔 MVST → SPACE）：`2f6a05d4…`、`2377048e…`、`5e86604c…`
+- **Phase 1C**（同池 2 笔并发请求经 FIFO 队列串行执行）：`01dfa7a5…`、`7e80519b…`
+- **Phase 2A**（2 笔按比例添加流动性）：`f3754cee…`（+3,143 LP）、`10d5cb19…`（+3,772 LP）
+- **Phase 2B**（2 笔移除流动性）：`48d5c253…`（-3,143 LP）、`d3fe4736…`（-3,772 LP）
+- **验收后最新池头**：`poolTxid = d3fe473604bc7f223d98d0a8f48efbe6484cc6c3556a1c349cc6eea3ae7ec251:0`，`lpGenesis = 10d5cb193b83118caa525d5575a680c74c626d5f9f9392c858fd463154e3144f:2`。
+
+### B.4 Phase 3 前端（方向三：Tactile Bento Studio）
+- 交互原型及选型记录位于 `metaid-market-frontend/design-demos/`（选定方向三 `swap-v3-bento-studio.html`）。
+- 正式实现位于 `src/pages/swap/`、`src/services/swapApi.ts`、`src/layouts/components/Nav.tsx`、`.umirc.ts` 与 `src/locales/zh-CN.ts`，已对接 `/api/v1/swap/*` 与 `window.metaidwallet.signTransaction`，通过 TypeScript 检查、Umi 生产构建以及对接实时 `swap-service` 的无头浏览器渲染验收。
+

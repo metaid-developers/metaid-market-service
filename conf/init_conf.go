@@ -52,6 +52,8 @@ var (
 	Host string = ""
 
 	AdminAPIKey string = ""
+
+	SwapServiceUrl string = "http://127.0.0.1:18080"
 )
 
 type ServiceFeeConfig struct {
@@ -140,4 +142,7 @@ func InitConfig() {
 
 	Host = viper.GetString("host")
 	AdminAPIKey = viper.GetString("admin.api_key")
+	if v := viper.GetString("swap.service_url"); v != "" {
+		SwapServiceUrl = v
+	}
 }

@@ -88,3 +88,6 @@ pop:
 auto_bridge_rule:
   order_count_limit: 10
   market_cap_usdt_limit: 100000
+
+swap:
+  service_url: "http://127.0.0.1:18080"
