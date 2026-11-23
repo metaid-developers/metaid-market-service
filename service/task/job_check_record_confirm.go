@@ -7,6 +7,7 @@ import (
 	"metaid-market-service/service/metaname_service"
 	"metaid-market-service/service/mrc20_op_service"
 	"metaid-market-service/service/order_service"
+	"metaid-market-service/service/risk_service"
 	"strconv"
 	"strings"
 )
@@ -320,6 +321,16 @@ func jobForCheckMrc20PreTransferOrderAskConfirm() {
 			}
 
 			mrc20Info := mrc20InfoList[0]
+			var preHints []risk_service.TaintHint
+			if mrc20Info.FromAddress != "" {
+				preHints = append(preHints, risk_service.TaintHint{FromAddress: mrc20Info.FromAddress})
+			}
+			if blocked, reason := risk_service.DefaultEngine().CheckUtxoAndAddress(entity.Chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, preHints); blocked {
+				fmt.Printf("[JOB][%s][%s] Cancel blocked pre-transfer order: %s\n", jobName, entity.OrderId, reason)
+				entity.AskType = models.AskTypePreTransferCheck
+				_ = risk_service.CancelBlockedMrc20Order(entity, "Blocked stolen asset: "+reason)
+				continue
+			}
 			tick := mrc20Info.Tick
 
 			coinAmountStr := mrc20Info.AmtChange

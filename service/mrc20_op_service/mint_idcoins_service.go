@@ -4,13 +4,20 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/risk_service"
 )
 
 func IdCoinsMintPre(req *request.IdCoinsMintPreRequest, publicKey, ip string) (*respond.IdCoinsMintPreResp, error) {
+	if err := risk_service.CheckAddress("btc", req.OutAddress); err != nil {
+		return nil, err
+	}
 	return IdCoinsMintPreFromOrders(req, publicKey, ip)
 }
 
 func IdCoinsMintCommit(req *request.IdCoinsMintCommitRequest, publicKey, ip string) (*respond.IdCoinsMintCommitResp, error) {
+	if err := risk_service.CheckRawBtcTx("btc", req.CommitTxRaw); err != nil {
+		return nil, err
+	}
 	return IdCoinsMintCommitFromOrder(req, publicKey, ip)
 }
 

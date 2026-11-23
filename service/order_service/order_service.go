@@ -12,6 +12,7 @@ import (
 	"metaid-market-service/models"
 	"metaid-market-service/service/common_service"
 	"metaid-market-service/service/man_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 	"strconv"
 	"strings"
@@ -149,6 +150,9 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 		psbtBuilderItemList = append(psbtBuilderItemList, itembuilder)
 
 		assetLocalUtxoId := fmt.Sprintf("%s_%d", preTxId, preTxIndex)
+		if err := risk_service.CheckAssetOrderListing(chain, sellerAddress, assetLocalUtxoId, 546, risk_service.ExtractPsbtHints(psbtBuilder, preTxId)); err != nil {
+			return nil, err
+		}
 
 		pinInfo, err := man_service.FetchUtxoPinInfo(conf.Net, preTxId, int64(preTxIndex))
 		if err != nil {
@@ -323,6 +327,10 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 			if entity.SellerAddress == req.BuyerAddress {
 				return nil, errors.New("Buyer address is same as seller. ")
 			}
+			if err := risk_service.CheckAssetOrderListing(entity.Chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
+				_ = risk_service.CancelBlockedPinOrder(entity)
+				return nil, err
+			}
 
 			orderEntityList = append(orderEntityList, entity)
 		}
@@ -331,6 +339,9 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, req.BuyerAddress)
 	if err != nil || !verified {
 		return nil, errors.New("buyer address does not belong to the authenticated public key")
+	}
+	if err := risk_service.CheckAddress(chain, req.BuyerAddress); err != nil {
+		return nil, err
 	}
 	for _, v := range orderEntityList {
 		psbtRawList = append(psbtRawList, v.MakerPsbt)
@@ -377,6 +388,10 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 		if entity.OrderState != models.OrderStateCreate {
 			return nil, errors.New("Order is closed. ")
 		}
+		if err := risk_service.CheckAssetOrderListing(entity.Chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
+			_ = risk_service.CancelBlockedPinOrder(entity)
+			return nil, err
+		}
 		chain = entity.Chain
 		entityList = append(entityList, entity)
 		offsetDummyInputIndex++
@@ -403,8 +418,12 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 		}
 		dummyUtxos[utxoId] = utxoEntity
 	}
-	if _, err = common.ValidateBatchPinTakePsbt(conf.Net, chain, entityList, takerAskPsbtBuilder, publicKey, dummyUtxos); err != nil {
+	validatedBuyerAddr, err := common.ValidateBatchPinTakePsbt(conf.Net, chain, entityList, takerAskPsbtBuilder, publicKey, dummyUtxos)
+	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT validation failed: %s", err.Error()))
+	}
+	if err := risk_service.CheckBuyerTakePsbt(chain, validatedBuyerAddr, takerAskPsbtBuilder, len(entityList)+3); err != nil {
+		return nil, err
 	}
 	err = common.BatchSignAskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, len(req.OrderIds))
 	if err != nil {
@@ -641,6 +660,9 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 		preTxId := v.PreviousOutPoint.Hash.String()
 		preTxIndex := v.PreviousOutPoint.Index
 		assetLocalUtxoId = fmt.Sprintf("%s_%d", preTxId, preTxIndex)
+		if err := risk_service.CheckAssetOrderListing(chain, sellerAddress, assetLocalUtxoId, 546, risk_service.ExtractPsbtHints(psbtBuilder, preTxId)); err != nil {
+			return nil, err
+		}
 
 		if assetLocalUtxoId == "adf719b9c8d2051bf21d340e6777cfd27b344d63c2cc3d033adeb29669bf4ba0_0" {
 			outValue = 2100000
@@ -859,6 +881,13 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 	if entity.SellerAddress == req.BuyerAddress {
 		return nil, errors.New("Buyer address is same as seller. ")
 	}
+	if err := risk_service.CheckAddress(chain, req.BuyerAddress); err != nil {
+		return nil, err
+	}
+	if err := risk_service.CheckAssetOrderListing(chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
+		_ = risk_service.CancelBlockedPinOrder(entity)
+		return nil, err
+	}
 
 	sellUtxoIdStrs := strings.Split(entity.UtxoId, "_")
 	sellUtxoTxId := sellUtxoIdStrs[0]
@@ -959,6 +988,10 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 		return nil, errors.New("Order is closed. ")
 	}
 	chain = entity.Chain
+	if err := risk_service.CheckAssetOrderListing(chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
+		_ = risk_service.CancelBlockedPinOrder(entity)
+		return nil, err
+	}
 
 	takerAskPsbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), req.TakerPsbtRaw)
 	if err != nil {
@@ -1004,8 +1037,12 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 			})
 		}
 	}
-	if _, err = common.ValidatePinTakePsbt(conf.Net, chain, entity, takerAskPsbtBuilder, publicKey, dummyUtxos); err != nil {
+	validatedBuyerAddr, err := common.ValidatePinTakePsbt(conf.Net, chain, entity, takerAskPsbtBuilder, publicKey, dummyUtxos)
+	if err != nil {
 		return nil, errors.New(fmt.Sprintf("PSBT validation failed: %s", err.Error()))
+	}
+	if err := risk_service.CheckBuyerTakePsbt(chain, validatedBuyerAddr, takerAskPsbtBuilder, 4); err != nil {
+		return nil, err
 	}
 
 	err = common.SignAskTakerPsbtRawInDummy(conf.Net, chain, takerAskPsbtBuilder, signDummyInputList)

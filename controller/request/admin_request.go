@@ -20,3 +20,20 @@ type ColdDownDummyUtxoRequest struct {
 	FeeRate       int64           `json:"feeRate"`
 	SignMode      common.SignMode `json:"signMode"`
 }
+
+type BlacklistUpsertItem struct {
+	EntryType   string `json:"entryType"`
+	EntryValue  string `json:"entryValue"`
+	Reason      string `json:"reason"`
+	ParentValue string `json:"parentValue"`
+	State       int64  `json:"state"`
+}
+
+type BlacklistUpsertRequest struct {
+	Entries     []BlacklistUpsertItem `json:"entries"`
+	EntryType   string                `json:"entryType"`
+	EntryValue  string                `json:"entryValue"`
+	Reason      string                `json:"reason"`
+	ParentValue string                `json:"parentValue"`
+	State       int64                 `json:"state"`
+}

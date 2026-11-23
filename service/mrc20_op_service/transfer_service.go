@@ -11,6 +11,7 @@ import (
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
 
 	"github.com/btcsuite/btcd/txscript"
@@ -114,6 +115,19 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 		})
 		mrc20OutAddresses += v.Address + "_"
 		outValue += v.OutValue
+	}
+	riskInAddrs := make([]string, 0, len(req.Transfers))
+	riskInUtxos := make([]string, 0, len(req.Transfers))
+	for _, v := range req.Transfers {
+		riskInAddrs = append(riskInAddrs, v.Address)
+		riskInUtxos = append(riskInUtxos, fmt.Sprintf("%s_%d", v.UtxoTxId, v.UtxoIndex))
+	}
+	riskOutAddrs := make([]string, 0, len(req.Mrc20Outs))
+	for _, v := range req.Mrc20Outs {
+		riskOutAddrs = append(riskOutAddrs, v.Address)
+	}
+	if err := risk_service.CheckTransferPre(chain, changeAddress, riskInAddrs, riskInUtxos, riskOutAddrs); err != nil {
+		return nil, err
 	}
 	payload, err = mrc20_service.MakeTransferPayload(tickId, transferMrc20s, mrc20Outs)
 	if err != nil {
@@ -301,6 +315,9 @@ func Mrc20TransferCommit(req *request.Mrc20TransferCommitRequest, publicKey, ip 
 	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
 	if err != nil || !verified || (transferOrder.Address != "" && address != transferOrder.Address) {
 		return nil, errors.New("commitTx address does not match the transfer order wallet")
+	}
+	if err := risk_service.CheckTransferCommit(chain, transferOrder.Address, address, commitTx); err != nil {
+		return nil, err
 	}
 
 	psbtBuilder, err = common.NewPsbtBuilder(common.GetNetParams(conf.Net, chain), prePsbtRaw)

@@ -4,17 +4,37 @@ import (
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/service/orders_exchange_service"
+	"metaid-market-service/service/risk_service"
 )
 
 func BookOrderTakeMintBidPreview(req *request.BookTakeMintBidPreviewReq, publicKey, ip string) (*respond.BookMintOrderTakePreviewResp, error) {
+	if err := risk_service.CheckAddress("btc", req.SellerAddress); err != nil {
+		return nil, err
+	}
+	for _, utxoId := range req.AssetUtxoIds {
+		if err := risk_service.CheckUtxo("btc", req.SellerAddress, utxoId, 546); err != nil {
+			return nil, err
+		}
+	}
 	return BookOrderTakeMintBidPreviewFromOrders(req, publicKey, ip)
 }
 
 func BookOrderTakeMintBidPre(req *request.BookTakeMintBidPreReq, publicKey, ip string) (*respond.BookMintOrderTakePreResp, error) {
+	if err := risk_service.CheckAddress("btc", req.SellerAddress); err != nil {
+		return nil, err
+	}
+	for _, utxoId := range req.AssetUtxoIds {
+		if err := risk_service.CheckUtxo("btc", req.SellerAddress, utxoId, 546); err != nil {
+			return nil, err
+		}
+	}
 	return BookOrderTakeMintBidPreFromOrders(req, publicKey, ip)
 }
 
 func BookOrderTakeMintBidCommit(req *request.BookTakeMintBidCommitReq, publicKey, ip string) (*respond.BookMintOrderTakeCommitResp, error) {
+	if err := risk_service.CheckRawBtcTx("btc", req.CommitTxRaw); err != nil {
+		return nil, err
+	}
 	return BookOrderTakeMintBidCommitFromOrder(req, publicKey, ip)
 }
 

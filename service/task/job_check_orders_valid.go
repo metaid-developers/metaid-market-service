@@ -5,11 +5,13 @@ import (
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/models"
+	"metaid-market-service/service/risk_service"
 	"strconv"
 	"strings"
 )
 
 func JobForCheckValidOrders() {
+	risk_service.SweepAllActiveOrders()
 	jobForCheckValidMrc20OrdersValid()
 	jobForCheckValidOrdersValid()
 }
