@@ -8,12 +8,28 @@ import * as fs from 'fs'
 function resolveCoreDir(): string {
   const candidates = [
     process.env.MVCSWAP_CORE_DIR,
+    path.resolve(__dirname, '..', '..', '..', 'mvcswap-core'),
+    path.resolve(__dirname, '..', '..', '..', 'mvcswap-core-mainnet'),
     path.resolve(__dirname, '..', '..', '..', 'mvcswap-core-swap'),
+    path.resolve(__dirname, '..', '..', '..', '..', 'mvcswap-core'),
     path.resolve(__dirname, '..', '..', '..', '..', 'mvcswap-core-mainnet'),
   ].filter(Boolean) as string[]
 
+  // Prefer a directory that has both scripts/swap-engine.ts and compiled out/ contracts
   for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, 'scripts', 'swap-engine.ts')) && fs.existsSync(path.join(dir, 'tslib', 'tokenSwapProto.ts'))) {
+    if (
+      fs.existsSync(path.join(dir, 'scripts', 'swap-engine.ts')) &&
+      fs.existsSync(path.join(dir, 'tslib', 'tokenSwapProto.ts')) &&
+      fs.existsSync(path.join(dir, 'out'))
+    ) {
+      return dir
+    }
+  }
+  for (const dir of candidates) {
+    if (
+      fs.existsSync(path.join(dir, 'scripts', 'swap-engine.ts')) &&
+      fs.existsSync(path.join(dir, 'tslib', 'tokenSwapProto.ts'))
+    ) {
       return dir
     }
   }
