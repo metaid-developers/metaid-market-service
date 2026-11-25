@@ -181,6 +181,20 @@ func (_ *marketMrc20OrderModelDao) GetOne(qo *MarketMrc20OrderModel) (*MarketMrc
 	return model, nil
 }
 
+func (_ *marketMrc20OrderModelDao) GetListBySellerAndUtxoIds(sellerAddress string, utxoIds []string) ([]*MarketMrc20OrderModel, error) {
+	if len(utxoIds) == 0 {
+		return nil, nil
+	}
+	var models []*MarketMrc20OrderModel
+	tx := major.GetSqlDB().
+		Where("sellerAddress = ? AND utxoId IN ? AND orderState IN ?", sellerAddress, utxoIds, []OrderState{OrderStateCreate, OrderStateFinish}).
+		Find(&models)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return models, nil
+}
+
 func (_ *marketMrc20OrderModelDao) GetLastOne(qo *MarketMrc20OrderModel) (*MarketMrc20OrderModel, error) {
 	model := &MarketMrc20OrderModel{}
 	tx := major.GetSqlDB().Where(qo).Order("blockHeight desc").First(model)

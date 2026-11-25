@@ -37,7 +37,8 @@ func (c *Mrc20BaseConn) dial(addr string) error {
 	var err error
 	c.clientConn, err = grpc.DialContext(ctx, addr, grpc.WithInsecure())
 	if err != nil {
-		fmt.Printf("dial rpc error:%s", err.Error())
+		fmt.Printf("dial rpc error:%s\n", err.Error())
+		return err
 	}
 	return nil
 }
@@ -102,7 +103,9 @@ func (c *Mrc20BaseConn) FetchMrc20AddressUtxoList(tickIds []string, address, sou
 		Limit:   limit,
 		Source:  source,
 	}
-	resp, err := client.FetchMrc20AddressUtxoList(context.Background(), req)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	resp, err := client.FetchMrc20AddressUtxoList(ctx, req)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -192,7 +195,9 @@ func (c *Mrc20BaseConn) FetchMrc20UtxoTxPoint(txId, source string, vout, offset,
 		Limit:  limit,
 		Source: source,
 	}
-	resp, err := client.FetchMrc20UtxoTxPoint(context.Background(), req)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := client.FetchMrc20UtxoTxPoint(ctx, req)
 	if err != nil {
 		fmt.Println(err)
 	}

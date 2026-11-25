@@ -692,7 +692,7 @@ func FetchMrc20TickAddressShovels(req *request.Mrc20AddressShovelsReq) (*respond
 	}
 	if mrc20Resp != nil {
 		for _, v := range mrc20Resp.List {
-			if v.Output != "" && risk_service.IsUtxoTainted(v.ChainName, v.Output, v.OutputValue, v.GenesisHeight) {
+			if v.Output != "" && risk_service.IsUtxoTaintedFast(v.ChainName, v.Output, v.GenesisHeight) {
 				continue
 			}
 			list = append(list, &respond.ShovelInfo{
@@ -836,10 +836,17 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 			return nil, errors.New("grpc response is empty")
 		}
 
-		list := make([]*respond.Mrc20Utxo, 0, len(grpcResp.GetDetail()))
-		for _, v := range grpcResp.GetDetail() {
+		details := grpcResp.GetDetail()
+		utxoIds := make([]string, 0, len(details))
+		for _, v := range details {
+			utxoIds = append(utxoIds, fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout()))
+		}
+		createdOrders := buildOrderMapByUtxo(req.Address, utxoIds)
+
+		list := make([]*respond.Mrc20Utxo, 0, len(details))
+		for _, v := range details {
 			vUtxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
-			if risk_service.IsUtxoTainted(v.GetChain(), vUtxoId, v.GetSatoshi(), v.GetBlockHeight()) {
+			if risk_service.IsUtxoTaintedFast(v.GetChain(), vUtxoId, v.GetBlockHeight()) {
 				continue
 			}
 			mrc20InfoList := make([]*respond.Mrc20Info, 0, len(v.GetMrc20S()))
@@ -867,14 +874,8 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				OrderId:     "",
 				Tag:         tag,
 			}
-			utxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
-			orderEntity, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
-				UtxoId:        utxoId,
-				SellerAddress: req.Address,
-				OrderState:    models.OrderStateCreate,
-			})
-			if orderEntity != nil {
-				item.OrderId = orderEntity.OrderId
+			if orderId, ok := createdOrders[vUtxoId]; ok {
+				item.OrderId = orderId
 			}
 			list = append(list, item)
 		}
@@ -909,8 +910,15 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 		return nil, err
 	}
 	if mrc20Resp != nil {
+		type candidateUtxo struct {
+			raw    *man_service.Mrc20Utxo
+			utxoId string
+			txId   string
+			vout   int64
+		}
+		candidates := make([]candidateUtxo, 0, len(mrc20Resp.List))
+		utxoIds := make([]string, 0, len(mrc20Resp.List))
 		for _, v := range mrc20Resp.List {
-
 			if !v.Verify {
 				continue
 			}
@@ -918,27 +926,67 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				continue
 			}
 			utxoId := strings.Replace(v.TxPoint, ":", "_", -1)
-			if risk_service.IsUtxoTainted(v.Chain, utxoId, v.PointValue, v.BlockHeight) {
+			if risk_service.IsUtxoTaintedFast(v.Chain, utxoId, v.BlockHeight) {
 				continue
 			}
-			orderEntityFinish, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
-				UtxoId:        utxoId,
-				SellerAddress: req.Address,
-				OrderState:    models.OrderStateFinish,
-			})
-			if orderEntityFinish != nil {
-				continue
-			}
-
-			address := v.ToAddress
-			txPoint := v.TxPoint
-			txPointStrs := strings.Split(txPoint, ":")
+			txPointStrs := strings.Split(v.TxPoint, ":")
 			txId := ""
 			vout := int64(0)
 			if len(txPointStrs) == 2 {
 				txId = txPointStrs[0]
 				vout, _ = strconv.ParseInt(txPointStrs[1], 10, 64)
 			}
+			candidates = append(candidates, candidateUtxo{
+				raw:    v,
+				utxoId: utxoId,
+				txId:   txId,
+				vout:   vout,
+			})
+			utxoIds = append(utxoIds, utxoId)
+		}
+
+		finishedSet, createdOrders := buildOrderSetsByUtxo(req.Address, utxoIds)
+
+		filtered := make([]candidateUtxo, 0, len(candidates))
+		for _, c := range candidates {
+			if finishedSet[c.utxoId] {
+				continue
+			}
+			filtered = append(filtered, c)
+		}
+
+		type txPointExtra struct {
+			info  []*man_service.Mrc20Utxo
+			total int64
+		}
+		extras := make([]txPointExtra, len(filtered))
+		if len(filtered) > 0 {
+			const maxWorkers = 8
+			sem := make(chan struct{}, maxWorkers)
+			var wg sync.WaitGroup
+			for i, c := range filtered {
+				if c.txId == "" {
+					continue
+				}
+				wg.Add(1)
+				go func(idx int, cand candidateUtxo) {
+					defer wg.Done()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+					info, totalCnt, fetchErr := FetchTxPointInfo(req.Source, cand.txId, cand.vout, 0, 100)
+					if fetchErr != nil {
+						fmt.Printf("[FetchMrc20TickAddressUtxos] FetchTxPointInfo warn (%s_%d): %v\n", cand.txId, cand.vout, fetchErr)
+						return
+					}
+					extras[idx] = txPointExtra{info: info, total: totalCnt}
+				}(i, c)
+			}
+			wg.Wait()
+		}
+
+		for i, c := range filtered {
+			v := c.raw
+			address := v.ToAddress
 			pkScript, _ := common.AddressToPkScript(conf.Net, v.Chain, address)
 			satoshi := int64(546)
 			if v.PointValue > 0 {
@@ -954,12 +1002,8 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				Decimals: tickInfo.Decimals,
 			})
 
-			txPointInfo, txPointTotal, err := FetchTxPointInfo(req.Source, txId, vout, 0, 100)
-			if err != nil {
-				return nil, err
-			}
-			if txPointTotal > 1 {
-				for _, p := range txPointInfo {
+			if extras[i].total > 1 {
+				for _, p := range extras[i].info {
 					if p.Mrc20Id == v.Mrc20Id {
 						continue
 					}
@@ -980,21 +1024,13 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 				Satoshi:     satoshi,
 				Satoshis:    satoshi,
 				ScriptPk:    pkScript,
-				TxId:        txId,
-				Vout:        vout,
-				OutputIndex: vout,
+				TxId:        c.txId,
+				Vout:        c.vout,
+				OutputIndex: c.vout,
 				Mrc20s:      mrc20s,
 				Timestamp:   v.Timestamp,
-				OrderId:     "",
+				OrderId:     createdOrders[c.utxoId],
 				Tag:         tag,
-			}
-			orderEntity, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
-				UtxoId:        utxoId,
-				SellerAddress: req.Address,
-				OrderState:    models.OrderStateCreate,
-			})
-			if orderEntity != nil {
-				item.OrderId = orderEntity.OrderId
 			}
 			list = append(list, item)
 		}
@@ -1004,6 +1040,31 @@ func FetchMrc20TickAddressUtxos(req *request.Mrc20AddressUtxosReq) (*respond.Mrc
 		Total: total,
 		List:  list,
 	}, nil
+}
+
+func buildOrderSetsByUtxo(sellerAddress string, utxoIds []string) (map[string]bool, map[string]string) {
+	finished := make(map[string]bool)
+	created := make(map[string]string)
+	rows, err := models.MarketMrc20OrderModelDao().GetListBySellerAndUtxoIds(sellerAddress, utxoIds)
+	if err != nil {
+		return finished, created
+	}
+	for _, r := range rows {
+		if r == nil {
+			continue
+		}
+		if r.OrderState == models.OrderStateFinish {
+			finished[r.UtxoId] = true
+		} else if r.OrderState == models.OrderStateCreate && created[r.UtxoId] == "" {
+			created[r.UtxoId] = r.OrderId
+		}
+	}
+	return finished, created
+}
+
+func buildOrderMapByUtxo(sellerAddress string, utxoIds []string) map[string]string {
+	_, created := buildOrderSetsByUtxo(sellerAddress, utxoIds)
+	return created
 }
 
 func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*respond.Mrc20TickMarketPriceResp, error) {
@@ -1292,9 +1353,16 @@ func FetchMrc20IdCoinsTickAddressUtxos(req *request.Mrc20IdCoinsAddressUtxosReq)
 	}
 
 	if grpcResp != nil {
-		for _, v := range grpcResp.GetDetail() {
+		details := grpcResp.GetDetail()
+		utxoIds := make([]string, 0, len(details))
+		for _, v := range details {
+			utxoIds = append(utxoIds, fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout()))
+		}
+		createdOrders := buildOrderMapByUtxo(req.Address, utxoIds)
+
+		for _, v := range details {
 			vUtxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
-			if risk_service.IsUtxoTainted(v.GetChain(), vUtxoId, v.GetSatoshi(), v.GetBlockHeight()) {
+			if risk_service.IsUtxoTaintedFast(v.GetChain(), vUtxoId, v.GetBlockHeight()) {
 				continue
 			}
 
@@ -1324,13 +1392,8 @@ func FetchMrc20IdCoinsTickAddressUtxos(req *request.Mrc20IdCoinsAddressUtxosReq)
 				OrderId:     "",
 			}
 			utxoId := fmt.Sprintf("%s_%d", v.GetTxId(), v.GetVout())
-			orderEntity, _ := models.MarketMrc20OrderModelDao().GetOne(&models.MarketMrc20OrderModel{
-				UtxoId:        utxoId,
-				SellerAddress: req.Address,
-				OrderState:    models.OrderStateCreate,
-			})
-			if orderEntity != nil {
-				item.OrderId = orderEntity.OrderId
+			if orderId, ok := createdOrders[utxoId]; ok {
+				item.OrderId = orderId
 			}
 			list = append(list, item)
 		}
