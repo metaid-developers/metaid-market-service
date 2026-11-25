@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil/psbt"
@@ -26,16 +27,25 @@ import (
 var ErrBlockedStolenAsset = errors.New("Asset or address is blocked due to theft/security risk. ")
 
 const (
-	// Incident cluster minimum block height for recursive ancestor traversal.
-	// Direct blacklist matches on vin txid/utxo/address still trigger regardless of height;
-	// confirmed non-blacklisted parent txs older than this block are not expanded further.
+	// Incident cluster minimum block height (~977028 was the first phishing drain tx).
+	// Confirmed transactions strictly below minTaintWalkBlockHeight occurred before the
+	// phishing mnemonic leak: unless explicitly listed in blackTxIds/blackUtxos (or currently
+	// held by a blacklisted wallet), pre-incident inputs must never taint counterparties.
 	minTaintWalkBlockHeight int64 = 977025
 	maxTaintWalkDepth       int   = 15
 	maxTaintVisitedTxs      int   = 40
 	maxBatchExchangeOutputs int   = 20
+	maxMultiPartyInputAddrs int   = 10
 	cacheRefreshInterval          = 15 * time.Second
 	maxCachedCleanOutpoints       = 20000
 	maxCachedChainTxs             = 10000
+	maxCachedTrades               = 20000
+	negativeTradeCacheTTL         = 30 * time.Second
+
+	mainnetPlatformDummyAddr = "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78"
+	mainnetPlatformFeeAddr   = "bc1pf4gj2uyjfytzzx3h06m977tvw6pl6hgy6kmgyle2757pcrrukr8s2srvy5"
+	victim1SelfRescueAddr1   = "13TzdVkgh8WxpKwc6P5S2oRfW3U5LqE1xS"
+	victim1SelfRescueAddr2   = "1AkEdzTXgDUckLb19yoGspBTMwxjvxHKzY"
 )
 
 type ChainTxInput struct {
@@ -91,15 +101,24 @@ type RiskEngine struct {
 	txCacheMu sync.RWMutex
 	txCache   map[string]*ChainTx // confirmed ChainTx cache
 
+	tradeCacheMu sync.RWMutex
+	tradeCache   map[string]cachedTradeEntry
+
 	txFetcher   TxFetcherFunc
 	tradeLookup MarketTradeLookupFunc
 	persister   PersistBlacklistFunc
+}
+
+type cachedTradeEntry struct {
+	trade     *CompletedMarketTrade
+	expiresAt time.Time
 }
 
 var (
 	defaultEngineOnce sync.Once
 	defaultEngine     *RiskEngine
 	mempoolHTTPClient = &http.Client{Timeout: 5 * time.Second}
+	sweepRunning      int32
 )
 
 func NewRiskEngine(fetcher TxFetcherFunc, tradeLookup MarketTradeLookupFunc, persister PersistBlacklistFunc) *RiskEngine {
@@ -112,6 +131,7 @@ func NewRiskEngine(fetcher TxFetcherFunc, tradeLookup MarketTradeLookupFunc, per
 		whiteUtxos:     make(map[string]bool),
 		cleanOutpoints: make(map[string]bool),
 		txCache:        make(map[string]*ChainTx),
+		tradeCache:     make(map[string]cachedTradeEntry),
 		txFetcher:      fetcher,
 		tradeLookup:    tradeLookup,
 		persister:      persister,
@@ -309,6 +329,12 @@ func (e *RiskEngine) ApplyEntries(list []*models.MarketBlacklistModel) {
 	}
 
 	e.mu.Lock()
+	changed := !mapsEqualString(e.blackAddrs, newBlackAddrs) ||
+		!mapsEqualString(e.blackTxIds, newBlackTxIds) ||
+		!mapsEqualString(e.blackUtxos, newBlackUtxos) ||
+		!mapsEqualBool(e.whiteAddrs, newWhiteAddrs) ||
+		!mapsEqualBool(e.whiteTxIds, newWhiteTxIds) ||
+		!mapsEqualBool(e.whiteUtxos, newWhiteUtxos)
 	e.blackAddrs = newBlackAddrs
 	e.blackTxIds = newBlackTxIds
 	e.blackUtxos = newBlackUtxos
@@ -317,7 +343,33 @@ func (e *RiskEngine) ApplyEntries(list []*models.MarketBlacklistModel) {
 	e.whiteUtxos = newWhiteUtxos
 	e.mu.Unlock()
 
-	e.clearCleanCache()
+	if changed {
+		e.clearCleanCache()
+	}
+}
+
+func mapsEqualString(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if bv, ok := b[k]; !ok || bv != v {
+			return false
+		}
+	}
+	return true
+}
+
+func mapsEqualBool(a, b map[string]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if bv, ok := b[k]; !ok || bv != v {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *RiskEngine) clearCleanCache() {
@@ -326,18 +378,39 @@ func (e *RiskEngine) clearCleanCache() {
 	e.cleanMu.Unlock()
 }
 
-func (e *RiskEngine) isProtectedAddress(addr string) bool {
+// isPlatformSystemAddress identifies Market dummy-UTXO pool and fee addresses.
+// Because the 600-sat dummy UTXO is recycled across every unrelated Market trade,
+// platform system addresses must both be immune from blacklisting and cut ancestor traversal.
+func (e *RiskEngine) isPlatformSystemAddress(addr string) bool {
 	norm := NormalizeAddress(addr)
 	if norm == "" {
 		return false
 	}
-	if norm == NormalizeAddress(conf.PlatformAddressDummyAsk) ||
+	if norm == mainnetPlatformDummyAddr ||
+		norm == mainnetPlatformFeeAddr ||
+		norm == NormalizeAddress(conf.PlatformAddressDummyAsk) ||
 		norm == NormalizeAddress(conf.PlatformDogeAddressDummyAsk) ||
 		norm == NormalizeAddress(conf.PlatformAddressReceiveFee) ||
 		norm == NormalizeAddress(conf.PlatformDogeAddressReceiveFee) ||
 		(conf.PlatformServiceFeeConfigData != nil &&
 			(norm == NormalizeAddress(conf.PlatformServiceFeeConfigData.ServiceAddress) ||
 				norm == NormalizeAddress(conf.PlatformServiceFeeConfigData.DogeServiceAddress))) {
+		return true
+	}
+	return false
+}
+
+func isSelfRescueSafeAddress(addr string) bool {
+	norm := NormalizeAddress(addr)
+	return norm == victim1SelfRescueAddr1 || norm == victim1SelfRescueAddr2
+}
+
+func (e *RiskEngine) isProtectedAddress(addr string) bool {
+	norm := NormalizeAddress(addr)
+	if norm == "" {
+		return false
+	}
+	if e.isPlatformSystemAddress(norm) || isSelfRescueSafeAddress(norm) {
 		return true
 	}
 	e.mu.RLock()
@@ -455,11 +528,42 @@ func (e *RiskEngine) recordAutoTaint(entryType, value, parentValue, reason strin
 // output of a legitimate completed market order (orderState = 3).
 // Buyer outputs (e.g. vout=0 MRC20, vout=4 buyer BTC change) and platform outputs are exempt,
 // whereas seller BTC proceeds (outputAddr == order.SellerAddress) remain tainted if the seller was tainted.
+func (e *RiskEngine) lookupTradeCached(txId string) (*CompletedMarketTrade, error) {
+	if e.tradeLookup == nil || txId == "" {
+		return nil, nil
+	}
+	normTx := NormalizeTxId(txId)
+	now := time.Now()
+	e.tradeCacheMu.RLock()
+	entry, ok := e.tradeCache[normTx]
+	e.tradeCacheMu.RUnlock()
+	if ok && (entry.expiresAt.IsZero() || now.Before(entry.expiresAt)) {
+		return entry.trade, nil
+	}
+
+	trade, err := e.tradeLookup(normTx)
+	if err != nil {
+		return nil, err
+	}
+
+	e.tradeCacheMu.Lock()
+	if len(e.tradeCache) >= maxCachedTrades {
+		e.tradeCache = make(map[string]cachedTradeEntry)
+	}
+	if trade != nil {
+		e.tradeCache[normTx] = cachedTradeEntry{trade: trade}
+	} else {
+		e.tradeCache[normTx] = cachedTradeEntry{trade: nil, expiresAt: now.Add(negativeTradeCacheTTL)}
+	}
+	e.tradeCacheMu.Unlock()
+	return trade, nil
+}
+
 func (e *RiskEngine) isExemptCompletedTradeOutput(txId string, vout int64, outputAddr string) bool {
 	if e.tradeLookup == nil || txId == "" {
 		return false
 	}
-	trade, err := e.tradeLookup(NormalizeTxId(txId))
+	trade, err := e.lookupTradeCached(txId)
 	if err != nil || trade == nil {
 		return false
 	}
@@ -553,8 +657,18 @@ func (e *RiskEngine) CheckUtxoAndAddress(chain, address, utxoId string, outValue
 	for _, h := range hints {
 		if h.FromAddress != "" {
 			if blocked, reason := e.IsAddressBlacklisted(h.FromAddress); blocked {
-				if rootTxId != "" && e.isExemptCompletedTradeOutput(rootTxId, rootVout, normAddr) {
-					return false, ""
+				if normAddr != "" && (e.isPlatformSystemAddress(normAddr) || isSelfRescueSafeAddress(normAddr)) {
+					continue
+				}
+				if rootTxId != "" {
+					if e.isExemptCompletedTradeOutput(rootTxId, rootVout, normAddr) {
+						return false, ""
+					}
+					// If rootTxId was confirmed strictly before the phishing incident, FromAddress
+					// sent the asset before any mnemonic leak occurred; do not taint pre-incident holders.
+					if rTx := e.getChainTx("btc", rootTxId); rTx != nil && rTx.Confirmed && rTx.BlockHeight > 0 && rTx.BlockHeight < minTaintWalkBlockHeight {
+						continue
+					}
 				}
 				e.propagateHitToCurrent(normAddr, rootTxId, normUtxo, outValue, NormalizeAddress(h.FromAddress), 1)
 				return true, fmt.Sprintf("tainted by sender %s (%s)", h.FromAddress, reason)
@@ -635,6 +749,12 @@ func (e *RiskEngine) CheckUtxoAndAddress(chain, address, utxoId string, outValue
 			rootConfirmed = true
 		}
 
+		if outAddr != "" && (e.isPlatformSystemAddress(outAddr) || isSelfRescueSafeAddress(outAddr)) {
+			if blocked, _, _ := e.isDirectBlacklistedOutpoint(cur.txId, curUtxo); !blocked {
+				continue
+			}
+		}
+
 		if e.isExemptCompletedTradeOutput(cur.txId, cur.vout, outAddr) {
 			continue
 		}
@@ -655,14 +775,28 @@ func (e *RiskEngine) CheckUtxoAndAddress(chain, address, utxoId string, outValue
 		}
 		visitedTxs[cur.txId] = true
 
-		// Inspect all inputs of cur.txId before deciding whether to expand further
+		// Pre-incident confirmed block cutoff MUST run BEFORE inspecting tx.Inputs:
+		// any transaction confirmed strictly before minTaintWalkBlockHeight (977025) happened
+		// prior to the phishing mnemonic leak, so historical counterparties in its inputs are clean.
+		if tx.Confirmed && tx.BlockHeight > 0 && tx.BlockHeight < minTaintWalkBlockHeight {
+			continue
+		}
+
+		// Inspect all inputs of post-incident cur.txId before deciding whether to expand further
 		exemptInputs := make([]bool, len(tx.Inputs))
+		distinctInputAddrs := make(map[string]struct{}, len(tx.Inputs))
 		for i, in := range tx.Inputs {
 			inTx := NormalizeTxId(in.TxId)
 			inUtxo := fmt.Sprintf("%s_%d", inTx, in.Vout)
 			if e.isWhitelistedOutpoint(inTx, inUtxo) {
 				exemptInputs[i] = true
 				continue
+			}
+			if in.Address != "" && (e.isPlatformSystemAddress(in.Address) || isSelfRescueSafeAddress(in.Address)) {
+				if blocked, _, _ := e.isDirectBlacklistedOutpoint(inTx, inUtxo); !blocked {
+					exemptInputs[i] = true
+					continue
+				}
 			}
 			if e.isExemptCompletedTradeOutput(inTx, int64(in.Vout), in.Address) {
 				exemptInputs[i] = true
@@ -673,18 +807,17 @@ func (e *RiskEngine) CheckUtxoAndAddress(chain, address, utxoId string, outValue
 				return true, fmt.Sprintf("tainted by ancestor input %s at depth %d (%s)", matchKey, cur.depth+1, reason)
 			}
 			if in.Address != "" {
-				if blocked, reason := e.IsAddressBlacklisted(in.Address); blocked {
-					e.propagateHitToCurrent(normAddr, rootTxId, normUtxo, outValue, NormalizeAddress(in.Address), cur.depth+1)
+				normInAddr := NormalizeAddress(in.Address)
+				if blocked, reason := e.IsAddressBlacklisted(normInAddr); blocked {
+					e.propagateHitToCurrent(normAddr, rootTxId, normUtxo, outValue, normInAddr, cur.depth+1)
 					return true, fmt.Sprintf("tainted by ancestor input address %s at depth %d (%s)", in.Address, cur.depth+1, reason)
 				}
+				distinctInputAddrs[normInAddr] = struct{}{}
 			}
 		}
 
-		// Do not expand pre-incident confirmed transactions or large exchange batch withdrawals
-		if tx.Confirmed && tx.BlockHeight > 0 && tx.BlockHeight < minTaintWalkBlockHeight {
-			continue
-		}
-		if len(tx.Outputs) > maxBatchExchangeOutputs {
+		// Do not expand across large exchange batch withdrawals or high-fan-in multi-party exchange deposit sweeps
+		if len(tx.Outputs) > maxBatchExchangeOutputs || len(distinctInputAddrs) >= maxMultiPartyInputAddrs {
 			continue
 		}
 		if cur.depth >= maxTaintWalkDepth || len(visitedTxs) >= maxTaintVisitedTxs {
@@ -721,21 +854,13 @@ func (e *RiskEngine) CheckUtxoAndAddress(chain, address, utxoId string, outValue
 	return false, ""
 }
 
+// propagateHitToCurrent persists outpoint-exact UTXO taint (`BlacklistTypeUtxo`) only.
+// It intentionally NEVER auto-blacklists `BlacklistTypeAddress` or whole multi-output `BlacklistTypeTxId`,
+// preventing dusting griefing or multi-party/exchange transactions from freezing innocent users' clean assets.
 func (e *RiskEngine) propagateHitToCurrent(normAddr, rootTxId, normUtxo string, outValue int64, parentMatch string, depth int) {
 	reason := fmt.Sprintf("auto-tainted from %s (depth=%d)", parentMatch, depth)
 	if normUtxo != "" {
 		e.recordAutoTaint(models.BlacklistTypeUtxo, normUtxo, parentMatch, reason)
-	}
-	if rootTxId != "" {
-		// Never blacklist a completed legitimate market trade txId as a whole
-		if !e.isExemptCompletedTradeOutput(rootTxId, 0, "") {
-			e.recordAutoTaint(models.BlacklistTypeTxId, rootTxId, parentMatch, reason)
-		}
-	}
-	// Auto-blacklist mule address when holding the tainted token/inscription UTXO (dust-sized carrier <= 10000 sat)
-	// or directly spending a blacklisted source within 2 hops.
-	if normAddr != "" && !e.isProtectedAddress(normAddr) && (outValue <= 10000 || depth <= 2) {
-		e.recordAutoTaint(models.BlacklistTypeAddress, normAddr, parentMatch, reason)
 	}
 }
 
@@ -893,6 +1018,41 @@ func defaultPersistBlacklist(entry *models.MarketBlacklistModel) error {
 	return models.MarketBlacklistModelDao().Upsert(entry)
 }
 
+func ensureRiskIndexes() {
+	db := major.GetSqlDB()
+	if db == nil {
+		return
+	}
+	type indexSpec struct {
+		table   string
+		name    string
+		columns string
+	}
+	specs := []indexSpec{
+		{table: "tb_market_mrc20_order", name: "idx_txid_state", columns: "txId(64), orderState"},
+		{table: "tb_market_mrc20_order", name: "idx_utxo_seller_state", columns: "utxoId(80), sellerAddress(64), orderState"},
+		{table: "tb_market_order", name: "idx_txid_state", columns: "txId(64), orderState"},
+		{table: "tb_market_order", name: "idx_utxo_seller_state", columns: "utxoId(80), sellerAddress(64), orderState"},
+		{table: "tb_mrc20_transfer_order", name: "idx_txid", columns: "txId(64)"},
+	}
+	for _, s := range specs {
+		var cnt int64
+		err := db.Raw(
+			"SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?",
+			s.table, s.name,
+		).Scan(&cnt).Error
+		if err != nil || cnt > 0 {
+			continue
+		}
+		ddl := fmt.Sprintf("CREATE INDEX %s ON %s (%s)", s.name, s.table, s.columns)
+		if err := db.Exec(ddl).Error; err != nil {
+			fmt.Printf("[RISK] Ensure index %s.%s error: %v\n", s.table, s.name, err)
+		} else {
+			fmt.Printf("[RISK] Created index %s.%s\n", s.table, s.name)
+		}
+	}
+}
+
 // InitRiskService creates tb_market_blacklist, seeds initial entries (INSERT IGNORE),
 // loads active entries into memory, sweeps existing tainted orders, and starts periodic refresh.
 func InitRiskService() {
@@ -900,6 +1060,7 @@ func InitRiskService() {
 	if major.GetSqlDB() == nil {
 		return
 	}
+	ensureRiskIndexes()
 	if err := models.MarketBlacklistModelDao().EnsureTable(); err != nil {
 		fmt.Printf("[RISK] EnsureTable error: %v\n", err)
 		return
@@ -912,8 +1073,10 @@ func InitRiskService() {
 	if err := ReloadBlacklistFromDB(); err != nil {
 		fmt.Printf("[RISK] ReloadBlacklistFromDB error: %v\n", err)
 	}
-	canceledMrc20, canceledPin := SweepAllActiveOrders()
-	fmt.Printf("[RISK] Initialized blacklist risk engine; swept active orders: mrc20=%d, pin=%d\n", len(canceledMrc20), len(canceledPin))
+	go func() {
+		canceledMrc20, canceledPin := SweepAllActiveOrders()
+		fmt.Printf("[RISK] Initialized blacklist risk engine; swept active orders: mrc20=%d, pin=%d\n", len(canceledMrc20), len(canceledPin))
+	}()
 
 	go func() {
 		ticker := time.NewTicker(cacheRefreshInterval)
@@ -1082,6 +1245,29 @@ func (e *RiskEngine) IsUtxoTainted(chain, utxoId string, outValue int64, blockHe
 
 func IsUtxoTainted(chain, utxoId string, outValue int64, blockHeight int64) bool {
 	return DefaultEngine().IsUtxoTainted(chain, utxoId, outValue, blockHeight)
+}
+
+// IsUtxoTaintedFast performs an O(1) in-memory whitelist/blacklist check without external HTTP
+// ancestry traversal. Used on high-QPS read paths (e.g. /address/utxo) while write paths
+// still run full multi-hop ancestry verification via CheckUtxoAndAddress.
+func (e *RiskEngine) IsUtxoTaintedFast(chain, utxoId string, blockHeight int64) bool {
+	if !isBtcChain(chain) {
+		return false
+	}
+	normUtxo := NormalizeUtxoId(utxoId)
+	txId, _, ok := ParseUtxoId(normUtxo)
+	if !ok {
+		return false
+	}
+	if e.isWhitelistedOutpoint(txId, normUtxo) {
+		return false
+	}
+	blocked, _, _ := e.isDirectBlacklistedOutpoint(txId, normUtxo)
+	return blocked
+}
+
+func IsUtxoTaintedFast(chain, utxoId string, blockHeight int64) bool {
+	return DefaultEngine().IsUtxoTaintedFast(chain, utxoId, blockHeight)
 }
 
 func ExtractInputHintsAt(psbtBuilder *common.PsbtBuilder, idx int) []TaintHint {
@@ -1342,6 +1528,10 @@ func SweepAllActiveOrders() ([]string, []string) {
 	if major.GetSqlDB() == nil {
 		return nil, nil
 	}
+	if !atomic.CompareAndSwapInt32(&sweepRunning, 0, 1) {
+		return nil, nil
+	}
+	defer atomic.StoreInt32(&sweepRunning, 0)
 	db := major.GetSqlDB()
 	canceledMrc20 := make([]string, 0)
 	affectedTicks := make(map[string]string)

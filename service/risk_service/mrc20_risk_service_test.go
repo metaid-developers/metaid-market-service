@@ -138,14 +138,17 @@ func TestRiskEngine_MultiHopSybilRotationAndGasTaint(t *testing.T) {
 	)
 	eng.LoadSeedEntriesInMemory()
 
-	// 3-hop Sybil rotation must be caught and auto-blacklisted
+	// 3-hop Sybil rotation must be caught and outpoint-blacklisted (without auto-blacklisting recipient address)
 	blocked, reason := eng.CheckUtxoAndAddress("btc", "1SybilC", "tx_reveal_3_0", 546, nil)
 	if !blocked {
 		t.Fatalf("expected 3-hop SybilC listing to be blocked")
 	}
 	t.Logf("SybilC blocked reason: %s (persisted %d auto-taint records)", reason, len(persisted))
-	if addrBlocked, _ := eng.IsAddressBlacklisted("1SybilC"); !addrBlocked {
-		t.Fatalf("expected 1SybilC to be auto-blacklisted after taint detection")
+	if !eng.IsUtxoTaintedFast("btc", "tx_reveal_3_0", 0) || !eng.IsOrderBlockedFast("1SybilC", "tx_reveal_3_0") {
+		t.Fatalf("expected tainted UTXO tx_reveal_3_0 to be outpoint-blacklisted after taint detection")
+	}
+	if addrBlocked, _ := eng.IsAddressBlacklisted("1SybilC"); addrBlocked {
+		t.Fatalf("expected recipient address 1SybilC NOT to be auto-blacklisted to prevent dusting/cascade collateral damage")
 	}
 
 	// Future Victim #4 drained using hub gas must be caught automatically via commit gas ancestry
@@ -472,3 +475,238 @@ func TestRiskEngine_DirtyBtcProceedsBuyerTakeBroadcastAndAntiDusting(t *testing.
 		t.Fatalf("expected 1InnocentUser clean BTC UTXO purchase to succeed, got blocked: %s", reason)
 	}
 }
+
+func TestRiskEngine_TradeCacheCleanCacheStabilityAndFastCheck(t *testing.T) {
+	txLookups := 0
+	tradeLookups := 0
+	const txClean = "aaaa111111111111111111111111111111111111111111111111111111111111"
+	const txTrade = "bbbb222222222222222222222222222222222222222222222222222222222222"
+
+	eng := NewRiskEngine(
+		func(chain, txId string) (*ChainTx, error) {
+			txLookups++
+			return &ChainTx{
+				TxId:        txId,
+				Confirmed:   true,
+				BlockHeight: 977100,
+				Inputs:      []ChainTxInput{{TxId: "0000000000000000000000000000000000000000000000000000000000000001", Vout: 0, Address: "1OldClean", Value: 546}},
+				Outputs:     []ChainTxOutput{{Address: "1UserA", Value: 546}},
+			}, nil
+		},
+		func(txId string) (*CompletedMarketTrade, error) {
+			tradeLookups++
+			if txId == txTrade {
+				return &CompletedMarketTrade{TxId: txTrade, SellerAddress: "1Seller", BuyerAddress: "1Buyer"}, nil
+			}
+			return nil, nil
+		},
+		nil,
+	)
+
+	seed := DefaultSeedEntries()
+	eng.ApplyEntries(seed)
+
+	// 1. Trade cache caches both hit and miss without hitting DB again
+	if _, err := eng.lookupTradeCached(txClean); err != nil {
+		t.Fatalf("lookupTradeCached miss err: %v", err)
+	}
+	if _, err := eng.lookupTradeCached(txClean); err != nil {
+		t.Fatalf("lookupTradeCached miss2 err: %v", err)
+	}
+	if _, err := eng.lookupTradeCached(txTrade); err != nil {
+		t.Fatalf("lookupTradeCached hit err: %v", err)
+	}
+	if _, err := eng.lookupTradeCached(txTrade); err != nil {
+		t.Fatalf("lookupTradeCached hit2 err: %v", err)
+	}
+	if tradeLookups != 2 {
+		t.Fatalf("expected 2 tradeLookup calls (1 miss + 1 hit), got %d", tradeLookups)
+	}
+
+	// 2. ApplyEntries with identical list must preserve cleanOutpoints cache
+	if eng.IsUtxoTainted("btc", txClean+"_0", 546, 977100) {
+		t.Fatalf("expected clean UTXO")
+	}
+	firstTxLookups := txLookups
+	eng.ApplyEntries(seed) // identical entries -> must NOT wipe cleanOutpoints
+	if eng.IsUtxoTainted("btc", txClean+"_0", 546, 977100) {
+		t.Fatalf("expected clean UTXO cached")
+	}
+	if txLookups != firstTxLookups {
+		t.Fatalf("expected cleanOutpoints preserved on unchanged ApplyEntries, txLookups went from %d to %d", firstTxLookups, txLookups)
+	}
+
+	// Adding a new blacklist entry must invalidate cleanOutpoints
+	updated := append(seed, &models.MarketBlacklistModel{
+		EntryType:  models.BlacklistTypeAddress,
+		EntryValue: "1SomeNewThief",
+		Reason:     "test",
+		State:      models.STATE_EXIST,
+	})
+	eng.ApplyEntries(updated)
+	if len(eng.cleanOutpoints) != 0 {
+		t.Fatalf("expected cleanOutpoints cleared when entries changed")
+	}
+
+	// 3. IsUtxoTaintedFast must block direct blacklisted UTXOs and never invoke txFetcher
+	txBeforeFast := txLookups
+	if !eng.IsUtxoTaintedFast("btc", "b6994a0b4c520ed9ecea489cd462d92387108ab042bf2aeb6424c0943e033718_1", 977100) {
+		t.Fatalf("expected stolen MC UTXO blocked by IsUtxoTaintedFast")
+	}
+	if eng.IsUtxoTaintedFast("btc", "ac30da2b8dc59d2a19d9bd83b64761d74a17e76a4a9573f38e99291731b76cb8_1", 977100) {
+		t.Fatalf("expected whitelisted rescued UTXO allowed by IsUtxoTaintedFast")
+	}
+	if eng.IsUtxoTaintedFast("btc", txClean+"_0", 977100) {
+		t.Fatalf("expected normal UTXO allowed by IsUtxoTaintedFast")
+	}
+	if txLookups != txBeforeFast {
+		t.Fatalf("IsUtxoTaintedFast must not invoke external txFetcher")
+	}
+}
+
+func TestRiskEngine_NoFalsePositiveOnPreIncidentVictimTradesDummyPoolOrExchangeConsolidation(t *testing.T) {
+	conf.PlatformAddressDummyAsk = "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78"
+	conf.PlatformServiceFeeConfigData = &conf.ServiceFeeConfig{
+		ServiceAddress: "bc1pf4gj2uyjfytzzx3h06m977tvw6pl6hgy6kmgyle2757pcrrukr8s2srvy5",
+	}
+
+	const (
+		preIncidentVictimTradeTx = "19730fe6cba94663bc614f801e882d973426ac7054990f2d80ca1f1a419fd673" // blk 975887 (< 977025)
+		sellerConsolidationTx    = "6e469c3a6347cccf4a2181763f00eae965ae8cfcc84c4fe54eb6a2f8b8c68762" // blk 977138
+		unindexedThiefDummyTx    = "aaaa888888888888888888888888888888888888888888888888888888888888" // blk 977100
+		userLegitSaleTx          = "d09c7b6dd7a169490d1d31f575b0635908c6b9c894037efaa99ad06c56560edc" // blk 977187
+		userOldMintTx            = "ff8cb3a1577b16a64c27ebfd1c6ee5c7cf67054569e5082e460d5084b9d150be" // blk 856009
+		preIncidentDirectTokenTx = "bbbb999999999999999999999999999999999999999999999999999999999999" // blk 975000
+		exchangeSweepTx          = "cccc777777777777777777777777777777777777777777777777777777777777" // blk 977150
+		exchangeWithdrawTx       = "2fa30aa977e50000000000000000000000000000000000000000000000000000" // blk 977180
+		dirtyIndirectHop1Tx      = "dddd666666666666666666666666666666666666666666666666666666666666" // blk 977140
+	)
+
+	// Build a 12-depositor exchange consolidation where 1 input is indirectly tainted 2 hops away
+	exchangeInputs := make([]ChainTxInput, 0, 12)
+	exchangeInputs = append(exchangeInputs, ChainTxInput{
+		TxId: dirtyIndirectHop1Tx, Vout: 0, Address: "1ExchangeUserDepositDirtyHop", Value: 500000,
+	})
+	for i := 0; i < 11; i++ {
+		exchangeInputs = append(exchangeInputs, ChainTxInput{
+			TxId: userOldMintTx, Vout: uint32(i + 2), Address: "1CleanDepositor_" + string(rune('A'+i)), Value: 1000000,
+		})
+	}
+
+	txMap := map[string]*ChainTx{
+		// 8 days before the phishing incident: 1CuCuXbg... legitimately bought from 1PqueWv1...
+		preIncidentVictimTradeTx: {
+			TxId: preIncidentVictimTradeTx, Confirmed: true, BlockHeight: 975887,
+			Inputs: []ChainTxInput{
+				{TxId: "2f7323d2702c8af9e942d55572993d776e9ff9379f53cc226e1d93e9b1d48c63", Vout: 2, Address: "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78", Value: 600},
+				{TxId: "d348dfd20726e85d4bfcbc59bb472c8c8800e5b0fb4e8173f8fa5f67213cc6ae", Vout: 1, Address: "1PqueWv1aEpaY1jZ3C27efpB919cZNseXd", Value: 546},
+				{TxId: "ed0360f1723fd982315c371e4b77735668a1cc336037b0ae6c80bd23afbb438b", Vout: 20, Address: "1CuCuXbgjpov1t54yB2YanN4yCYtGTS7Bq", Value: 105000},
+			},
+			Outputs: []ChainTxOutput{
+				{Address: "1CuCuXbgjpov1t54yB2YanN4yCYtGTS7Bq", Value: 546},
+				{Address: "1PqueWv1aEpaY1jZ3C27efpB919cZNseXd", Value: 82600},
+				{Address: "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78", Value: 600},
+				{Address: "1CuCuXbgjpov1t54yB2YanN4yCYtGTS7Bq", Value: 20585},
+			},
+		},
+		// Post-incident consolidation by innocent active seller 1PqueWv1...
+		sellerConsolidationTx: {
+			TxId: sellerConsolidationTx, Confirmed: true, BlockHeight: 977138,
+			Inputs: []ChainTxInput{
+				{TxId: preIncidentVictimTradeTx, Vout: 1, Address: "1PqueWv1aEpaY1jZ3C27efpB919cZNseXd", Value: 82600},
+			},
+			Outputs: []ChainTxOutput{
+				{Address: "bc1q2ngpqcxn6cvmualrj7nnhcku2vktyjeyp59s2h3flk45069s2qpqgxx7ps", Value: 8400000},
+				{Address: "1PqueWv1aEpaY1jZ3C27efpB919cZNseXd", Value: 416692},
+			},
+		},
+		// Platform 600-sat dummy UTXO recycled from a tx that touched a thief input (even if tradeLookup hasn't indexed it yet)
+		unindexedThiefDummyTx: {
+			TxId: unindexedThiefDummyTx, Confirmed: true, BlockHeight: 977100,
+			Inputs: []ChainTxInput{
+				{TxId: "dd51318238798de987a77b433c3234769267079388496c598c4d94f3977c2604", Vout: 1, Address: "1GtPDnwuWkULR36euBCYJTTGQuicVhsre4", Value: 546},
+			},
+			Outputs: []ChainTxOutput{
+				{Address: "1SomeBuyer", Value: 546},
+				{Address: "1GtPDnwuWkULR36euBCYJTTGQuicVhsre4", Value: 500000},
+				{Address: "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78", Value: 600}, // vout 2: recycled platform dummy
+			},
+		},
+		userOldMintTx: {
+			TxId: userOldMintTx, Confirmed: true, BlockHeight: 856009,
+			Inputs:  []ChainTxInput{{TxId: "0000000000000000000000000000000000000000000000000000000000000099", Vout: 0, Address: "17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb", Value: 10000}},
+			Outputs: []ChainTxOutput{{Address: "17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb", Value: 546}, {Address: "17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb", Value: 546}},
+		},
+		dirtyIndirectHop1Tx: {
+			TxId: dirtyIndirectHop1Tx, Confirmed: true, BlockHeight: 977140,
+			Inputs:  []ChainTxInput{{TxId: "1ef5460150b9e2522b9fa1143714f684735ad9a1e5d63b3a7c8e61a697fae346", Vout: 1, Address: "bc1pky6zpsx8gpv257kr3w43rvl2dre0j7phndxlf5muetzcyane8cyq2cys66", Value: 500000}},
+			Outputs: []ChainTxOutput{{Address: "1ExchangeUserDepositDirtyHop", Value: 500000}},
+		},
+		exchangeSweepTx: {
+			TxId: exchangeSweepTx, Confirmed: true, BlockHeight: 977150,
+			Inputs:  exchangeInputs,
+			Outputs: []ChainTxOutput{{Address: "bc1q_exchange_hot_wallet", Value: 11500000}},
+		},
+		exchangeWithdrawTx: {
+			TxId: exchangeWithdrawTx, Confirmed: true, BlockHeight: 977180,
+			Inputs:  []ChainTxInput{{TxId: exchangeSweepTx, Vout: 0, Address: "bc1q_exchange_hot_wallet", Value: 11500000}},
+			Outputs: []ChainTxOutput{{Address: "1JUA2QXPKQVFHEiA59UJ9EAAzV66wp1dYh", Value: 1550000}},
+		},
+		// User 17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb legitimate Market sale spending recycled dummy + buyer's exchange withdrawal
+		userLegitSaleTx: {
+			TxId: userLegitSaleTx, Confirmed: true, BlockHeight: 977187,
+			Inputs: []ChainTxInput{
+				{TxId: unindexedThiefDummyTx, Vout: 2, Address: "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78", Value: 600},
+				{TxId: userOldMintTx, Vout: 1, Address: "17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb", Value: 546},
+				{TxId: exchangeWithdrawTx, Vout: 0, Address: "1JUA2QXPKQVFHEiA59UJ9EAAzV66wp1dYh", Value: 1550000},
+			},
+			Outputs: []ChainTxOutput{
+				{Address: "1JUA2QXPKQVFHEiA59UJ9EAAzV66wp1dYh", Value: 546},
+				{Address: "17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb", Value: 1400000},
+				{Address: "bc1q0hzgkuls62egjpqxxhzs3cky7auyz596252p78", Value: 600},
+				{Address: "bc1pf4gj2uyjfytzzx3h06m977tvw6pl6hgy6kmgyle2757pcrrukr8s2srvy5", Value: 14000},
+				{Address: "1JUA2QXPKQVFHEiA59UJ9EAAzV66wp1dYh", Value: 135147},
+			},
+		},
+		// Token transferred FROM 1CuCuXbg... BEFORE the phishing incident (blk 975000 < 977025)
+		preIncidentDirectTokenTx: {
+			TxId: preIncidentDirectTokenTx, Confirmed: true, BlockHeight: 975000,
+			Inputs:  []ChainTxInput{{TxId: "ed0360f1723fd982315c371e4b77735668a1cc336037b0ae6c80bd23afbb438b", Vout: 1, Address: "1CuCuXbgjpov1t54yB2YanN4yCYtGTS7Bq", Value: 546}},
+			Outputs: []ChainTxOutput{{Address: "1InnocentEarlyHolder", Value: 546}},
+		},
+	}
+
+	eng := NewRiskEngine(
+		func(chain, txId string) (*ChainTx, error) { return txMap[txId], nil },
+		func(txId string) (*CompletedMarketTrade, error) { return nil, nil },
+		nil,
+	)
+	eng.LoadSeedEntriesInMemory()
+
+	// 1. 1PqueWv1... consolidation of pre-incident (blk 975887) trade with 1CuCuXbg... MUST BE CLEAN
+	if blocked, reason := eng.CheckUtxoAndAddress("btc", "1PqueWv1aEpaY1jZ3C27efpB919cZNseXd", sellerConsolidationTx+"_1", 0, nil); blocked {
+		t.Fatalf("expected 1PqueWv1 consolidation of pre-incident trade to be clean, got blocked: %s", reason)
+	}
+	if addrBlocked, _ := eng.IsAddressBlacklisted("1PqueWv1aEpaY1jZ3C27efpB919cZNseXd"); addrBlocked {
+		t.Fatalf("1PqueWv1aEpaY1jZ3C27efpB919cZNseXd must NOT be blacklisted")
+	}
+
+	// 2. User 17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb sale proceeds (spending recycled platform dummy + exchange withdrawal) MUST BE CLEAN
+	if blocked, reason := eng.CheckUtxoAndAddress("btc", "17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb", userLegitSaleTx+"_1", 0, nil); blocked {
+		t.Fatalf("expected 17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb sale proceeds UTXO to be clean, got blocked: %s", reason)
+	}
+	if addrBlocked, _ := eng.IsAddressBlacklisted("17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb"); addrBlocked {
+		t.Fatalf("17Co7Yc5kmyz7gbi1vV8AJxZuFCC8pJCGb must NOT be blacklisted")
+	}
+
+	// 3. Pre-incident token with TaintHint{FromAddress: 1CuCuXbg...} confirmed at blk 975000 MUST BE CLEAN
+	if blocked, reason := eng.CheckUtxoAndAddress("btc", "1InnocentEarlyHolder", preIncidentDirectTokenTx+"_0", 546, []TaintHint{{FromAddress: "1CuCuXbgjpov1t54yB2YanN4yCYtGTS7Bq"}}); blocked {
+		t.Fatalf("expected pre-incident token from 1CuCuXbg... at blk 975000 to be clean, got blocked: %s", reason)
+	}
+
+	// 4. Post-incident / unconfirmed token from 1CuCuXbg... MUST STILL BE BLOCKED
+	if blocked, _ := eng.CheckUtxoAndAddress("btc", "1PostHackMule", "ffff000000000000000000000000000000000000000000000000000000000000_0", 546, []TaintHint{{FromAddress: "1CuCuXbgjpov1t54yB2YanN4yCYtGTS7Bq"}}); !blocked {
+		t.Fatalf("expected unconfirmed/post-incident transfer from compromised 1CuCuXbg... to be blocked")
+	}
+}
+
