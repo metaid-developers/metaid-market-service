@@ -91,3 +91,14 @@ auto_bridge_rule:
 
 swap:
   service_url: "http://127.0.0.1:18080"
+
+orderbook:
+  enabled: false
+  service_url: "http://127.0.0.1:18082"
+  higun_url: "http://127.0.0.1:8080"
+  ask_codehash: "2704a8071b898b895b6d7bac3158959cea17c6d7"
+  bid_codehash: "fdf3bc81875c241e4bb58c54fe3272ad6bbccebc"
+  fee_bps: 25
+  fee_address: ""
+  poll_interval_ms: 300
+  soft_lock_ttl_sec: 25

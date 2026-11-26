@@ -7,6 +7,7 @@ import (
 	"metaid-market-service/controller"
 	"metaid-market-service/major"
 	"metaid-market-service/redis"
+	"metaid-market-service/service/orderbook_service"
 	"metaid-market-service/service/risk_service"
 	"metaid-market-service/service/task"
 )
@@ -56,6 +57,7 @@ func main() {
 	InitEnv()
 	InitAll()
 	risk_service.InitRiskService()
+	orderbook_service.InitOrderbookService()
 	//fix.FixMarketInfoForFloorPrice()
 	// fix.FixMarketInfoForOrderCount()
 	task.JobForCheckAssetConfirm()
