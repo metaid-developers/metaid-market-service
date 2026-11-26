@@ -1,6 +1,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+export type PoolType = 'space-token' | 'token-token'
+
 export interface TokenMeta {
   symbol: string
   name: string
@@ -12,6 +14,7 @@ export interface TokenMeta {
 export interface PoolRegistryEntry {
   poolId: string
   pairName: string
+  poolType?: PoolType
   verified: boolean
   token1: TokenMeta
   token2: TokenMeta & { tokenID: string; codeHash: string }
@@ -24,8 +27,14 @@ export interface PoolRegistryEntry {
   contract: {
     swapContractID: string
     swapSensibleID: string
+    /** For space-token pools: token2's tokenID; for token-token pools: also kept as token2ID for convenience */
     tokenID: string
     tokenScriptCodeHash: string
+    /** Present on token-token pools */
+    token1ID?: string
+    token1ScriptCodeHash?: string
+    token2ID?: string
+    token2ScriptCodeHash?: string
     lpTokenID: string
     fetchTokenHash: string
     swapCodeHash: string
@@ -37,6 +46,13 @@ export interface PoolRegistryEntry {
     lpGenesisTxid: string
     lpGenesisVout: number
   }
+}
+
+export function getPoolType(entry: Pick<PoolRegistryEntry, 'poolType' | 'token1'>): PoolType {
+  if (entry.poolType === 'token-token') return 'token-token'
+  if (entry.poolType === 'space-token') return 'space-token'
+  if (entry.token1 && entry.token1.tokenID && entry.token1.codeHash) return 'token-token'
+  return 'space-token'
 }
 
 export interface ServiceConfig {

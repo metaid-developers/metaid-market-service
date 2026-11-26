@@ -1,7 +1,15 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import { PoolRegistryEntry, ServiceConfig, savePoolsRegistry } from './config'
-import { SwapEngine, TokenSwapProto, axios, loadSwapContractsFast, scrypt } from './core-bridge'
+import { PoolRegistryEntry, PoolType, ServiceConfig, getPoolType, savePoolsRegistry } from './config'
+import {
+  SwapEngine,
+  TokenSwapEngine,
+  TokenSwapProto,
+  axios,
+  loadSwapContractsFast,
+  loadTokenSwapContractsFast,
+  scrypt,
+} from './core-bridge'
 
 export interface PersistedPoolHead {
   poolTxid: string
@@ -14,8 +22,15 @@ export interface TxRecord {
   txid: string
   prepTxid: string
   depositTxid?: string
+  deposit2Txid?: string
   poolId: string
-  operation: 'swapMvcToToken' | 'swapTokenToMvc' | 'addLiquidity' | 'removeLiquidity'
+  operation:
+    | 'swapMvcToToken'
+    | 'swapTokenToMvc'
+    | 'swapToken1ToToken2'
+    | 'swapToken2ToToken1'
+    | 'addLiquidity'
+    | 'removeLiquidity'
   userAddress: string
   status: 'broadcasted' | 'confirmed' | 'failed'
   details: Record<string, string | number>
@@ -27,6 +42,7 @@ export interface TxRecord {
 export interface PoolLiveView {
   poolId: string
   pairName: string
+  poolType: PoolType
   verified: boolean
   token1: PoolRegistryEntry['token1']
   token2: PoolRegistryEntry['token2']
@@ -36,6 +52,7 @@ export interface PoolLiveView {
   poolTxid: string
   poolVout: number
   poolTokenVout: number
+  poolToken2Vout?: number
   lpGenesisTxid: string
   lpGenesisVout: number
   r1: string
@@ -108,6 +125,14 @@ export class PoolStore {
   private readonly localTokenUtxos: Map<string, any[]> = new Map()
   private readonly headsFile: string
   private readonly historyFile: string
+  private _tokenSwapContracts: any = null
+
+  getTokenSwapContracts(): any {
+    if (!this._tokenSwapContracts) {
+      this._tokenSwapContracts = loadTokenSwapContractsFast()
+    }
+    return this._tokenSwapContracts
+  }
 
   constructor(config: ServiceConfig) {
     this.config = config
@@ -209,17 +234,26 @@ export class PoolStore {
   }
 
   async getPoolState(poolId: string, forceRefresh = false): Promise<any> {
-    this.getPoolEntry(poolId)
+    const entry = this.getPoolEntry(poolId)
     if (!forceRefresh && this.cachedStates.has(poolId)) {
       return this.cachedStates.get(poolId)
     }
     const head = this.heads.get(poolId)!
-    const state = await SwapEngine.loadPoolState(
-      this.chain,
-      head.poolTxid,
-      head.lpGenesisTxid,
-      head.lpGenesisVout
-    )
+    const poolType = getPoolType(entry)
+    const state =
+      poolType === 'token-token'
+        ? await TokenSwapEngine.loadTokenSwapPoolState(
+            this.chain,
+            head.poolTxid,
+            head.lpGenesisTxid,
+            head.lpGenesisVout
+          )
+        : await SwapEngine.loadPoolState(
+            this.chain,
+            head.poolTxid,
+            head.lpGenesisTxid,
+            head.lpGenesisVout
+          )
     this.cachedStates.set(poolId, state)
     return state
   }
@@ -335,10 +369,12 @@ export class PoolStore {
     const whole = spotScaled / scale
     const frac = (spotScaled % scale).toString().padStart(8, '0').replace(/0+$/, '')
     const spotStr = frac ? `${whole}.${frac}` : whole.toString()
+    const poolType = getPoolType(entry)
 
     return {
       poolId: entry.poolId,
       pairName: entry.pairName,
+      poolType,
       verified: entry.verified,
       token1: entry.token1,
       token2: entry.token2,
@@ -347,7 +383,8 @@ export class PoolStore {
       swapContractID: entry.contract.swapContractID,
       poolTxid: state.poolTxid,
       poolVout: state.poolVout,
-      poolTokenVout: state.poolTokenVout,
+      poolTokenVout: state.poolTokenVout !== undefined ? state.poolTokenVout : state.poolToken1Vout,
+      ...(state.poolToken2Vout !== undefined ? { poolToken2Vout: state.poolToken2Vout } : {}),
       lpGenesisTxid: state.lpGenesisTxid,
       lpGenesisVout: state.lpGenesisVout,
       r1: state.r1.toString(),
@@ -436,12 +473,21 @@ export class PoolStore {
     }
 
     // Verify pool head is readable and live before committing registry state
-    const state = await SwapEngine.loadPoolState(
-      this.chain,
-      entry.bootstrapHead.poolTxid,
-      entry.bootstrapHead.lpGenesisTxid,
-      entry.bootstrapHead.lpGenesisVout
-    )
+    const poolType = getPoolType(entry)
+    const state =
+      poolType === 'token-token'
+        ? await TokenSwapEngine.loadTokenSwapPoolState(
+            this.chain,
+            entry.bootstrapHead.poolTxid,
+            entry.bootstrapHead.lpGenesisTxid,
+            entry.bootstrapHead.lpGenesisVout
+          )
+        : await SwapEngine.loadPoolState(
+            this.chain,
+            entry.bootstrapHead.poolTxid,
+            entry.bootstrapHead.lpGenesisTxid,
+            entry.bootstrapHead.lpGenesisVout
+          )
 
     if (existingIdx >= 0) {
       this.config.pools[existingIdx] = entry

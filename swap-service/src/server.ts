@@ -1,7 +1,7 @@
 import * as http from 'http'
 import * as crypto from 'crypto'
 import { URL } from 'url'
-import { loadConfig } from './config'
+import { getPoolType, loadConfig } from './config'
 import { PoolStore } from './pool-store'
 import { SwapSessionManager } from './session-manager'
 import { inspectOnChainPoolAndBuildEntry } from './pool-admin'
@@ -129,15 +129,17 @@ export function createSwapServer() {
         const state = await store.getPoolState(poolId)
 
         let quote: any
-        if (operation === 'swapMvcToToken') {
+        if (operation === 'swapMvcToToken' || operation === 'swapToken1ToToken2') {
           quote = quoteSwapMvcToToken(state, BigInt(body.amountIn), Number(body.slippageBps ?? 100))
-        } else if (operation === 'swapTokenToMvc') {
+        } else if (operation === 'swapTokenToMvc' || operation === 'swapToken2ToToken1') {
           quote = quoteSwapTokenToMvc(state, BigInt(body.amountIn), Number(body.slippageBps ?? 100))
         } else if (operation === 'addLiquidity') {
+          const rawAmt1 = body.token1AddAmount ?? body.mvcAddAmount
+          const rawAmt2 = body.token2AddAmount ?? body.tokenAddAmount
           quote = quoteAddLiquidity(
             state,
-            BigInt(body.mvcAddAmount),
-            body.tokenAddAmount ? BigInt(body.tokenAddAmount) : undefined
+            BigInt(rawAmt1),
+            rawAmt2 ? BigInt(rawAmt2) : undefined
           )
         } else if (operation === 'removeLiquidity') {
           quote = quoteRemoveLiquidity(state, BigInt(body.lpBurnAmount))
@@ -159,13 +161,33 @@ export function createSwapServer() {
         const tokenBalances: Record<string, { balance: string; utxoCount: number; largestUtxo: string }> = {}
 
         for (const entry of config.pools) {
+          const poolType = getPoolType(entry)
           const state = await store.getPoolState(entry.poolId)
-          const tokUtxos = await store.getFreshTokenUtxos(address, entry.token2.codeHash, entry.token2.tokenID)
-          const tokTotal = tokUtxos.reduce((s: bigint, u: any) => s + u.amount, BigInt(0))
-          tokenBalances[entry.token2.tokenID] = {
-            balance: tokTotal.toString(),
-            utxoCount: tokUtxos.length,
-            largestUtxo: tokUtxos.length > 0 ? tokUtxos[0].amount.toString() : '0',
+
+          if (poolType === 'token-token' && entry.token1.tokenID && entry.token1.codeHash) {
+            if (!tokenBalances[entry.token1.tokenID]) {
+              const tok1Utxos = await store.getFreshTokenUtxos(
+                address,
+                entry.token1.codeHash,
+                entry.token1.tokenID
+              )
+              const tok1Total = tok1Utxos.reduce((s: bigint, u: any) => s + u.amount, BigInt(0))
+              tokenBalances[entry.token1.tokenID] = {
+                balance: tok1Total.toString(),
+                utxoCount: tok1Utxos.length,
+                largestUtxo: tok1Utxos.length > 0 ? tok1Utxos[0].amount.toString() : '0',
+              }
+            }
+          }
+
+          if (!tokenBalances[entry.token2.tokenID]) {
+            const tokUtxos = await store.getFreshTokenUtxos(address, entry.token2.codeHash, entry.token2.tokenID)
+            const tokTotal = tokUtxos.reduce((s: bigint, u: any) => s + u.amount, BigInt(0))
+            tokenBalances[entry.token2.tokenID] = {
+              balance: tokTotal.toString(),
+              utxoCount: tokUtxos.length,
+              largestUtxo: tokUtxos.length > 0 ? tokUtxos[0].amount.toString() : '0',
+            }
           }
 
           const lpUtxos = await store.getFreshTokenUtxos(address, entry.lpToken.codeHash, entry.lpToken.tokenID)
@@ -183,6 +205,7 @@ export function createSwapServer() {
           positions.push({
             poolId: entry.poolId,
             pairName: entry.pairName,
+            poolType,
             lpTokenID: entry.lpToken.tokenID,
             lpBalance: lpTotal.toString(),
             lpUtxoCount: lpUtxos.length,
@@ -291,6 +314,9 @@ export function createSwapServer() {
               poolTxid: body.poolTxid,
               lpGenesisTxid: body.lpGenesisTxid,
               lpGenesisVout: body.lpGenesisVout,
+              token1Symbol: body.token1Symbol,
+              token1Name: body.token1Name,
+              token1Decimals: body.token1Decimals,
               tokenSymbol: body.tokenSymbol,
               tokenName: body.tokenName,
               tokenDecimals: body.tokenDecimals,

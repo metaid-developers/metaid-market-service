@@ -14,9 +14,13 @@
  *   - Never pass WIF in logs; prefer --wif-env SWAP_ADMIN_WIF or --key-file /path/to/key.json.
  */
 import * as fs from 'fs'
-import { loadConfig, savePoolsRegistry } from '../src/config'
-import { SwapEngine, axios, loadSwapContractsFast } from '../src/core-bridge'
-import { deployNewPoolOnChain, inspectOnChainPoolAndBuildEntry } from '../src/pool-admin'
+import { getPoolType, loadConfig, savePoolsRegistry } from '../src/config'
+import { SwapEngine, axios, loadSwapContractsFast, loadTokenSwapContractsFast } from '../src/core-bridge'
+import {
+  deployNewPoolOnChain,
+  deployTokenSwapPoolOnChain,
+  inspectOnChainPoolAndBuildEntry,
+} from '../src/pool-admin'
 
 function parseArgs(argv: string[]) {
   const command = argv[0] || 'help'
@@ -100,19 +104,23 @@ MetaID.market Swap 管理员池管理工具 (admin-pool.ts)
        --api <http://127.0.0.1:18081>  热推送到运行中的 swap-service（无需重启）
        --admin-token <token>        配合 --api 使用（或环境变量 SWAP_ADMIN_TOKEN）
 
-  3) create --token-id <40hex> --token-codehash <40hex> --init-space <sats> --init-token <raw> [options]
-     从 0 部署全新 SPACE/FT 交易对（T4a 拆分 -> T7 LP Genesis -> T5 SwapMain -> 首笔 AddLiquidity），
-     默认处于 --dry 演练模式（离线构造并完整验证所有合约解锁脚本，绝不广播）。
+  3) create [SPACE/FT 或 Token/Token 建池]
+     a) SPACE/FT 池（默认 --type space-token）:
+        create --token-id <40hex> --token-codehash <40hex> --init-space <sats> --init-token <raw> [options]
+     b) Token/Token 直连池（--type token-token）:
+        create --type token-token --token1-id <40hex> --token1-codehash <40hex> --token2-id <40hex> --token2-codehash <40hex> --init-token1 <raw> --init-token2 <raw> [options]
+     从 0 部署全新 AMM 交易对并注入首笔流动性，默认处于 --dry 演练模式（离线构造并完整验证所有合约解锁脚本，绝不广播）。
      选项:
+       --type <space-token|token-token>  池子类型（默认 space-token）
        --live                       确认真链广播并注册上线（省略则为安全 --dry 模式）
        --wif-env <ENV_NAME>         从环境变量读取管理员 WIF（默认 SWAP_ADMIN_WIF）
        --key-file <path.json>       从本地 JSON 文件读取 {"wif": "..."}
-       --pool-id <id>               池子 ID（如 space-msp）
-       --pair <name>                交易对展示名（如 "SPACE / MSP"）
-       --symbol / --name / --lp-symbol
+       --pool-id <id>               池子 ID（如 space-msp 或 tmva-tmvb）
+       --pair <name>                交易对展示名（如 "SPACE / MSP" 或 "TMVA / TMVB"）
+       --token1-symbol / --token1-name / --symbol / --name / --lp-symbol
        --fee-rate <bps10>           LP 手续费（默认 25 = 0.25%）
        --proj-fee-rate <bps10>      项目方抽成（默认 5 = 0.05%）
-       --min-proj-fee <sats>        项目方最小抽成阈值（默认 1000 sats）
+       --min-proj-fee <raw>         项目方最小抽成阈值（默认 1000）
        --proj-fee-address <addr>    项目方收款地址（默认管理员地址）
        --overwrite                  覆盖已有同 poolId 配置
        --api <http://127.0.0.1:18081>  上链后热推送到运行中 swap-service（无需重启）
@@ -153,6 +161,8 @@ async function main() {
           pools: config.pools.map((p) => ({
             poolId: p.poolId,
             pairName: p.pairName,
+            poolType: getPoolType(p),
+            token1: p.token1.tokenID ? `${p.token1.symbol} (${p.token1.tokenID})` : p.token1.symbol,
             token2: `${p.token2.symbol} (${p.token2.tokenID})`,
             swapContractID: p.contract.swapContractID,
             bootstrapHead: p.bootstrapHead,
@@ -172,6 +182,7 @@ async function main() {
       throw new Error('import requires --pool-txid <txid> and --lp-genesis-txid <txid>')
     }
     const lpGenesisVout = strFlag(flags, 'lp-genesis-vout')
+    const token1Decimals = strFlag(flags, 'token1-decimals')
     const tokenDecimals = strFlag(flags, 'decimals')
     const dryRun = boolFlag(flags, 'dry')
     const overwrite = boolFlag(flags, 'overwrite')
@@ -182,6 +193,9 @@ async function main() {
       poolTxid,
       lpGenesisTxid,
       lpGenesisVout: lpGenesisVout !== undefined ? Number(lpGenesisVout) : undefined,
+      token1Symbol: strFlag(flags, 'token1-symbol'),
+      token1Name: strFlag(flags, 'token1-name'),
+      token1Decimals: token1Decimals !== undefined ? Number(token1Decimals) : undefined,
       tokenSymbol: strFlag(flags, 'symbol'),
       tokenName: strFlag(flags, 'name'),
       tokenDecimals: tokenDecimals !== undefined ? Number(tokenDecimals) : undefined,
@@ -233,12 +247,9 @@ async function main() {
   }
 
   if (command === 'create') {
-    const tokenID = strFlag(flags, 'token-id')
-    const tokenCodeHash = strFlag(flags, 'token-codehash')
-    const initSpaceStr = strFlag(flags, 'init-space')
-    const initTokenStr = strFlag(flags, 'init-token')
-    if (!tokenID || !tokenCodeHash || !initSpaceStr || !initTokenStr) {
-      throw new Error('create requires --token-id, --token-codehash, --init-space, and --init-token')
+    const poolType = strFlag(flags, 'type') || 'space-token'
+    if (poolType !== 'space-token' && poolType !== 'token-token') {
+      throw new Error(`Invalid --type "${poolType}". Expected "space-token" or "token-token".`)
     }
     const adminWif = loadAdminWif(flags)
     const live = boolFlag(flags, 'live') && !boolFlag(flags, 'dry')
@@ -249,29 +260,79 @@ async function main() {
       net: config.net,
       higunBase: config.higunUrl,
     })
-    const contracts = loadSwapContractsFast()
 
-    const result = await deployNewPoolOnChain({
-      chain,
-      contracts,
-      whitelistSwapCodeHashes: config.whitelistSwapCodeHashes,
-      adminWif,
-      tokenID,
-      tokenCodeHash,
-      initSpaceSats: BigInt(initSpaceStr),
-      initTokenAmount: BigInt(initTokenStr),
-      poolId: strFlag(flags, 'pool-id'),
-      pairName: strFlag(flags, 'pair'),
-      tokenSymbol: strFlag(flags, 'symbol'),
-      tokenName: strFlag(flags, 'name'),
-      lpSymbol: strFlag(flags, 'lp-symbol'),
-      feeRate: strFlag(flags, 'fee-rate') ? Number(strFlag(flags, 'fee-rate')) : undefined,
-      projFeeRate: strFlag(flags, 'proj-fee-rate') ? Number(strFlag(flags, 'proj-fee-rate')) : undefined,
-      minProjFee: strFlag(flags, 'min-proj-fee') ? BigInt(strFlag(flags, 'min-proj-fee')!) : undefined,
-      projFeeAddress: strFlag(flags, 'proj-fee-address'),
-      dryRun: !live,
-      onProgress: (m) => console.log(`[create-pool] ${m}`),
-    })
+    let result: any
+    if (poolType === 'token-token') {
+      const token1ID = strFlag(flags, 'token1-id')
+      const token1CodeHash = strFlag(flags, 'token1-codehash')
+      const token2ID = strFlag(flags, 'token2-id') || strFlag(flags, 'token-id')
+      const token2CodeHash = strFlag(flags, 'token2-codehash') || strFlag(flags, 'token-codehash')
+      const initToken1Str = strFlag(flags, 'init-token1')
+      const initToken2Str = strFlag(flags, 'init-token2') || strFlag(flags, 'init-token')
+      if (!token1ID || !token1CodeHash || !token2ID || !token2CodeHash || !initToken1Str || !initToken2Str) {
+        throw new Error(
+          'create --type token-token requires --token1-id, --token1-codehash, --token2-id, --token2-codehash, --init-token1, and --init-token2'
+        )
+      }
+      const tokenSwapContracts = loadTokenSwapContractsFast()
+      result = await deployTokenSwapPoolOnChain({
+        chain,
+        tokenSwapContracts,
+        whitelistSwapCodeHashes: config.whitelistSwapCodeHashes,
+        adminWif,
+        input: {
+          token1ID,
+          token1CodeHash,
+          token2ID,
+          token2CodeHash,
+          initToken1Amount: BigInt(initToken1Str),
+          initToken2Amount: BigInt(initToken2Str),
+          poolId: strFlag(flags, 'pool-id'),
+          pairName: strFlag(flags, 'pair'),
+          token1Symbol: strFlag(flags, 'token1-symbol'),
+          token1Name: strFlag(flags, 'token1-name'),
+          token2Symbol: strFlag(flags, 'token2-symbol') || strFlag(flags, 'symbol'),
+          token2Name: strFlag(flags, 'token2-name') || strFlag(flags, 'name'),
+          lpSymbol: strFlag(flags, 'lp-symbol'),
+          feeRate: strFlag(flags, 'fee-rate') ? Number(strFlag(flags, 'fee-rate')) : undefined,
+          projFeeRate: strFlag(flags, 'proj-fee-rate') ? Number(strFlag(flags, 'proj-fee-rate')) : undefined,
+          minProjFee: strFlag(flags, 'min-proj-fee') ? BigInt(strFlag(flags, 'min-proj-fee')!) : undefined,
+          projFeeAddress: strFlag(flags, 'proj-fee-address'),
+          dryRun: !live,
+        },
+        onProgress: (m) => console.log(`[create-token-pool] ${m}`),
+      })
+    } else {
+      const tokenID = strFlag(flags, 'token-id')
+      const tokenCodeHash = strFlag(flags, 'token-codehash')
+      const initSpaceStr = strFlag(flags, 'init-space')
+      const initTokenStr = strFlag(flags, 'init-token')
+      if (!tokenID || !tokenCodeHash || !initSpaceStr || !initTokenStr) {
+        throw new Error('create requires --token-id, --token-codehash, --init-space, and --init-token')
+      }
+      const contracts = loadSwapContractsFast()
+      result = await deployNewPoolOnChain({
+        chain,
+        contracts,
+        whitelistSwapCodeHashes: config.whitelistSwapCodeHashes,
+        adminWif,
+        tokenID,
+        tokenCodeHash,
+        initSpaceSats: BigInt(initSpaceStr),
+        initTokenAmount: BigInt(initTokenStr),
+        poolId: strFlag(flags, 'pool-id'),
+        pairName: strFlag(flags, 'pair'),
+        tokenSymbol: strFlag(flags, 'symbol'),
+        tokenName: strFlag(flags, 'name'),
+        lpSymbol: strFlag(flags, 'lp-symbol'),
+        feeRate: strFlag(flags, 'fee-rate') ? Number(strFlag(flags, 'fee-rate')) : undefined,
+        projFeeRate: strFlag(flags, 'proj-fee-rate') ? Number(strFlag(flags, 'proj-fee-rate')) : undefined,
+        minProjFee: strFlag(flags, 'min-proj-fee') ? BigInt(strFlag(flags, 'min-proj-fee')!) : undefined,
+        projFeeAddress: strFlag(flags, 'proj-fee-address'),
+        dryRun: !live,
+        onProgress: (m) => console.log(`[create-pool] ${m}`),
+      })
+    }
 
     if (!live) {
       console.log(

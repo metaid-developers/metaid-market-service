@@ -41,6 +41,52 @@
         "lpGenesisTxid": "10d5cb193b83118caa525d5575a680c74c626d5f9f9392c858fd463154e3144f",
         "lpGenesisVout": 2
       }
+    },
+    {
+      "poolId": "tmva-tmvb",
+      "pairName": "TMVA / TMVB",
+      "poolType": "token-token",
+      "verified": true,
+      "token1": {
+        "symbol": "TMVA",
+        "name": "TestMVCTokenA",
+        "decimals": 8,
+        "tokenID": "74d70a6ef704fb932e5f1ffbb9966da94f465c20",
+        "codeHash": "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7"
+      },
+      "token2": {
+        "symbol": "TMVB",
+        "name": "TestMVCTokenB",
+        "decimals": 8,
+        "tokenID": "93e7cddd8376c28ace9c7efcd1484fade09444f4",
+        "codeHash": "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7"
+      },
+      "lpToken": {
+        "symbol": "TMVA-TMVB LP",
+        "decimals": 8,
+        "tokenID": "2ffaa9709db59f690554b2d5bc146bbff26d9072",
+        "codeHash": "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7"
+      },
+      "contract": {
+        "swapContractID": "59c6b8bd188c671f1172f1e017b61c3c64bb1b58",
+        "swapSensibleID": "8eeb54eb97932a428451bef4253d83e743c6755b479ab123dbbafbade356b89500000000",
+        "tokenID": "93e7cddd8376c28ace9c7efcd1484fade09444f4",
+        "tokenScriptCodeHash": "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7",
+        "token1ID": "74d70a6ef704fb932e5f1ffbb9966da94f465c20",
+        "token1ScriptCodeHash": "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7",
+        "token2ID": "93e7cddd8376c28ace9c7efcd1484fade09444f4",
+        "token2ScriptCodeHash": "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7",
+        "lpTokenID": "2ffaa9709db59f690554b2d5bc146bbff26d9072",
+        "fetchTokenHash": "e3d83c209b913d2d6428976be5112ca3a901c52e",
+        "swapCodeHash": "84c4452c13885d1538977e500e47f767910c668c",
+        "contractHashRoot": "16a67e1664c86ae029b2bb6bf181871e5a3b8245",
+        "contractHashArrayHex": "7ba7c3e3c40a090ae8d1ec24e73854d0eb709b8de954e54aba67cc917fecd76ad35468d2613f8baa2159958e77cc1912088c006aba8a39c86ad1579840c9e912e2d0ead51d3df00199e8eba98208d2bbd077cc41438b31458a59465e302fc322ba364f6f68dac8d338dc5de338083b673810fee222255139"
+      },
+      "bootstrapHead": {
+        "poolTxid": "322ec5ff69fdb38e24cabfe6ef5ac1d454db846ee749f556d507bbc443d23805",
+        "lpGenesisTxid": "ea442a7e7a9b01423e5465b4963a260ffeec2e0ba1acfa89f891a216673a6868",
+        "lpGenesisVout": 2
+      }
     }
   ]
 }

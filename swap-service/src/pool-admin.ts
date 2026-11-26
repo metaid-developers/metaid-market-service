@@ -4,8 +4,10 @@ import {
   ProtoHeader,
   SwapEngine,
   TokenProto,
+  TokenSwapEngine,
   TokenSwapProto,
   UniqueProto,
+  loadTokenSwapContractsFast,
   loadVerifiedContractDesc,
   scrypt,
 } from './core-bridge'
@@ -123,12 +125,75 @@ export function deriveContractHashArray(params: {
   }
 }
 
+export function deriveTokenSwapContractHashArray(params: {
+  tokenSwapContracts?: any
+  swapContractID: string
+  token1ID: string
+  token1ScriptCodeHash: string
+  token2ID: string
+  token2ScriptCodeHash: string
+  ownerAddressHashHex: string
+}): {
+  contractHashArrayHex: string
+  contractHashRootHex: string
+  codeHashes: Record<string, string>
+} {
+  const c = params.tokenSwapContracts || loadTokenSwapContractsFast()
+  const { swapContractID, token1ID, token1ScriptCodeHash, token2ID, token2ScriptCodeHash, ownerAddressHashHex } = params
+  const tokenIDs = [new Bytes(token1ID), new Bytes(token2ID)]
+  const tokenCodeHashes = [new Bytes(token1ScriptCodeHash), new Bytes(token2ScriptCodeHash)]
+
+  const updateContract = new c.SwapUpdateContract(new Bytes(swapContractID))
+  const updateContractCodeHash = getCodeHash(updateContract.lockingScript.toBuffer()).toString('hex')
+
+  const addLiquidity = new c.SwapAddLiquidity(new Bytes(swapContractID), tokenIDs, tokenCodeHashes)
+  const addLiquidityCodeHash = getCodeHash(addLiquidity.lockingScript.toBuffer()).toString('hex')
+
+  const removeLiquidity = new c.SwapRemoveLiquidity(new Bytes(swapContractID), tokenIDs, tokenCodeHashes)
+  const removeLiquidityCodeHash = getCodeHash(removeLiquidity.lockingScript.toBuffer()).toString('hex')
+
+  const token1ToToken2 = new c.SwapTokenToToken(new Bytes(swapContractID), tokenIDs, tokenCodeHashes, 0, 1)
+  const token1ToToken2CodeHash = getCodeHash(token1ToToken2.lockingScript.toBuffer()).toString('hex')
+
+  const token2ToToken1 = new c.SwapTokenToToken(new Bytes(swapContractID), tokenIDs, tokenCodeHashes, 1, 0)
+  const token2ToToken1CodeHash = getCodeHash(token2ToToken1.lockingScript.toBuffer()).toString('hex')
+
+  const swapAdmin = new c.SwapAdmin(new Bytes(swapContractID), new Ripemd160(ownerAddressHashHex))
+  const adminCodeHash = getCodeHash(swapAdmin.lockingScript.toBuffer()).toString('hex')
+
+  const contractHashArray = Buffer.concat([
+    Buffer.from(updateContractCodeHash, 'hex'),
+    Buffer.from(addLiquidityCodeHash, 'hex'),
+    Buffer.from(removeLiquidityCodeHash, 'hex'),
+    Buffer.from(token1ToToken2CodeHash, 'hex'),
+    Buffer.from(token2ToToken1CodeHash, 'hex'),
+    Buffer.from(adminCodeHash, 'hex'),
+  ])
+  const contractHashRoot = Common.hash160(contractHashArray)
+
+  return {
+    contractHashArrayHex: contractHashArray.toString('hex'),
+    contractHashRootHex: contractHashRoot.toString('hex'),
+    codeHashes: {
+      updateContractCodeHash,
+      addLiquidityCodeHash,
+      removeLiquidityCodeHash,
+      token1ToToken2CodeHash,
+      token2ToToken1CodeHash,
+      adminCodeHash,
+    },
+  }
+}
+
 export interface ImportPoolInput {
   poolId?: string
   pairName?: string
   poolTxid: string
   lpGenesisTxid: string
   lpGenesisVout?: number
+  token1Symbol?: string
+  token1Name?: string
+  token1Decimals?: number
   tokenSymbol?: string
   tokenName?: string
   tokenDecimals?: number
@@ -139,6 +204,7 @@ export interface ImportPoolInput {
 export interface InspectPoolResult {
   entry: PoolRegistryEntry
   onChain: {
+    poolType: 'space-token' | 'token-token'
     r1: string
     r2: string
     lp: string
@@ -147,13 +213,14 @@ export interface InspectPoolResult {
     minProjFee: string
     ownerAddressHash: string
     poolTokenVout: number
+    poolToken2Vout?: number
   }
 }
 
 /**
- * Fetches an existing on-chain MVCSwap pool head, verifies it strictly against
- * whitelistSwapCodeHashes + cryptographic contractHashRoot + FetchToken + LpGenesis bindings,
- * and derives a complete PoolRegistryEntry automatically.
+ * Fetches an existing on-chain MVCSwap pool head (auto-detecting `space-token` vs `token-token`),
+ * verifies it strictly against whitelistSwapCodeHashes + cryptographic contractHashRoot +
+ * FetchToken + LpGenesis bindings, and derives a complete PoolRegistryEntry automatically.
  */
 export async function inspectOnChainPoolAndBuildEntry(params: {
   chain: any
@@ -167,6 +234,39 @@ export async function inspectOnChainPoolAndBuildEntry(params: {
   const lpGenesisVout = input.lpGenesisVout !== undefined ? Number(input.lpGenesisVout) : 2
   if (!Number.isInteger(lpGenesisVout) || lpGenesisVout < 0) {
     throw new Error('lpGenesisVout must be a non-negative integer')
+  }
+
+  // Probe poolTx outputs to auto-detect whether this pool holds 1 FT (space-token) or 2 FTs (token-token)
+  const poolTx = await chain.getTx(poolTxid)
+  const poolScriptBuf: Buffer = poolTx.outputs[0].script.toBuffer()
+  const parsed = SwapEngine.parseSwapMainScript(poolScriptBuf)
+  const fetchHashHex = parsed.fetchTokenHash.toString('hex')
+  const heldTokenVouts: number[] = []
+  for (let i = 1; i < poolTx.outputs.length; i++) {
+    const b: Buffer = poolTx.outputs[i].script.toBuffer()
+    if (b.length > TokenProto.DATA_LEN) {
+      try {
+        if (TokenProto.getTokenAddress(b).toString('hex') === fetchHashHex) {
+          heldTokenVouts.push(i)
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (heldTokenVouts.length === 2) {
+    return inspectTokenSwapPoolAndBuildEntry({
+      chain,
+      whitelistSwapCodeHashes,
+      input,
+      poolTxid,
+      lpGenesisTxid,
+      lpGenesisVout,
+    })
+  }
+  if (heldTokenVouts.length !== 1) {
+    throw new Error(
+      `Expected 1 (space-token) or 2 (token-token) pool token outputs locked to ${fetchHashHex} in ${poolTxid}, found ${heldTokenVouts.length}`
+    )
   }
 
   const state = await SwapEngine.loadPoolState(chain, poolTxid, lpGenesisTxid, lpGenesisVout)
@@ -263,6 +363,7 @@ export async function inspectOnChainPoolAndBuildEntry(params: {
   const entry: PoolRegistryEntry = {
     poolId,
     pairName,
+    poolType: 'space-token',
     verified: true,
     token1: {
       symbol: 'SPACE',
@@ -303,6 +404,7 @@ export async function inspectOnChainPoolAndBuildEntry(params: {
   return {
     entry,
     onChain: {
+      poolType: 'space-token',
       r1: state.r1.toString(),
       r2: state.r2.toString(),
       lp: state.lp.toString(),
@@ -311,6 +413,184 @@ export async function inspectOnChainPoolAndBuildEntry(params: {
       minProjFee: state.minProjFee.toString(),
       ownerAddressHash,
       poolTokenVout: state.poolTokenVout,
+    },
+  }
+}
+
+async function inspectTokenSwapPoolAndBuildEntry(params: {
+  chain: any
+  whitelistSwapCodeHashes: string[]
+  input: ImportPoolInput
+  poolTxid: string
+  lpGenesisTxid: string
+  lpGenesisVout: number
+}): Promise<InspectPoolResult> {
+  const { chain, whitelistSwapCodeHashes, input, poolTxid, lpGenesisTxid, lpGenesisVout } = params
+  const tsContracts = loadTokenSwapContractsFast()
+  const state = await TokenSwapEngine.loadTokenSwapPoolState(chain, poolTxid, lpGenesisTxid, lpGenesisVout)
+
+  const swapCodeHash = state.swapCodeHash.toString('hex')
+  if (!whitelistSwapCodeHashes.includes(swapCodeHash)) {
+    throw new Error(
+      `Pool swapCodeHash ${swapCodeHash} is NOT in whitelistSwapCodeHashes (${whitelistSwapCodeHashes.join(', ')})`
+    )
+  }
+  if (state.r1 <= BigInt(0) || state.r2 <= BigInt(0) || state.lp <= BigInt(0)) {
+    throw new Error(
+      `Token/Token pool has zero reserves (r1=${state.r1}, r2=${state.r2}, lp=${state.lp}); initialize liquidity before importing`
+    )
+  }
+
+  const swapContractID = state.swapContractID.toString('hex')
+  const swapSensibleID = state.swapSensibleID.toString('hex')
+  const fetchTokenHash = state.fetchTokenHash.toString('hex')
+  const contractHashRoot = state.contractHashRoot.toString('hex')
+  const lpTokenID = state.lpTokenID.toString('hex')
+  const ownerAddressHash = state.ownerAddress.toString('hex')
+
+  // Verify tokenSwapFetchToken binding
+  const fetchTokInst = new tsContracts.SwapFetchToken(new Bytes(swapContractID))
+  fetchTokInst.setDataPart(Common.buildScriptData(Buffer.from(swapCodeHash, 'hex')).toString('hex'))
+  const derivedFetchHash = Common.hash160(fetchTokInst.lockingScript.toBuffer()).toString('hex')
+  if (derivedFetchHash !== fetchTokenHash) {
+    throw new Error(`tokenSwap FetchToken hash mismatch: expected ${derivedFetchHash}, on-chain ${fetchTokenHash}`)
+  }
+
+  const tok1Buf: Buffer = state.poolToken1ScriptBuf
+  const tok2Buf: Buffer = state.poolToken2ScriptBuf
+  const token1ID = TokenProto.getTokenID(tok1Buf).toString('hex')
+  const token1CodeHash = TokenProto.getScriptCodeHash(tok1Buf).toString('hex')
+  const token2ID = TokenProto.getTokenID(tok2Buf).toString('hex')
+  const token2CodeHash = TokenProto.getScriptCodeHash(tok2Buf).toString('hex')
+
+  const parsedSym1 = decodeCString(TokenProto.getTokenSymbol(tok1Buf)) || 'TOK1'
+  const parsedName1 = decodeCString(TokenProto.getTokenName(tok1Buf)) || parsedSym1
+  const parsedDec1 = TokenProto.getTokenDecimal(tok1Buf)
+
+  const parsedSym2 = decodeCString(TokenProto.getTokenSymbol(tok2Buf)) || 'TOK2'
+  const parsedName2 = decodeCString(TokenProto.getTokenName(tok2Buf)) || parsedSym2
+  const parsedDec2 = TokenProto.getTokenDecimal(tok2Buf)
+
+  const token1Symbol = (input.token1Symbol || parsedSym1).trim()
+  const token1Name = (input.token1Name || parsedName1).trim()
+  const token1Decimals = input.token1Decimals !== undefined ? Number(input.token1Decimals) : parsedDec1
+
+  const token2Symbol = (input.tokenSymbol || parsedSym2).trim()
+  const token2Name = (input.tokenName || parsedName2).trim()
+  const token2Decimals = input.tokenDecimals !== undefined ? Number(input.tokenDecimals) : parsedDec2
+
+  // Verify LP Genesis output matches pool's lpTokenID
+  const lpGenBuf: Buffer = state.lpGenesisScriptBuf
+  const lpGenTxidBuf: Buffer = TokenProto.getGenesisTxid(lpGenBuf)
+  const resolvedLpSensibleBuf = lpGenTxidBuf.equals(Buffer.alloc(36, 0))
+    ? Buffer.from(Common.genGenesisTxid(lpGenesisTxid, lpGenesisVout), 'hex')
+    : lpGenTxidBuf
+  const canonicalLpGenBuf = TokenProto.getNewGenesisScript(lpGenBuf, resolvedLpSensibleBuf)
+  const lpGenHashBuf = Common.hash160(canonicalLpGenBuf)
+  const derivedLpTokenID = Common.hash160(Buffer.concat([lpGenHashBuf, resolvedLpSensibleBuf])).toString('hex')
+  if (derivedLpTokenID !== lpTokenID) {
+    throw new Error(
+      `LP Genesis (${lpGenesisTxid}:${lpGenesisVout}) yields lpTokenID=${derivedLpTokenID}, expected pool lpTokenID=${lpTokenID}`
+    )
+  }
+  const lpDecimals = TokenProto.getTokenDecimal(lpGenBuf)
+
+  let contractHashArrayHex: string
+  if (input.contractHashArrayHex) {
+    contractHashArrayHex = normalizeHex(input.contractHashArrayHex, 120, 'contractHashArrayHex')
+    const checkRoot = Common.hash160(Buffer.from(contractHashArrayHex, 'hex')).toString('hex')
+    if (checkRoot !== contractHashRoot) {
+      throw new Error(
+        `Provided contractHashArrayHex hashes to ${checkRoot}, which does not match on-chain contractHashRoot ${contractHashRoot}`
+      )
+    }
+  } else {
+    const derived = deriveTokenSwapContractHashArray({
+      tokenSwapContracts: tsContracts,
+      swapContractID,
+      token1ID,
+      token1ScriptCodeHash: token1CodeHash,
+      token2ID,
+      token2ScriptCodeHash: token2CodeHash,
+      ownerAddressHashHex: ownerAddressHash,
+    })
+    if (derived.contractHashRootHex !== contractHashRoot) {
+      throw new Error(
+        `Derived standard tokenSwap contractHashRoot (${derived.contractHashRootHex}) does not match on-chain contractHashRoot (${contractHashRoot}).`
+      )
+    }
+    contractHashArrayHex = derived.contractHashArrayHex
+  }
+
+  const slug1 = token1Symbol.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || token1ID.slice(0, 6)
+  const slug2 = token2Symbol.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || token2ID.slice(0, 6)
+  const poolId = (input.poolId || `${slug1}-${slug2}`).trim()
+  if (!/^[a-zA-Z0-9._-]{2,64}$/.test(poolId)) {
+    throw new Error(`Invalid poolId "${poolId}": use 2-64 alphanumeric, dot, underscore, or dash characters`)
+  }
+  const pairName = (input.pairName || `${token1Symbol} / ${token2Symbol}`).trim()
+  const lpSymbol = (input.lpSymbol || `${token1Symbol}-${token2Symbol} LP`).trim()
+
+  const entry: PoolRegistryEntry = {
+    poolId,
+    pairName,
+    poolType: 'token-token',
+    verified: true,
+    token1: {
+      symbol: token1Symbol,
+      name: token1Name,
+      decimals: token1Decimals,
+      tokenID: token1ID,
+      codeHash: token1CodeHash,
+    },
+    token2: {
+      symbol: token2Symbol,
+      name: token2Name,
+      decimals: token2Decimals,
+      tokenID: token2ID,
+      codeHash: token2CodeHash,
+    },
+    lpToken: {
+      symbol: lpSymbol,
+      decimals: lpDecimals,
+      tokenID: lpTokenID,
+      codeHash: token1CodeHash,
+    },
+    contract: {
+      swapContractID,
+      swapSensibleID,
+      tokenID: token2ID,
+      tokenScriptCodeHash: token2CodeHash,
+      token1ID,
+      token1ScriptCodeHash: token1CodeHash,
+      token2ID,
+      token2ScriptCodeHash: token2CodeHash,
+      lpTokenID,
+      fetchTokenHash,
+      swapCodeHash,
+      contractHashRoot,
+      contractHashArrayHex,
+    },
+    bootstrapHead: {
+      poolTxid,
+      lpGenesisTxid,
+      lpGenesisVout,
+    },
+  }
+
+  return {
+    entry,
+    onChain: {
+      poolType: 'token-token',
+      r1: state.r1.toString(),
+      r2: state.r2.toString(),
+      lp: state.lp.toString(),
+      feeRate: state.feeRate,
+      projFeeRate: state.projFeeRate,
+      minProjFee: state.minProjFee.toString(),
+      ownerAddressHash,
+      poolTokenVout: state.poolToken1Vout,
+      poolToken2Vout: state.poolToken2Vout,
     },
   }
 }
@@ -990,3 +1270,9 @@ export async function deployNewPoolOnChain(params: CreatePoolOnChainParams): Pro
     rawTxs,
   }
 }
+
+export {
+  deployTokenSwapPoolOnChain,
+  DeployTokenSwapPoolInput,
+  DeployTokenSwapPoolResult,
+} from './token-swap-deploy'

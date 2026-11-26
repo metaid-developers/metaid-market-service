@@ -19,13 +19,12 @@ function candidateDirs(): string[] {
 
 function resolveCoreDir(): string {
   const candidates = candidateDirs()
-  // Prefer a directory that has swap-engine.ts + out/ + node_modules/mvc-scrypt
+  // Prefer a directory that has both swap-engine.ts and token-swap-engine.ts (latest main)
   for (const dir of candidates) {
     if (
       fs.existsSync(path.join(dir, 'scripts', 'swap-engine.ts')) &&
-      fs.existsSync(path.join(dir, 'tslib', 'tokenSwapProto.ts')) &&
-      fs.existsSync(path.join(dir, 'out')) &&
-      fs.existsSync(path.join(dir, 'node_modules', 'mvc-scrypt'))
+      fs.existsSync(path.join(dir, 'scripts', 'token-swap-engine.ts')) &&
+      fs.existsSync(path.join(dir, 'tslib', 'tokenSwapProto.ts'))
     ) {
       return dir
     }
@@ -34,7 +33,8 @@ function resolveCoreDir(): string {
     if (
       fs.existsSync(path.join(dir, 'scripts', 'swap-engine.ts')) &&
       fs.existsSync(path.join(dir, 'tslib', 'tokenSwapProto.ts')) &&
-      fs.existsSync(path.join(dir, 'out'))
+      fs.existsSync(path.join(dir, 'out')) &&
+      fs.existsSync(path.join(dir, 'node_modules', 'mvc-scrypt'))
     ) {
       return dir
     }
@@ -62,12 +62,20 @@ export const MVCSWAP_OUT_DIR = (() => {
   return direct
 })()
 
-// Allow node to resolve mvc-scrypt & dependencies from mvcswap-core/node_modules seamlessly
+// Allow node (including cross-repo modules like mvcswap-core/tslib/*.ts) to resolve mvc-scrypt & deps seamlessly
+const Module = require('module')
+const extraNodeModules: string[] = []
 for (const dir of [MVCSWAP_CORE_DIR, ...candidateDirs()]) {
   const nm = path.join(dir, 'node_modules')
-  if (fs.existsSync(nm) && !module.paths.includes(nm)) {
-    module.paths.push(nm)
+  if (fs.existsSync(nm)) {
+    if (!module.paths.includes(nm)) module.paths.push(nm)
+    if (!Module.globalPaths.includes(nm)) Module.globalPaths.push(nm)
+    extraNodeModules.push(nm)
   }
+}
+if (extraNodeModules.length > 0) {
+  process.env.NODE_PATH = [process.env.NODE_PATH, ...extraNodeModules].filter(Boolean).join(path.delimiter)
+  Module._initPaths()
 }
 
 export const scrypt = require('mvc-scrypt')
@@ -78,9 +86,12 @@ export const TokenSwapProto = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'toke
 export const UniqueProto = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'uniqueProto'))
 export const ProtoHeader = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'protoheader'))
 export const SwapEngine = require(path.join(MVCSWAP_CORE_DIR, 'scripts', 'swap-engine'))
+export const TokenSwapEngine = require(path.join(MVCSWAP_CORE_DIR, 'scripts', 'token-swap-engine'))
 
 export const SWAP_ARTIFACTS_DIR =
   process.env.SWAP_ARTIFACTS_DIR || path.resolve(__dirname, '..', 'data', 'compiled-swap')
+export const TOKEN_SWAP_ARTIFACTS_DIR =
+  process.env.TOKEN_SWAP_ARTIFACTS_DIR || path.resolve(__dirname, '..', 'data', 'compiled-tokenswap')
 
 function descMatchesRelPath(desc: any, relPath: string): boolean {
   if (!desc || typeof desc.file !== 'string') return false
@@ -100,16 +111,17 @@ function normalizeContractDesc(raw: any): any {
 
 /**
  * Loads a single sCrypt contract descriptor, strictly verifying `desc.file` ends with
- * `/contracts/<relPath>.scrypt` so `contracts/swap/*` is NEVER shadowed by `contracts/swapRange/*`.
- * Caches compiled JSON descriptors into SWAP_ARTIFACTS_DIR so subsequent startups take <200ms.
+ * `/contracts/<relPath>.scrypt` so `contracts/swap/*`, `contracts/tokenSwap/*`, and
+ * `contracts/swapRange/*` NEVER shadow each other.
+ * Caches compiled JSON descriptors so subsequent startups take <200ms.
  */
-export function loadVerifiedContractDesc(relPath: string): any {
+export function loadVerifiedContractDesc(relPath: string, cacheDir = SWAP_ARTIFACTS_DIR): any {
   const baseName = path.basename(relPath)
   const fileName = `${baseName}_debug_desc.json`
-  if (!fs.existsSync(SWAP_ARTIFACTS_DIR)) {
-    fs.mkdirSync(SWAP_ARTIFACTS_DIR, { recursive: true })
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true })
   }
-  const cachedPath = path.join(SWAP_ARTIFACTS_DIR, fileName)
+  const cachedPath = path.join(cacheDir, fileName)
   if (fs.existsSync(cachedPath)) {
     try {
       const raw = JSON.parse(fs.readFileSync(cachedPath, 'utf8'))
@@ -138,7 +150,7 @@ export function loadVerifiedContractDesc(relPath: string): any {
   if (!fs.existsSync(srcPath)) {
     throw new Error(`Contract source not found: ${srcPath}`)
   }
-  const compiled = scrypt.compileContract(srcPath, { out: SWAP_ARTIFACTS_DIR })
+  const compiled = scrypt.compileContract(srcPath, { out: cacheDir })
   if (compiled.errors && compiled.errors.length > 0) {
     throw new Error(`Failed to compile ${srcPath}: ${JSON.stringify(compiled.errors)}`)
   }
@@ -180,6 +192,12 @@ export function loadSwapContractsFast(): any {
   const transferCheckCodeHashArray = new Array(5).fill(new scrypt.Bytes(transferCheckCodeHash.toString('hex')))
   const unlockCheckCodeHashArray = new Array(5).fill(new scrypt.Bytes(unlockCheckCodeHash.toString('hex')))
 
+  const TokenUnlockContractCheck4to8 = scrypt.buildContractClass(
+    loadVerifiedContractDesc('token/tokenUnlockContractCheck_4to8', SWAP_ARTIFACTS_DIR)
+  )
+  const uc48Bare = new TokenUnlockContractCheck4to8().lockingScript.toBuffer()
+  const unlockCheck4to8CodeHash = Common.hash160(Buffer.concat([uc48Bare, Buffer.from([0x6a])]))
+
   cachedFastContracts = {
     SwapMain,
     SwapFetchToken,
@@ -191,13 +209,64 @@ export function loadSwapContractsFast(): any {
     Token,
     TokenTransferCheck,
     TokenUnlockContractCheck,
+    TokenUnlockContractCheck4to8,
     TxOutputProof,
     TxInputProof,
     transferCheckCodeHash,
     unlockCheckCodeHash,
+    unlockCheck4to8CodeHash,
     swapMainCodeHash,
     transferCheckCodeHashArray,
     unlockCheckCodeHashArray,
   }
   return cachedFastContracts
+}
+
+let cachedFastTokenSwapContracts: any = null
+
+/**
+ * Loads all MVCSwap native Token/Token (`contracts/tokenSwap/*`) + MetaContract FT contract classes
+ * from isolated TOKEN_SWAP_ARTIFACTS_DIR cache (<200ms once warmed).
+ */
+export function loadTokenSwapContractsFast(): any {
+  if (cachedFastTokenSwapContracts) return cachedFastTokenSwapContracts
+  const base = loadSwapContractsFast()
+  const loadTokSwapClass = (relPath: string) =>
+    scrypt.buildContractClass(loadVerifiedContractDesc(relPath, TOKEN_SWAP_ARTIFACTS_DIR))
+
+  const SwapMain = loadTokSwapClass('tokenSwap/tokenSwapMain')
+  const SwapFetchToken = loadTokSwapClass('tokenSwap/tokenSwapFetchToken')
+  const SwapLpGenesis = loadTokSwapClass('tokenSwap/tokenSwapLpGenesis')
+  const SwapTokenToToken = loadTokSwapClass('tokenSwap/tokenSwapTokenToToken')
+  const SwapAddLiquidity = loadTokSwapClass('tokenSwap/tokenSwapAddLiquidity')
+  const SwapRemoveLiquidity = loadTokSwapClass('tokenSwap/tokenSwapRemoveLiquidity')
+  const SwapUpdateContract = loadTokSwapClass('tokenSwap/tokenSwapUpdateContract')
+  const SwapAdmin = loadTokSwapClass('tokenSwap/tokenSwapAdmin')
+
+  const smBare = new SwapMain().lockingScript.toBuffer()
+  const swapMainCodeHash = Common.hash160(Buffer.concat([smBare, Buffer.from([0x6a])]))
+
+  cachedFastTokenSwapContracts = {
+    SwapMain,
+    SwapFetchToken,
+    SwapLpGenesis,
+    SwapTokenToToken,
+    SwapAddLiquidity,
+    SwapRemoveLiquidity,
+    SwapUpdateContract,
+    SwapAdmin,
+    Token: base.Token,
+    TokenTransferCheck: base.TokenTransferCheck,
+    TokenUnlockContractCheck: base.TokenUnlockContractCheck,
+    TokenUnlockContractCheck4to8: base.TokenUnlockContractCheck4to8,
+    TxOutputProof: base.TxOutputProof,
+    TxInputProof: base.TxInputProof,
+    transferCheckCodeHash: base.transferCheckCodeHash,
+    unlockCheckCodeHash: base.unlockCheckCodeHash,
+    unlockCheck4to8CodeHash: base.unlockCheck4to8CodeHash,
+    swapMainCodeHash,
+    transferCheckCodeHashArray: base.transferCheckCodeHashArray,
+    unlockCheckCodeHashArray: base.unlockCheckCodeHashArray,
+  }
+  return cachedFastTokenSwapContracts
 }

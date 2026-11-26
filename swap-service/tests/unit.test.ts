@@ -183,7 +183,7 @@ async function main() {
     assert.strictEqual(badRes.status, 500)
     assert.ok(String(badRes.data.message).includes('not in whitelistSwapCodeHashes'))
 
-    // Hot-remove pool and verify persisted pools.json is clean
+    // Hot-remove SPACE/MVST pool and verify persisted pools.json is clean
     const delRes = await axios.delete(`${base}/internal/swap/admin/pools/space-mvst-imported`, {
       headers: { 'X-Swap-Admin-Token': testToken },
     })
@@ -193,8 +193,70 @@ async function main() {
     const persisted = JSON.parse(fs.readFileSync(tmpPoolsFile, 'utf8'))
     assert.strictEqual(persisted.pools.length, 0)
 
+    // 8c. Native Token/Token pool auto-import, live state, quote aliases, and dual-FT positions
+    const ttImpRes = await axios.post(
+      `${base}/internal/swap/admin/pools/import`,
+      {
+        poolId: 'tmva-tmvb-imported',
+        poolTxid: '322ec5ff69fdb38e24cabfe6ef5ac1d454db846ee749f556d507bbc443d23805',
+        lpGenesisTxid: 'ea442a7e7a9b01423e5465b4963a260ffeec2e0ba1acfa89f891a216673a6868',
+        lpGenesisVout: 2,
+      },
+      { headers: { 'X-Swap-Admin-Token': testToken } }
+    )
+    assert.strictEqual(ttImpRes.status, 200)
+    assert.strictEqual(ttImpRes.data.data.entry.poolType, 'token-token')
+    assert.strictEqual(ttImpRes.data.data.entry.token1.symbol, 'TMVA')
+    assert.strictEqual(ttImpRes.data.data.entry.token2.symbol, 'TMVB')
+    assert.strictEqual(ttImpRes.data.data.pool.poolType, 'token-token')
+    assert.strictEqual(ttImpRes.data.data.pool.poolTokenVout, 4)
+    assert.strictEqual(ttImpRes.data.data.pool.poolToken2Vout, 5)
+    assert.strictEqual(ttImpRes.data.data.pool.r1, '104251020')
+    assert.strictEqual(ttImpRes.data.data.pool.r2, '530789317')
+    assert.strictEqual(ttImpRes.data.data.pool.lp, '105177797')
+
+    const ttPools = await axios.get(`${base}/internal/swap/pools`)
+    assert.strictEqual(ttPools.data.data.pools.length, 1)
+    assert.strictEqual(ttPools.data.data.pools[0].poolType, 'token-token')
+
+    const ttQ1 = await axios.post(`${base}/internal/swap/quote`, {
+      poolId: 'tmva-tmvb-imported',
+      operation: 'swapToken1ToToken2',
+      amountIn: '1000000',
+      slippageBps: 100,
+    })
+    assert.strictEqual(ttQ1.status, 200)
+    assert.ok(BigInt(ttQ1.data.data.amountOut) > BigInt(0))
+
+    const ttQ2 = await axios.post(`${base}/internal/swap/quote`, {
+      poolId: 'tmva-tmvb-imported',
+      operation: 'swapToken2ToToken1',
+      amountIn: '5000000',
+      slippageBps: 100,
+    })
+    assert.strictEqual(ttQ2.status, 200)
+    assert.ok(BigInt(ttQ2.data.data.amountOut) > BigInt(0))
+
+    const ttQAdd = await axios.post(`${base}/internal/swap/quote`, {
+      poolId: 'tmva-tmvb-imported',
+      operation: 'addLiquidity',
+      token1AddAmount: '1000000',
+    })
+    assert.strictEqual(ttQAdd.status, 200)
+    assert.ok(BigInt(ttQAdd.data.data.lpMinted) > BigInt(0))
+
+    const validTestAddress = scrypt.mvc.Address.fromPublicKeyHash(liveState.ownerAddress, 'livenet').toString()
+    const ttPos = await axios.get(`${base}/internal/swap/positions`, {
+      params: { address: validTestAddress },
+    })
+    assert.strictEqual(ttPos.status, 200)
+    assert.ok(ttPos.data.data.tokenBalances[ttImpRes.data.data.entry.token1.tokenID] !== undefined)
+    assert.ok(ttPos.data.data.tokenBalances[ttImpRes.data.data.entry.token2.tokenID] !== undefined)
+    assert.strictEqual(ttPos.data.data.positions[0].poolType, 'token-token')
+    assert.ok(BigInt(ttPos.data.data.positions[0].lpBalance) > BigInt(0))
+
     await new Promise<void>((r) => srv.server.close(() => r()))
-    console.log('  [PASS] Admin HTTP endpoints (503/401/403 auth, on-chain auto-import, whitelist guard, hot register/remove)')
+    console.log('  [PASS] Admin HTTP endpoints + Token/Token pool auto-import, quotes & dual-FT positions')
   } finally {
     if (prevEnv.SWAP_POOLS_FILE === undefined) delete process.env.SWAP_POOLS_FILE
     else process.env.SWAP_POOLS_FILE = prevEnv.SWAP_POOLS_FILE
