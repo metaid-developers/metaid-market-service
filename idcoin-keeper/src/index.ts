@@ -5,6 +5,7 @@ import { Keeper } from './keeper'
 import { refreshCoinRegistry } from './registry'
 import { startOpsServer } from './ops'
 import { Logger } from './log'
+import { createProductionPipeline } from './pipeline-wiring'
 
 async function main() {
   const config = loadConfig()
@@ -25,6 +26,18 @@ async function main() {
   })
 
   const keeper = new Keeper({ config, db, chain, log })
+
+  // P2 pipeline (batching -> bridge -> floor bids); degrade gracefully if the
+  // orderbook contracts cannot load — sweeping must never be blocked by it.
+  let pipe: ReturnType<typeof createProductionPipeline> | null = null
+  try {
+    pipe = createProductionPipeline({ config, db, log, chain, lpKeys: keeper.lpKeys })
+    const n = await pipe.refreshPairs()
+    log.info('bridge pairs loaded', { count: n })
+  } catch (e: any) {
+    log.error('P2 pipeline unavailable (sweeping continues)', { error: e.message })
+  }
+  ;(keeper as any).pipelineStatus = () => (pipe ? pipe.pipeline.status() : { disabled: true })
 
   const server = startOpsServer(keeper, config.opsPort)
   log.info('ops endpoint listening', { bind: '127.0.0.1', port: config.opsPort })
@@ -50,6 +63,14 @@ async function main() {
       await keeper.vaultLedgerTick()
     } catch (e: any) {
       log.error('vault ledger tick failed', { error: e.message })
+    }
+    if (pipe) {
+      try {
+        await pipe.pipeline.retryHeld()
+        await pipe.pipeline.tick()
+      } catch (e: any) {
+        log.error('pipeline tick failed', { error: e.message })
+      }
     }
   }
 

@@ -260,6 +260,7 @@ export class Keeper {
       lastError: this.lastError,
       mvcFundingAddress: this.lpKeys.mvcFundingAddress,
       counts: this.db.counts(),
+      pipeline: (this as any).pipelineStatus ? (this as any).pipelineStatus() : undefined,
       coins: this.db.listCoins().map((c) => ({
         tickId: c.tickId,
         tick: c.tick,

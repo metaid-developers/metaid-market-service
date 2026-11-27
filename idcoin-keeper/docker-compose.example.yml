@@ -8,7 +8,10 @@
 
 services:
   idcoin-keeper:
-    build: .
+    build:
+      # repo root: P2 imports ../orderbook-service at runtime
+      context: ..
+      dockerfile: idcoin-keeper/Dockerfile
     image: idcoin-keeper:local
     container_name: idcoin-keeper
     restart: unless-stopped
