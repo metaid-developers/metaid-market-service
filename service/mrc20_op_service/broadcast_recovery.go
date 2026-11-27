@@ -7,6 +7,8 @@ import (
 	"metaid-market-service/service/common_service"
 )
 
+const orderChainForIdCoins = "btc"
+
 func BroadcastInscribeTxs(chain string, rawTxs []string) error {
 	for _, raw := range rawTxs {
 		if raw == "" {
@@ -80,6 +82,51 @@ func RetryDeployInscription(order *models.Mrc20DeployOrderModel) error {
 		return finalize()
 	}
 	if err := BroadcastInscribeTxs(order.Chain, []string{order.CommitTxRaw, order.RevealTxRaw}); err != nil {
+		return err
+	}
+	return finalize()
+}
+
+// RetryIdCoinsMintInscription rebroadcasts the commit -> reveal-inscribe ->
+// reveal-mint chain when a crash happened between the first persistence and
+// the broadcast, using the stored commit raw and the signed final reveal
+// PSBTs. Once the mint tx is visible on-chain it only finalizes storage.
+func RetryIdCoinsMintInscription(order *models.IdCoinsMintOrderModel) error {
+	if order == nil || order.RevealMintTxId == "" {
+		return nil
+	}
+	if order.CommitTxRaw == "" && order.RevealMintFinalPsbtRaw == "" {
+		return nil
+	}
+	finalize := func() error {
+		return models.IdCoinsMintOrderModelDao().UpdateEntityListForInscribing(order, nil, nil)
+	}
+	if _, err := common_service.GetTxInfo(orderChainForIdCoins, order.RevealMintTxId); err == nil {
+		return finalize()
+	}
+	revealInscribeRaw := ""
+	if order.RevealInscribeFinalPsbtRaw != "" {
+		builder, err := common.NewPsbtBuilder(common.GetNetParams(conf.Net, orderChainForIdCoins), order.RevealInscribeFinalPsbtRaw)
+		if err != nil {
+			return err
+		}
+		revealInscribeRaw, err = builder.ExtractPsbtTransaction()
+		if err != nil {
+			return err
+		}
+	}
+	revealMintRaw := ""
+	if order.RevealMintFinalPsbtRaw != "" {
+		builder, err := common.NewPsbtBuilder(common.GetNetParams(conf.Net, orderChainForIdCoins), order.RevealMintFinalPsbtRaw)
+		if err != nil {
+			return err
+		}
+		revealMintRaw, err = builder.ExtractPsbtTransaction()
+		if err != nil {
+			return err
+		}
+	}
+	if err := BroadcastInscribeTxs(orderChainForIdCoins, []string{order.CommitTxRaw, revealInscribeRaw, revealMintRaw}); err != nil {
 		return err
 	}
 	return finalize()

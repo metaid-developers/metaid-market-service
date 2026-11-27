@@ -141,13 +141,15 @@ func TestIdCoinsMaintenanceErrors(t *testing.T) {
 	_, err1 := BuildIdCoinsPre(&request.BuildIdCoinsPreRequest{}, "", "")
 	_, err2 := BuildIdCoinsCommit(&request.BuildIdCoinsCommitRequest{}, "", "")
 	_, err3 := IdCoinsMintPre(&request.IdCoinsMintPreRequest{}, "", "")
-	_, err4 := IdCoinsMintCommit(&request.IdCoinsMintCommitRequest{}, "", "")
+	// IdCoinsMintCommit is no longer a stub: the self-hosted mint flow is live
+	// for allowlisted coins, so the maintenance error is not part of its
+	// contract anymore (validation coverage in mint_idcoins_service_test.go).
 	_, err5 := RefundIdCoinsInvalidLpPre(&request.RefundIdCoinsValidPreRequest{}, "", "")
 	_, err6 := RefundIdCoinsInvalidLpCommit(&request.RefundIdCoinsValidCommitRequest{}, "", "")
 	_, err7 := BookOrderTakeMintBidPreview(&request.BookTakeMintBidPreviewReq{}, "", "")
 	_, err8 := BookOrderTakeMintBidPre(&request.BookTakeMintBidPreReq{}, "", "")
 	_, err9 := BookOrderTakeMintBidCommit(&request.BookTakeMintBidCommitReq{}, "", "")
-	calls = append(calls, err1, err2, err3, err4, err5, err6, err7, err8, err9)
+	calls = append(calls, err1, err2, err3, err5, err6, err7, err8, err9)
 	for i, err := range calls {
 		if err == nil || err.Error() != idCoinsMaintenanceError {
 			t.Fatalf("call %d error mismatch: %v", i, err)

@@ -17,6 +17,7 @@ func JobForCheckRecordConfirm() {
 	jobForCheckMrc20RecordConfirm()
 	jobForCheckMrc20DeployRecordConfirm()
 	jobForCheckMrc20MintRecordConfirm()
+	jobForCheckIdCoinsMintRecordConfirm()
 	jobForCheckMrc20TransferRecordConfirm()
 	jobForCheckMetanameRecordConfirm()
 	jobForCheckMrc20PreTransferOrderAskConfirm()
@@ -204,6 +205,49 @@ func jobForCheckMrc20MintRecordConfirm() {
 		}
 	}
 	fmt.Printf("[JOB][%s] check finsih and confirmed Mrc20 Mint end. entityList: %d\n", jobName, len(entityList))
+}
+
+func jobForCheckIdCoinsMintRecordConfirm() {
+	var (
+		jobName    = "CheckIdCoinsMintOrderConfirm"
+		entityList []*models.IdCoinsMintOrderModel
+		offset     int64 = 0
+		limit      int64 = 1000
+	)
+	entityList, _ = models.IdCoinsMintOrderModelDao().GetListAsc(
+		&models.IdCoinsMintOrderModel{InscribeState: models.InscribeStateFinish, ConfirmationState: models.ConfirmationStateUnconfirmed},
+		offset, limit)
+	fmt.Printf("[JOB][%s] check finish and confirmed IdCoins Mint start. entityList: %d\n", jobName, len(entityList))
+	for _, entity := range entityList {
+		if entity.InscribeState != models.InscribeStateFinish || entity.ConfirmationState != models.ConfirmationStateUnconfirmed {
+			continue
+		}
+		if entity.RevealMintTxId == "" {
+			fmt.Printf("[JOB][%s][%s] RevealMintTxId is empty\n", jobName, entity.OrderId)
+			continue
+		}
+
+		if err := mrc20_op_service.RetryIdCoinsMintInscription(entity); err != nil {
+			fmt.Printf("[JOB][%s][%s] Retry idcoins mint broadcast error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
+		txInfo, err := common_service.GetTxInfo("btc", entity.RevealMintTxId)
+		if err != nil {
+			fmt.Printf("[JOB][%s][%s] GetTxInfo error: %v\n", jobName, entity.OrderId, err)
+			continue
+		}
+		if txInfo.Confirmed {
+			entity.ConfirmationState = models.ConfirmationStateConfirmed
+			entity.BlockHeight = txInfo.Height
+			err := models.IdCoinsMintOrderModelDao().Update(entity)
+			if err != nil {
+				fmt.Printf("[JOB][%s][%s] UpdateEntityForConfirm error: %v\n", jobName, entity.OrderId, err)
+				continue
+			}
+			fmt.Printf("[JOB][%s][%s] UpdateEntityForConfirm success\n", jobName, entity.OrderId)
+		}
+	}
+	fmt.Printf("[JOB][%s] check finish and confirmed IdCoins Mint end. entityList: %d\n", jobName, len(entityList))
 }
 
 func jobForCheckMrc20TransferRecordConfirm() {
