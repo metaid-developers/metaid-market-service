@@ -1,0 +1,50 @@
+# Example deployment for 47.242.162.36.
+# Copy to docker-compose.yml, review the environment, then:
+#   docker compose up -d
+#
+# SAFETY DEFAULTS: DRY_RUN=true and an empty enable list — the keeper observes
+# and records but never broadcasts and never sweeps anything until you
+# explicitly enable ticks and flip DRY_RUN=false.
+
+services:
+  idcoin-keeper:
+    build: .
+    image: idcoin-keeper:local
+    container_name: idcoin-keeper
+    restart: unless-stopped
+
+    # no published ports: the ops endpoint is 127.0.0.1-only inside the
+    # container. Read it with:
+    #   docker exec idcoin-keeper curl -fsS http://127.0.0.1:18090/status
+    # or expose it on the host loopback only, if needed:
+    #   ports:
+    #     - "127.0.0.1:18090:18090"
+
+    environment:
+      IDCOIN_LP_MNEMONIC_FILE: /run/secrets/idcoin_lp_mnemonic.txt
+      IDCOIN_LEGACY_KEYS_FILE: /run/secrets/idcoin_legacy_pool_keys.json
+      IDCOIN_KEEPER_DB: /data/idcoin-keeper.db
+      IDCOIN_KEEPER_POLL_MS: "10000"
+      IDCOIN_HIGUN_BTC_URL: "http://172.31.165.190:8085"
+      IDCOIN_MEMPOOL_URL: "https://mempool.space"
+      IDCOIN_COINS_URL: "https://api.metaid.market/api-market/api/v1/id-coins/coins-list?cursor=0&size=100"
+      # --- safety switches ---
+      IDCOIN_KEEPER_DRY_RUN: "true"       # build/sign/validate but NEVER broadcast
+      IDCOIN_KEEPER_KILL: "false"         # true = halt all sweeping immediately
+      IDCOIN_KEEPER_ENABLE_TICKS: ""      # e.g. "SUNNY,METAID" — empty = nothing enabled
+      IDCOIN_KEEPER_FEE_FLOOR: "2"        # sat/vB
+      IDCOIN_KEEPER_MAX_FEE_RATIO: "0.3"  # skip+alert if fee would exceed 30% of swept value
+
+    volumes:
+      - /mnt/b-node/octopus-bridge-monorepo/secrets/idcoin_lp_mnemonic.txt:/run/secrets/idcoin_lp_mnemonic.txt:ro
+      - /mnt/b-node/octopus-bridge-monorepo/secrets/idcoin_legacy_pool_keys.json:/run/secrets/idcoin_legacy_pool_keys.json:ro
+      - keeper-data:/data
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+volumes:
+  keeper-data:

@@ -1,0 +1,25 @@
+{
+  "name": "idcoin-keeper",
+  "version": "0.1.0",
+  "description": "ID-Coin mint-liquidity keeper: legacy pool sweeping, LP vault ledger, floor-bid pipeline (P2)",
+  "private": true,
+  "scripts": {
+    "start": "ts-node --transpile-only src/index.ts",
+    "test": "ts-node --transpile-only tests/keeper.test.ts"
+  },
+  "dependencies": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.5",
+    "axios": "1.6.8",
+    "better-sqlite3": "9.6.0",
+    "bip32": "4.0.0",
+    "bip39": "3.1.2",
+    "bitcoinjs-lib": "6.1.10",
+    "ecpair": "2.1.0",
+    "js-yaml": "4.1.0"
+  },
+  "devDependencies": {
+    "ts-node": "10.9.2",
+    "typescript": "5.9.3",
+    "@types/node": "24.10.1"
+  }
+}
