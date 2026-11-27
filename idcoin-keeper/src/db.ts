@@ -85,6 +85,36 @@ export class KeeperDb {
         last_seen INTEGER NOT NULL,
         present INTEGER NOT NULL DEFAULT 1
       );
+      CREATE TABLE IF NOT EXISTS batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tick_id TEXT NOT NULL,
+        state TEXT NOT NULL,             -- planned|order_created|deposit_signed|deposit_submitted|minted|bid_placed|failed|held
+        input_outpoints TEXT NOT NULL,   -- json array of txid:vout
+        total_in INTEGER NOT NULL,
+        est_tx_fee INTEGER NOT NULL DEFAULT 0,
+        btc_fee_sats INTEGER NOT NULL DEFAULT 0,
+        amount INTEGER NOT NULL,         -- principal to bridge vault
+        order_id TEXT,
+        bridge_address TEXT,
+        fee_address TEXT,
+        deposit_txid TEXT,
+        deposit_hex TEXT,
+        mint_txid TEXT,
+        minted_wbtc INTEGER,
+        price_num TEXT,
+        price_den TEXT,
+        bid_outpoint TEXT,
+        bid_txids TEXT,
+        fail_reason TEXT,
+        hold_reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS batch_inputs (
+        outpoint TEXT PRIMARY KEY,       -- a vault utxo is in at most one batch ever
+        batch_id INTEGER NOT NULL,
+        sats INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS discrepancies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         address TEXT NOT NULL,
@@ -215,6 +245,48 @@ export class KeeperDb {
 
   recordDiscrepancy(address: string, detail: string, now: number) {
     this.db.prepare('INSERT INTO discrepancies (address, detail, created_at) VALUES (?, ?, ?)').run(address, detail, now)
+  }
+
+  /** Atomically creates the batch row AND reserves its inputs — a vault utxo
+   *  can never be reserved by two batches (batch_inputs.outpoint is PK). */
+  createBatch(b: {
+    tickId: string; inputs: Array<{ outpoint: string; sats: number }>; totalIn: number; estTxFee: number;
+    btcFeeSats: number; amount: number; now: number
+  }): number {
+    const tx = this.db.transaction(() => {
+      const res = this.db.prepare(
+        `INSERT INTO batches (tick_id, state, input_outpoints, total_in, est_tx_fee, btc_fee_sats, amount, created_at, updated_at)
+         VALUES (?, 'planned', ?, ?, ?, ?, ?, ?, ?)`
+      ).run(b.tickId, JSON.stringify(b.inputs.map((i) => i.outpoint)), b.totalIn, b.estTxFee, b.btcFeeSats, b.amount, b.now, b.now)
+      const id = Number(res.lastInsertRowid)
+      const ins = this.db.prepare('INSERT INTO batch_inputs (outpoint, batch_id, sats) VALUES (?, ?, ?)')
+      for (const i of b.inputs) ins.run(i.outpoint, id, i.sats)
+      return id
+    })
+    return tx()
+  }
+
+  isBatched(outpoint: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM batch_inputs WHERE outpoint = ?').get(outpoint)
+  }
+
+  updateBatch(id: number, fields: Record<string, any>, now: number) {
+    const keys = Object.keys(fields)
+    if (keys.length === 0) return
+    const set = keys.map((k) => `${k} = ?`).join(', ')
+    this.db.prepare(`UPDATE batches SET ${set}, updated_at = ? WHERE id = ?`).run(...keys.map((k) => fields[k]), now, id)
+  }
+
+  getBatch(id: number): any {
+    return this.db.prepare('SELECT * FROM batches WHERE id = ?').get(id)
+  }
+
+  batchesByState(states?: string[]): any[] {
+    if (states && states.length) {
+      const ph = states.map(() => '?').join(',')
+      return this.db.prepare(`SELECT * FROM batches WHERE state IN (${ph}) ORDER BY id`).all(...states)
+    }
+    return this.db.prepare('SELECT * FROM batches ORDER BY id').all()
   }
 
   counts(): Record<string, number> {

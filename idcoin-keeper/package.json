@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "start": "ts-node --transpile-only src/index.ts",
-    "test": "ts-node --transpile-only tests/keeper.test.ts"
+    "test": "ts-node --transpile-only tests/keeper.test.ts && ts-node --transpile-only tests/pipeline.test.ts"
   },
   "dependencies": {
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.5",
