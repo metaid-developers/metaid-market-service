@@ -15,7 +15,7 @@ export function loadConfig(): OrderbookSidecarConfig {
   const netRaw = (process.env.ORDERBOOK_NET || process.env.SWAP_NET || 'livenet').toLowerCase()
   return {
     host: process.env.ORDERBOOK_SERVICE_HOST || '127.0.0.1',
-    port: Number(process.env.ORDERBOOK_SERVICE_PORT || 18081),
+    port: Number(process.env.ORDERBOOK_SERVICE_PORT || 18082),
     net: netRaw === 'testnet' ? 'testnet' : 'livenet',
     higunUrl: (process.env.HIGUN_URL || process.env.ORDERBOOK_HIGUN_URL || '').replace(/\/+$/, ''),
     metaletApiBase: (process.env.METALET_API_BASE || 'https://www.metalet.space/wallet-api').replace(/\/+$/, ''),

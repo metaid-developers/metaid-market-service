@@ -51,32 +51,32 @@ export function createOrderbookSidecarServer(builder: OrderbookTxBuilder): http.
       if (method === 'GET' && url === '/internal/ob/contracts') {
         return sendJson(res, 200, { code: 0, data: builder.getContractMeta() })
       }
-      if (method === 'POST' && url === '/internal/ob/build-place-ask') {
+      if (method === 'POST' && (url === '/internal/ob/place/ask/prepare' || url === '/internal/ob/build-place-ask')) {
         const body = await readJsonBody(req)
         const data = await builder.buildPlaceAsk(body)
         return sendJson(res, 200, { code: 0, data })
       }
-      if (method === 'POST' && url === '/internal/ob/build-place-bid') {
+      if (method === 'POST' && (url === '/internal/ob/place/bid/prepare' || url === '/internal/ob/build-place-bid')) {
         const body = await readJsonBody(req)
         const data = await builder.buildPlaceBid(body)
         return sendJson(res, 200, { code: 0, data })
       }
-      if (method === 'POST' && url === '/internal/ob/build-take-ask') {
+      if (method === 'POST' && (url === '/internal/ob/take/ask/prepare' || url === '/internal/ob/build-take-ask')) {
         const body = await readJsonBody(req)
         const data = await builder.buildTakeAsk(body)
         return sendJson(res, 200, { code: 0, data })
       }
-      if (method === 'POST' && url === '/internal/ob/build-take-bid') {
+      if (method === 'POST' && (url === '/internal/ob/take/bid/prepare' || url === '/internal/ob/build-take-bid')) {
         const body = await readJsonBody(req)
         const data = await builder.buildTakeBid(body)
         return sendJson(res, 200, { code: 0, data })
       }
-      if (method === 'POST' && url === '/internal/ob/build-cancel') {
+      if (method === 'POST' && (url === '/internal/ob/cancel/prepare' || url === '/internal/ob/build-cancel')) {
         const body = await readJsonBody(req)
         const data = await builder.buildCancel(body)
         return sendJson(res, 200, { code: 0, data })
       }
-      if (method === 'POST' && url === '/internal/ob/finalize-and-broadcast') {
+      if (method === 'POST' && (url === '/internal/ob/finalize' || url === '/internal/ob/finalize-and-broadcast')) {
         const body = await readJsonBody(req)
         const broadcast = body.broadcast !== undefined ? Boolean(body.broadcast) : true
         const data = await builder.finalizeAndBroadcast(body.draftId, body.signatures || [], broadcast)

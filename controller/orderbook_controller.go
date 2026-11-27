@@ -284,11 +284,15 @@ func OrderbookPlacePrepare(c *gin.Context) {
 	}
 
 	s := ob.GetOrderbookSyncer()
-	if _, ok := payload["feeBps"]; !ok {
-		payload["feeBps"] = s.Config().FeeBps
-	}
 	if _, ok := payload["feeAddress"]; !ok && s.Config().FeeAddress != "" {
 		payload["feeAddress"] = s.Config().FeeAddress
+	}
+	if _, ok := payload["feeBps"]; !ok {
+		if feeAddr, _ := payload["feeAddress"].(string); strings.TrimSpace(feeAddr) != "" {
+			payload["feeBps"] = s.Config().FeeBps
+		} else {
+			payload["feeBps"] = 0
+		}
 	}
 
 	path := "/internal/ob/place/ask/prepare"

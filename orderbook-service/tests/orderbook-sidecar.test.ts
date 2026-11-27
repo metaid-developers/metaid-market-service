@@ -364,17 +364,75 @@ async function runTests() {
   console.log('[PASS] Flow 4: CancelBid built & verified')
 
   // -------------------------------------------------------------------------
-  // Flow 5: Sidecar HTTP server health & contracts check
+  // Flow 5: Sidecar HTTP server health, contracts & canonical Go proxy routes
   // -------------------------------------------------------------------------
   const srv = createOrderbookSidecarServer(builder)
   await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', resolve))
   const port = (srv.address() as any).port
+  const baseUrl = `http://127.0.0.1:${port}`
   const axios = require('../src/core-bridge').axios
-  const health = await axios.get(`http://127.0.0.1:${port}/internal/ob/health`)
+  const health = await axios.get(`${baseUrl}/internal/ob/health`)
   assert.strictEqual(health.data.ok, true)
   assert.strictEqual(health.data.contracts.tailLen, 150)
+
+  // Verify real HTTP PlaceBid -> Finalize -> CancelBid -> Finalize via canonical Go routes
+  chain.setMvcUtxos(addrMaker, [fundMvc(addrMaker, 1_000_000)])
+  const httpBidPrep = await axios.post(`${baseUrl}/internal/ob/place/bid/prepare`, {
+    makerAddress: addrMaker,
+    tokenCodeHash,
+    tokenID,
+    spendSats: '400000',
+    priceNum: '100',
+    priceDen: '1',
+    minFillAmount: '500',
+    feeBps: 25,
+    feeAddress: addrFee,
+  })
+  assert.strictEqual(httpBidPrep.data.code, 0)
+  const httpBidDraft = httpBidPrep.data.data
+  assert.ok(httpBidDraft.draftId)
+  const httpBidSigs = signRequestsWithPrivKey(httpBidDraft.signRequests, privMaker)
+  const httpBidFin = await axios.post(`${baseUrl}/internal/ob/finalize`, {
+    draftId: httpBidDraft.draftId,
+    signatures: httpBidSigs,
+    broadcast: true,
+  })
+  assert.strictEqual(httpBidFin.data.code, 0)
+  assert.strictEqual(httpBidFin.data.data.status, 'completed')
+  assert.strictEqual(httpBidFin.data.data.verified, true)
+  const httpBidOrder = httpBidFin.data.data.newOrders[0]
+  assert.strictEqual(httpBidOrder.remainAmount, '400000')
+
+  const httpCancelPrep = await axios.post(`${baseUrl}/internal/ob/cancel/prepare`, {
+    makerAddress: addrMaker,
+    side: 'bid',
+    orderTxid: httpBidOrder.txid,
+    orderVout: httpBidOrder.vout,
+  })
+  assert.strictEqual(httpCancelPrep.data.code, 0)
+  const httpCancelDraft = httpCancelPrep.data.data
+  const httpCancelSigs = signRequestsWithPrivKey(httpCancelDraft.signRequests, privMaker)
+  const httpCancelFin = await axios.post(`${baseUrl}/internal/ob/finalize`, {
+    draftId: httpCancelDraft.draftId,
+    signatures: httpCancelSigs,
+    broadcast: true,
+  })
+  assert.strictEqual(httpCancelFin.data.code, 0)
+  assert.strictEqual(httpCancelFin.data.data.status, 'completed')
+  assert.strictEqual(httpCancelFin.data.data.verified, true)
+
+  // Verify remaining canonical Go proxy routes are registered (return 400 validation, never 404)
+  for (const route of [
+    '/internal/ob/place/ask/prepare',
+    '/internal/ob/take/ask/prepare',
+    '/internal/ob/take/bid/prepare',
+  ]) {
+    const resp = await axios.post(`${baseUrl}${route}`, {}, { validateStatus: () => true })
+    assert.strictEqual(resp.status, 400, `expected 400 validation error on ${route}, got ${resp.status}`)
+  }
+
   srv.close()
-  console.log('[PASS] Flow 5: HTTP sidecar /internal/ob/health verified')
+  console.log('[PASS] Flow 5: HTTP sidecar health & canonical Go proxy routes verified')
 
   fs.rmSync(tmpDir, { recursive: true, force: true })
   console.log('\nALL ORDERBOOK SIDECAR TESTS PASSED!')
