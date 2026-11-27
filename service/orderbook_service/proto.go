@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -17,19 +18,23 @@ import (
 )
 
 const (
-	OrderProtoType    uint32 = 100
-	OrderProtoVersion uint32 = 2
-	OrderProtoFlag           = "metacontract"
+	OrderProtoType      uint32 = 100
+	OrderTokenProtoType uint32 = 101
+	OrderProtoVersion   uint32 = 2
+	OrderProtoFlag             = "metacontract"
 
-	SideAsk uint8 = 1
-	SideBid uint8 = 2
+	SideAsk   uint8 = 1
+	SideBid   uint8 = 2
+	SideToken uint8 = 3
 
-	DustLimit  uint64 = 546
-	MaxFeeBps  uint16 = 1000
-	FeeDenom   uint64 = 10000
-	OpPushLen         = 2
-	TailLen           = 150
-	RawDataLen        = 148
+	DustLimit       uint64 = 546
+	MaxFeeBps       uint16 = 1000
+	FeeDenom        uint64 = 10000
+	OpPushLen              = 2
+	TailLen                = 150
+	RawDataLen             = 148
+	TokenTailLen           = 190
+	TokenRawDataLen        = 188
 
 	// Right-to-left byte offsets matching contracts/orderbook/orderProto.scrypt
 	protoHeaderOffset   = 25
@@ -44,35 +49,143 @@ const (
 	feeAddrOffset       = 138
 	feeBpsOffset        = 140
 	saltOffset          = 148
+
+	// Right-to-left byte offsets matching contracts/orderbook/orderTokenProto.scrypt
+	tokSellIDOffset       = 66
+	tokSellCodeHashOffset = 86
+	tokBuyIDOffset        = 106
+	tokBuyCodeHashOffset  = 126
+	tokPriceNumOffset     = 134
+	tokPriceDenOffset     = 142
+	tokRemainOffset       = 150
+	tokMinFillOffset      = 158
+	tokFeeAddrOffset      = 178
+	tokFeeBpsOffset       = 180
+	tokSaltOffset         = 188
 )
 
 var (
-	expectedProtoHeader = append([]byte{0x02, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00}, []byte(OrderProtoFlag)...)
-	nullAddressBytes    = make([]byte, 20)
+	expectedProtoHeader      = append([]byte{0x02, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00}, []byte(OrderProtoFlag)...)
+	expectedTokenProtoHeader = append([]byte{0x02, 0x00, 0x00, 0x00, 0x65, 0x00, 0x00, 0x00}, []byte(OrderProtoFlag)...)
+	nullAddressBytes         = make([]byte, 20)
+
+	quotePriorityMu   sync.RWMutex
+	quotePriorityRank = map[string]int{} // lower rank = preferred quote token (e.g. WBTC, USDT)
 )
 
-// ParsedOrderTail holds every field decoded from the fixed 150-byte OrderProto tail.
+// SetQuoteTokenPriority configures canonical quote tokens (format: "<codehash>:<tokenId>").
+// Earlier entries have higher priority to be placed on the Quote side of canonical "base/quote" pairs.
+func SetQuoteTokenPriority(keys []string) {
+	quotePriorityMu.Lock()
+	defer quotePriorityMu.Unlock()
+	m := make(map[string]int, len(keys))
+	for i, k := range keys {
+		norm := strings.ToLower(strings.TrimSpace(k))
+		if norm != "" {
+			if _, exists := m[norm]; !exists {
+				m[norm] = i + 1
+			}
+		}
+	}
+	quotePriorityRank = m
+}
+
+// ParsedOrderTail holds every field decoded from either the 150-byte OrderProto tail (SPACE/FT)
+// or the 190-byte OrderTokenProto tail (FT/FT), normalized to canonical book coordinates.
 type ParsedOrderTail struct {
-	ScriptCodeHash string
-	OrderSide      uint8 // 1 = Ask, 2 = Bid
-	MakerHash20    string
-	MakerAddr      string
-	TokenID        string
-	TokenCodeHash  string
-	PairKey        string
-	PriceNum       uint64
-	PriceDen       uint64
-	PriceDecimal   decimal.Decimal
-	RemainAmount   uint64 // Ask: remaining token units; Bid: remaining SPACE satoshis
-	MinFillAmount  uint64 // Minimum token units per partial fill
-	FeeHash20      string
-	FeeAddr        string
-	FeeBps         uint16
-	SaltHex        string
+	ScriptCodeHash     string
+	IsTokenOrder       bool
+	OrderSide          uint8 // Canonical side in PairKey: 1 = Ask (sell base), 2 = Bid (buy base)
+	MakerHash20        string
+	MakerAddr          string
+	TokenID            string // Base tokenID
+	TokenCodeHash      string // Base tokenCodeHash
+	QuoteTokenID       string // Empty for SPACE-quoted pairs
+	QuoteTokenCodeHash string // Empty for SPACE-quoted pairs
+	SellTokenCodeHash  string // OrderTokenV2 on-chain locked sellToken
+	SellTokenID        string
+	BuyTokenCodeHash   string // OrderTokenV2 on-chain required buyToken
+	BuyTokenID         string
+	PairKey            string
+	PriceNum           uint64 // Canonical quote/base numerator
+	PriceDen           uint64 // Canonical quote/base denominator
+	RawPriceNum        uint64 // On-chain contract buyToken/sellToken numerator
+	RawPriceDen        uint64 // On-chain contract buyToken/sellToken denominator
+	PriceDecimal       decimal.Decimal
+	RemainAmount       uint64 // SPACE Ask: base token; SPACE Bid: sats; FT/FT: locked sellToken units
+	MinFillAmount      uint64 // Minimum fill units (SPACE Ask/Bid: base token; FT/FT: sellToken units)
+	FeeHash20          string
+	FeeAddr            string
+	FeeBps             uint16
+	SaltHex            string
 }
 
 func MakePairKey(tokenCodeHash, tokenID string) string {
 	return strings.ToLower(strings.TrimSpace(tokenCodeHash)) + ":" + strings.ToLower(strings.TrimSpace(tokenID))
+}
+
+func MakeTokenPairKey(baseCodeHash, baseID, quoteCodeHash, quoteID string) string {
+	return MakePairKey(baseCodeHash, baseID) + "/" + MakePairKey(quoteCodeHash, quoteID)
+}
+
+func IsTokenPairKey(pairKey string) bool {
+	return strings.Contains(strings.TrimSpace(pairKey), "/")
+}
+
+func SplitPairKey(pairKey string) (baseCH, baseID, quoteCH, quoteID string, isTokenPair bool) {
+	pk := strings.ToLower(strings.TrimSpace(pairKey))
+	if idx := strings.Index(pk, "/"); idx > 0 {
+		left := pk[:idx]
+		right := pk[idx+1:]
+		lp := strings.SplitN(left, ":", 2)
+		rp := strings.SplitN(right, ":", 2)
+		if len(lp) == 2 && len(rp) == 2 {
+			return lp[0], lp[1], rp[0], rp[1], true
+		}
+	}
+	lp := strings.SplitN(pk, ":", 2)
+	if len(lp) == 2 {
+		return lp[0], lp[1], "", "", false
+	}
+	return "", "", "", "", false
+}
+
+// CanonicalizeTokenPair assigns deterministic Base/Quote roles to two distinct FT tokens
+// so both sides of any FT/FT market map into the exact same PairKey.
+// Returns canonical pairKey, baseCH, baseID, quoteCH, quoteID, and canonicalSide (SideAsk if sell==base, SideBid if sell==quote).
+func CanonicalizeTokenPair(sellCH, sellID, buyCH, buyID string) (pairKey, baseCH, baseID, quoteCH, quoteID string, canonicalSide uint8) {
+	sellKey := MakePairKey(sellCH, sellID)
+	buyKey := MakePairKey(buyCH, buyID)
+
+	quotePriorityMu.RLock()
+	sellRank := quotePriorityRank[sellKey]
+	buyRank := quotePriorityRank[buyKey]
+	quotePriorityMu.RUnlock()
+
+	sellIsBase := false
+	switch {
+	case buyRank > 0 && sellRank == 0:
+		sellIsBase = true
+	case sellRank > 0 && buyRank == 0:
+		sellIsBase = false
+	case buyRank > 0 && sellRank > 0:
+		// Lower rank number = stronger quote currency (e.g. WBTC rank 1 > USDT rank 2)
+		sellIsBase = buyRank < sellRank
+	default:
+		// Deterministic tie-breaker: lexicographically smaller token key is Base, larger is Quote
+		sellIsBase = sellKey < buyKey
+	}
+
+	if sellIsBase {
+		return sellKey + "/" + buyKey,
+			strings.ToLower(sellCH), strings.ToLower(sellID),
+			strings.ToLower(buyCH), strings.ToLower(buyID),
+			SideAsk
+	}
+	return buyKey + "/" + sellKey,
+		strings.ToLower(buyCH), strings.ToLower(buyID),
+		strings.ToLower(sellCH), strings.ToLower(sellID),
+		SideBid
 }
 
 func Hash160(data []byte) []byte {
@@ -106,9 +219,16 @@ func ParseOrderScriptHex(scriptHex string, net string) (*ParsedOrderTail, error)
 	return ParseOrderScript(raw, net)
 }
 
-// ParseOrderScript decodes an OrderAskV2 or OrderBidV2 locking script in pure Go.
+// ParseOrderScript decodes an OrderAskV2, OrderBidV2 (150B), or OrderTokenV2 (190B) locking script in pure Go.
 func ParseOrderScript(script []byte, net string) (*ParsedOrderTail, error) {
 	slen := len(script)
+	// Try 190-byte OrderTokenProto (FT <-> FT) first when tail markers match
+	if slen > TokenTailLen+1 &&
+		script[slen-TokenTailLen-1] == 0x6a &&
+		script[slen-TokenTailLen] == 0x4c &&
+		script[slen-TokenTailLen+1] == byte(TokenRawDataLen) {
+		return ParseOrderTokenScript(script, net)
+	}
 	if slen <= TailLen+1 {
 		return nil, errors.New("script too short for OrderProto tail")
 	}
@@ -151,6 +271,7 @@ func ParseOrderScript(script []byte, net string) (*ParsedOrderTail, error) {
 
 	return &ParsedOrderTail{
 		ScriptCodeHash: hex.EncodeToString(codeHash),
+		IsTokenOrder:   false,
 		OrderSide:      side,
 		MakerHash20:    hex.EncodeToString(makerHash),
 		MakerAddr:      Hash20ToAddress(makerHash, net),
@@ -159,6 +280,8 @@ func ParseOrderScript(script []byte, net string) (*ParsedOrderTail, error) {
 		PairKey:        MakePairKey(tokenCodeHashHex, tokenIDHex),
 		PriceNum:       priceNum,
 		PriceDen:       priceDen,
+		RawPriceNum:    priceNum,
+		RawPriceDen:    priceDen,
 		PriceDecimal:   priceDec,
 		RemainAmount:   remainAmount,
 		MinFillAmount:  minFill,
@@ -167,6 +290,137 @@ func ParseOrderScript(script []byte, net string) (*ParsedOrderTail, error) {
 		FeeBps:         feeBps,
 		SaltHex:        hex.EncodeToString(salt),
 	}, nil
+}
+
+// ParseOrderTokenScript decodes a 190-byte OrderTokenProto (FT <-> FT) locking script in pure Go
+// and normalizes its PairKey, Side, and PriceNum/PriceDen to canonical Base/Quote coordinates.
+func ParseOrderTokenScript(script []byte, net string) (*ParsedOrderTail, error) {
+	slen := len(script)
+	if slen <= TokenTailLen+1 {
+		return nil, errors.New("script too short for OrderTokenProto tail")
+	}
+	if script[slen-TokenTailLen-1] != 0x6a || script[slen-TokenTailLen] != 0x4c || script[slen-TokenTailLen+1] != byte(TokenRawDataLen) {
+		return nil, errors.New("invalid OrderTokenProto OP_RETURN / OP_PUSHDATA1 tail header")
+	}
+	hdr := script[slen-protoHeaderOffset : slen-protoHeaderOffset+20]
+	if !bytes.Equal(hdr, expectedTokenProtoHeader) {
+		return nil, errors.New("invalid OrderTokenProto version/type/flag")
+	}
+	rawSide := script[slen-orderSideOffset]
+	if rawSide != SideToken {
+		return nil, fmt.Errorf("invalid OrderTokenProto orderSide %d", rawSide)
+	}
+
+	makerHash := script[slen-makerAddrOffset : slen-orderSideOffset]
+	sellID := script[slen-tokSellIDOffset : slen-makerAddrOffset]
+	sellCH := script[slen-tokSellCodeHashOffset : slen-tokSellIDOffset]
+	buyID := script[slen-tokBuyIDOffset : slen-tokSellCodeHashOffset]
+	buyCH := script[slen-tokBuyCodeHashOffset : slen-tokBuyIDOffset]
+	rawPriceNum := binary.LittleEndian.Uint64(script[slen-tokPriceNumOffset : slen-tokBuyCodeHashOffset])
+	rawPriceDen := binary.LittleEndian.Uint64(script[slen-tokPriceDenOffset : slen-tokPriceNumOffset])
+	remainAmount := binary.LittleEndian.Uint64(script[slen-tokRemainOffset : slen-tokPriceDenOffset])
+	minFill := binary.LittleEndian.Uint64(script[slen-tokMinFillOffset : slen-tokRemainOffset])
+	feeHash := script[slen-tokFeeAddrOffset : slen-tokMinFillOffset]
+	feeBps := binary.LittleEndian.Uint16(script[slen-tokFeeBpsOffset : slen-tokFeeAddrOffset])
+	salt := script[slen-tokSaltOffset : slen-tokFeeBpsOffset]
+
+	if rawPriceNum == 0 || rawPriceDen == 0 {
+		return nil, errors.New("invalid zero price numerator or denominator")
+	}
+	if feeBps > MaxFeeBps {
+		return nil, fmt.Errorf("feeBps %d exceeds max %d", feeBps, MaxFeeBps)
+	}
+	if bytes.Equal(sellID, buyID) && bytes.Equal(sellCH, buyCH) {
+		return nil, errors.New("sellToken and buyToken must be distinct")
+	}
+
+	codeHash := Hash160(script[:slen-TokenTailLen])
+	sellCHHex := hex.EncodeToString(sellCH)
+	sellIDHex := hex.EncodeToString(sellID)
+	buyCHHex := hex.EncodeToString(buyCH)
+	buyIDHex := hex.EncodeToString(buyID)
+
+	pairKey, baseCH, baseID, quoteCH, quoteID, canonicalSide := CanonicalizeTokenPair(sellCHHex, sellIDHex, buyCHHex, buyIDHex)
+	priceNum, priceDen := rawPriceNum, rawPriceDen
+	if canonicalSide == SideBid {
+		// On-chain Bid locks Quote and requires Base at rawPrice = Base/Quote;
+		// canonical book price is Quote/Base = rawPriceDen/rawPriceNum.
+		priceNum, priceDen = rawPriceDen, rawPriceNum
+	}
+
+	return &ParsedOrderTail{
+		ScriptCodeHash:     hex.EncodeToString(codeHash),
+		IsTokenOrder:       true,
+		OrderSide:          canonicalSide,
+		MakerHash20:        hex.EncodeToString(makerHash),
+		MakerAddr:          Hash20ToAddress(makerHash, net),
+		TokenID:            baseID,
+		TokenCodeHash:      baseCH,
+		QuoteTokenID:       quoteID,
+		QuoteTokenCodeHash: quoteCH,
+		SellTokenCodeHash:  sellCHHex,
+		SellTokenID:        sellIDHex,
+		BuyTokenCodeHash:   buyCHHex,
+		BuyTokenID:         buyIDHex,
+		PairKey:            pairKey,
+		PriceNum:           priceNum,
+		PriceDen:           priceDen,
+		RawPriceNum:        rawPriceNum,
+		RawPriceDen:        rawPriceDen,
+		PriceDecimal:       PriceToDecimal(priceNum, priceDen),
+		RemainAmount:       remainAmount,
+		MinFillAmount:      minFill,
+		FeeHash20:          hex.EncodeToString(feeHash),
+		FeeAddr:            Hash20ToAddress(feeHash, net),
+		FeeBps:             feeBps,
+		SaltHex:            hex.EncodeToString(salt),
+	}, nil
+}
+
+// BuildOrderTokenTailHex builds a 190-byte OrderTokenProto tail (0x4c 0xbc + 188B payload) for tests.
+func BuildOrderTokenTailHex(
+	makerHash20 []byte,
+	sellTokenID, sellTokenCodeHash []byte,
+	buyTokenID, buyTokenCodeHash []byte,
+	rawPriceNum, rawPriceDen, remainAmount, minFill uint64,
+	feeHash20 []byte,
+	feeBps uint16,
+	salt []byte,
+) []byte {
+	payload := make([]byte, 0, TokenRawDataLen)
+	payload = append(payload, padOrSlice(salt, 8)...)
+	b2 := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b2, feeBps)
+	payload = append(payload, b2...)
+	payload = append(payload, padOrSlice(feeHash20, 20)...)
+
+	b8 := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b8, minFill)
+	payload = append(payload, b8...)
+	binary.LittleEndian.PutUint64(b8, remainAmount)
+	payload = append(payload, b8...)
+	binary.LittleEndian.PutUint64(b8, rawPriceDen)
+	payload = append(payload, b8...)
+	binary.LittleEndian.PutUint64(b8, rawPriceNum)
+	payload = append(payload, b8...)
+
+	payload = append(payload, padOrSlice(buyTokenCodeHash, 20)...)
+	payload = append(payload, padOrSlice(buyTokenID, 20)...)
+	payload = append(payload, padOrSlice(sellTokenCodeHash, 20)...)
+	payload = append(payload, padOrSlice(sellTokenID, 20)...)
+	payload = append(payload, padOrSlice(makerHash20, 20)...)
+	payload = append(payload, SideToken)
+
+	payload = append(payload, expectedTokenProtoHeader...)
+	b4 := make([]byte, 4)
+	binary.LittleEndian.PutUint32(b4, uint32(TokenRawDataLen-5))
+	payload = append(payload, b4...)
+	payload = append(payload, 0xff)
+
+	out := make([]byte, 0, TokenTailLen)
+	out = append(out, 0x4c, byte(TokenRawDataLen))
+	out = append(out, payload...)
+	return out
 }
 
 // BuildOrderTailHex builds a 150-byte OrderProto tail (0x4c 0x94 + 148B payload),

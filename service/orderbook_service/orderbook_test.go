@@ -2,6 +2,7 @@ package orderbook_service
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -436,5 +437,92 @@ func TestSyncerSnapshotEventsResetAndWS(t *testing.T) {
 	}
 	if syncer.ResetCount() != 1 || syncer.LastSeq() != 50 {
 		t.Fatalf("expected resetCount=1 lastSeq=50, got resetCount=%d lastSeq=%d", syncer.ResetCount(), syncer.LastSeq())
+	}
+}
+
+func TestOrderTokenV2ProtoBookAndRouter(t *testing.T) {
+	mcCH := bytes.Repeat([]byte{0x11}, 20)
+	mcID := bytes.Repeat([]byte{0x22}, 20)
+	wbtcCH := bytes.Repeat([]byte{0x33}, 20)
+	wbtcID := bytes.Repeat([]byte{0x44}, 20)
+	makerHash := bytes.Repeat([]byte{0xaa}, 20)
+	feeHash := bytes.Repeat([]byte{0xbb}, 20)
+
+	wbtcKey := MakePairKey(hex.EncodeToString(wbtcCH), hex.EncodeToString(wbtcID))
+	SetQuoteTokenPriority([]string{wbtcKey})
+	defer SetQuoteTokenPriority(nil)
+
+	codePrefix := []byte{0x01, 0x02, 0x03, 0x6a}
+
+	// 1. Maker sells 10,000 MC for WBTC at 500 WBTC / 1 MC -> Canonical ASK
+	askTail := BuildOrderTokenTailHex(makerHash, mcID, mcCH, wbtcID, wbtcCH, 500, 1, 10000, 1000, feeHash, 25, []byte{1, 2, 3, 4, 5, 6, 7, 8})
+	askScriptHex := hex.EncodeToString(append(append([]byte{}, codePrefix...), askTail...))
+	askOrder, err := ParseLiveOrder(strings.Repeat("a", 64), 0, DustLimit, askScriptHex, 100, false, 1700000000000, "mainnet")
+	if err != nil {
+		t.Fatalf("ParseLiveOrder token ask failed: %v", err)
+	}
+	if !askOrder.IsTokenOrder || askOrder.Side != SideAsk || askOrder.Price != "500" {
+		t.Fatalf("unexpected token ask: %+v", askOrder)
+	}
+
+	// 2. Maker locks 2,000,000 WBTC to buy MC at 400 WBTC / 1 MC (on-chain rawPrice = 1 MC / 400 WBTC) -> Canonical BID
+	bidTail := BuildOrderTokenTailHex(makerHash, wbtcID, wbtcCH, mcID, mcCH, 1, 400, 2000000, 400000, feeHash, 25, []byte{8, 7, 6, 5, 4, 3, 2, 1})
+	bidScriptHex := hex.EncodeToString(append(append([]byte{}, codePrefix...), bidTail...))
+	bidOrder, err := ParseLiveOrder(strings.Repeat("b", 64), 0, DustLimit, bidScriptHex, 101, false, 1700000001000, "mainnet")
+	if err != nil {
+		t.Fatalf("ParseLiveOrder token bid failed: %v", err)
+	}
+	if !bidOrder.IsTokenOrder || bidOrder.Side != SideBid || bidOrder.Price != "400" {
+		t.Fatalf("unexpected token bid: %+v", bidOrder)
+	}
+	if askOrder.PairKey != bidOrder.PairKey {
+		t.Fatalf("expected identical canonical pairKey, got ask=%s bid=%s", askOrder.PairKey, bidOrder.PairKey)
+	}
+
+	book := NewOrderBook("mainnet", NewMemorySoftLocker())
+	book.SetPairMetadataFull(askOrder.PairKey, "MC", 8, "WBTC", 8)
+	book.UpsertOrder(askOrder)
+	book.UpsertOrder(bidOrder)
+
+	depth := book.GetDepth(askOrder.PairKey, 0, 10)
+	if depth.BestAsk != "500" || depth.BestBid != "400" || depth.Spread != "100" {
+		t.Fatalf("unexpected FT/FT depth: %+v", depth)
+	}
+
+	// Route BUY 4,000 MC (takes canonical Ask -> pays WBTC)
+	buyPlan, err := book.RouteTake(RouteRequest{
+		PairKey:     askOrder.PairKey,
+		Side:        "buy",
+		TargetToken: 4000,
+	})
+	if err != nil {
+		t.Fatalf("RouteTake FT/FT buy failed: %v", err)
+	}
+	if !buyPlan.IsTokenPair || buyPlan.FilledToken != 4000 || buyPlan.TotalSats != 2000000 || buyPlan.Legs[0].FillSellAmount != 4000 {
+		t.Fatalf("unexpected FT/FT buyPlan: %+v", buyPlan)
+	}
+	if buyPlan.BuyTokenID != hex.EncodeToString(wbtcID) {
+		t.Fatalf("expected buyTokenID=WBTC, got %s", buyPlan.BuyTokenID)
+	}
+
+	// Route SELL 3,000 MC (takes canonical Bid -> pays MC, receives 1,200,000 WBTC)
+	sellPlan, err := book.RouteTake(RouteRequest{
+		PairKey:     askOrder.PairKey,
+		Side:        "sell",
+		TargetToken: 3000,
+	})
+	if err != nil {
+		t.Fatalf("RouteTake FT/FT sell failed: %v", err)
+	}
+	if !sellPlan.IsTokenPair || sellPlan.FilledToken != 3000 || sellPlan.TotalSats != 1200000 || sellPlan.Legs[0].FillSellAmount != 1200000 {
+		t.Fatalf("unexpected FT/FT sellPlan: %+v", sellPlan)
+	}
+	if sellPlan.BuyTokenID != hex.EncodeToString(mcID) {
+		t.Fatalf("expected buyTokenID=MC, got %s", sellPlan.BuyTokenID)
+	}
+
+	pairs := book.ListPairs()
+	if len(pairs) != 1 || !pairs[0].IsTokenPair || pairs[0].Symbol != "MC" || pairs[0].QuoteSymbol != "WBTC" {
+		t.Fatalf("unexpected FT/FT pair summary: %+v", pairs)
 	}
 }

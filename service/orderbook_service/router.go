@@ -31,26 +31,35 @@ type RouteRequest struct {
 
 // PlannedLeg is a single order UTXO fill selected by the Smart Order Router.
 type PlannedLeg struct {
-	Outpoint      string `json:"outpoint"`
-	OrderTxid     string `json:"orderTxid"`
-	OrderVout     int    `json:"orderVout"`
-	TokenTxid     string `json:"tokenTxid,omitempty"`
-	TokenVout     int    `json:"tokenVout,omitempty"`
-	MakerAddr     string `json:"makerAddr"`
-	PriceNum      uint64 `json:"priceNum"`
-	PriceDen      uint64 `json:"priceDen"`
-	Price         string `json:"price"`
-	FillToken     uint64 `json:"fillToken"`
-	SatsAmount    uint64 `json:"satsAmount"` // Ask: grossSats paid to maker; Bid: spendSats spent from bid
-	FeeSats       uint64 `json:"feeSats"`
-	NetTakerSats  uint64 `json:"netTakerSats"` // Ask: grossSats + feeSats paid; Bid: spendSats - feeSats received (before miner fee)
-	IsPartial     bool   `json:"isPartial"`
-	RemainAfter   uint64 `json:"remainAfter"` // Ask: remain token; Bid: remain sats
+	Outpoint          string `json:"outpoint"`
+	OrderTxid         string `json:"orderTxid"`
+	OrderVout         int    `json:"orderVout"`
+	TokenTxid         string `json:"tokenTxid,omitempty"`
+	TokenVout         int    `json:"tokenVout,omitempty"`
+	IsTokenOrder      bool   `json:"isTokenOrder,omitempty"`
+	SellTokenCodeHash string `json:"sellTokenCodeHash,omitempty"`
+	SellTokenID       string `json:"sellTokenID,omitempty"`
+	BuyTokenCodeHash  string `json:"buyTokenCodeHash,omitempty"`
+	BuyTokenID        string `json:"buyTokenID,omitempty"`
+	FillSellAmount    uint64 `json:"fillSellAmount,omitempty"`
+	MakerAddr         string `json:"makerAddr"`
+	PriceNum          uint64 `json:"priceNum"`
+	PriceDen          uint64 `json:"priceDen"`
+	Price             string `json:"price"`
+	FillToken         uint64 `json:"fillToken"`
+	SatsAmount        uint64 `json:"satsAmount"` // SPACE or Quote FT units
+	FeeSats           uint64 `json:"feeSats"`
+	NetTakerSats      uint64 `json:"netTakerSats"` // Ask: quote+fee paid; Bid: quote received
+	IsPartial         bool   `json:"isPartial"`
+	RemainAfter       uint64 `json:"remainAfter"` // SPACE Ask: remain base; SPACE Bid: remain sats; FT/FT: remain sellToken
 }
 
 // RoutePlan is the Smart Order Router output passed directly to /take/quote and sidecar prepare.
 type RoutePlan struct {
 	PairKey           string       `json:"pairKey"`
+	IsTokenPair       bool         `json:"isTokenPair,omitempty"`
+	BuyTokenCodeHash  string       `json:"buyTokenCodeHash,omitempty"`
+	BuyTokenID        string       `json:"buyTokenID,omitempty"`
 	Side              string       `json:"side"` // "buy" or "sell"
 	RequestedToken    uint64       `json:"requestedToken"`
 	FilledToken       uint64       `json:"filledToken"`
@@ -184,8 +193,11 @@ func (b *OrderBook) RouteTake(req RouteRequest) (*RoutePlan, error) {
 		avgPrice = decimal.NewFromInt(int64(totalSats)).DivRound(decimal.NewFromInt(int64(totalFilled)), 12)
 	}
 
+	isTokenPair := IsTokenPairKey(pairKey) || legs[0].IsTokenOrder
 	var estMinerFee uint64
-	if side == "buy" {
+	if isTokenPair {
+		estMinerFee = uint64(12000 + len(legs)*24000)
+	} else if side == "buy" {
 		estMinerFee = uint64(3000 + len(legs)*12000)
 	} else {
 		estMinerFee = uint64(11000 + len(legs)*11000)
@@ -193,6 +205,9 @@ func (b *OrderBook) RouteTake(req RouteRequest) (*RoutePlan, error) {
 
 	return &RoutePlan{
 		PairKey:           pairKey,
+		IsTokenPair:       isTokenPair,
+		BuyTokenCodeHash:  legs[0].BuyTokenCodeHash,
+		BuyTokenID:        legs[0].BuyTokenID,
 		Side:              side,
 		RequestedToken:    req.TargetToken,
 		FilledToken:       totalFilled,
@@ -208,6 +223,9 @@ func (b *OrderBook) RouteTake(req RouteRequest) (*RoutePlan, error) {
 
 // planOrderLeg determines the maximum contract-valid fillToken <= wantToken for one order UTXO.
 func planOrderLeg(o *LiveOrder, wantToken uint64) (PlannedLeg, bool) {
+	if o.IsTokenOrder {
+		return planTokenOrderLeg(o, wantToken)
+	}
 	if o.Side == SideAsk {
 		fill := wantToken
 		if fill > o.RemainToken {
@@ -323,5 +341,128 @@ func planOrderLeg(o *LiveOrder, wantToken uint64) (PlannedLeg, bool) {
 		NetTakerSats: spend - fee,
 		IsPartial:    remainSatsNext > 0,
 		RemainAfter:  remainSatsNext,
+	}, true
+}
+
+// planTokenOrderLeg plans a contract-valid OrderTokenV2 fill for either canonical Ask (sell=Base, buy=Quote)
+// or canonical Bid (sell=Quote, buy=Base).
+func planTokenOrderLeg(o *LiveOrder, wantBaseToken uint64) (PlannedLeg, bool) {
+	if o.RemainAmount == 0 || o.RawPriceNum == 0 || o.RawPriceDen == 0 {
+		return PlannedLeg{}, false
+	}
+
+	if o.Side == SideAsk {
+		// Maker sells Base (sellToken) for Quote (buyToken). Taker wants wantBaseToken Base.
+		fillBase := wantBaseToken
+		if fillBase > o.RemainAmount {
+			fillBase = o.RemainAmount
+		}
+		if fillBase < o.RemainAmount {
+			if fillBase < o.MinFillAmount {
+				return PlannedLeg{}, false
+			}
+			remainNext := o.RemainAmount - fillBase
+			if remainNext < o.MinFillAmount {
+				if o.RemainAmount >= 2*o.MinFillAmount {
+					fillBase = o.RemainAmount - o.MinFillAmount
+				} else {
+					return PlannedLeg{}, false
+				}
+			}
+		}
+		if fillBase == 0 {
+			return PlannedLeg{}, false
+		}
+		buyQuote := CalcAskGrossSats(fillBase, o.RawPriceNum, o.RawPriceDen)
+		if buyQuote == 0 {
+			return PlannedLeg{}, false
+		}
+		feeQuote := CalcFeeSats(buyQuote, o.FeeBps)
+		if o.FeeAddr == "" {
+			feeQuote = 0
+		}
+		remainAfter := o.RemainAmount - fillBase
+		return PlannedLeg{
+			Outpoint:          o.Outpoint,
+			OrderTxid:         o.Txid,
+			OrderVout:         o.Vout,
+			TokenTxid:         o.TokenTxid,
+			TokenVout:         o.TokenVout,
+			IsTokenOrder:      true,
+			SellTokenCodeHash: o.SellTokenCodeHash,
+			SellTokenID:       o.SellTokenID,
+			BuyTokenCodeHash:  o.BuyTokenCodeHash,
+			BuyTokenID:        o.BuyTokenID,
+			FillSellAmount:    fillBase,
+			MakerAddr:         o.MakerAddr,
+			PriceNum:          o.PriceNum,
+			PriceDen:          o.PriceDen,
+			Price:             o.Price,
+			FillToken:         fillBase,
+			SatsAmount:        buyQuote,
+			FeeSats:           feeQuote,
+			NetTakerSats:      buyQuote + feeQuote,
+			IsPartial:         remainAfter > 0,
+			RemainAfter:       remainAfter,
+		}, true
+	}
+
+	// Canonical Bid: Maker sells Quote (sellToken, remainAmount=Quote) for Base (buyToken).
+	// Taker wants to sell <= wantBaseToken Base and receive fillQuote Quote.
+	// Contract enforces: buyBase = ceil(fillQuote * rawPriceNum / rawPriceDen).
+	fillQuote := CalcBidMaxToken(wantBaseToken, o.RawPriceNum, o.RawPriceDen)
+	if fillQuote > o.RemainAmount {
+		fillQuote = o.RemainAmount
+	}
+	for fillQuote > 0 && CalcAskGrossSats(fillQuote, o.RawPriceNum, o.RawPriceDen) > wantBaseToken {
+		fillQuote--
+	}
+	if fillQuote == 0 {
+		return PlannedLeg{}, false
+	}
+	if fillQuote < o.RemainAmount {
+		if fillQuote < o.MinFillAmount {
+			return PlannedLeg{}, false
+		}
+		remainQuoteNext := o.RemainAmount - fillQuote
+		if remainQuoteNext < o.MinFillAmount {
+			if o.RemainAmount >= 2*o.MinFillAmount {
+				fillQuote = o.RemainAmount - o.MinFillAmount
+			} else {
+				return PlannedLeg{}, false
+			}
+		}
+	}
+	buyBase := CalcAskGrossSats(fillQuote, o.RawPriceNum, o.RawPriceDen)
+	if buyBase == 0 || buyBase > wantBaseToken {
+		return PlannedLeg{}, false
+	}
+	feeBase := CalcFeeSats(buyBase, o.FeeBps)
+	if o.FeeAddr == "" {
+		feeBase = 0
+	}
+	remainAfter := o.RemainAmount - fillQuote
+	return PlannedLeg{
+		Outpoint:          o.Outpoint,
+		OrderTxid:         o.Txid,
+		OrderVout:         o.Vout,
+		TokenTxid:         o.TokenTxid,
+		TokenVout:         o.TokenVout,
+		IsTokenOrder:      true,
+		SellTokenCodeHash: o.SellTokenCodeHash,
+		SellTokenID:       o.SellTokenID,
+		BuyTokenCodeHash:  o.BuyTokenCodeHash,
+		BuyTokenID:        o.BuyTokenID,
+		FillSellAmount:    fillQuote,
+		MakerAddr:         o.MakerAddr,
+		PriceNum:          o.PriceNum,
+		PriceDen:          o.PriceDen,
+		Price:             o.Price,
+		FillToken:         buyBase,
+		SatsAmount:        fillQuote,
+		FeeSats:           feeBase,
+		NetTakerSats:      fillQuote,
+		IsPartial:         remainAfter > 0,
+		RemainAfter:       remainAfter,
 	}, true
 }

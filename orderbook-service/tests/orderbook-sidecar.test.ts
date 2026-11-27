@@ -49,7 +49,8 @@ async function runTests() {
   // Verify mainnet codehashes match Phase 1 compiled outputs
   assert.strictEqual(contracts.askCodeHashHex, '2704a8071b898b895b6d7bac3158959cea17c6d7', 'askCodeHash mismatch')
   assert.strictEqual(contracts.bidCodeHashHex, 'fdf3bc81875c241e4bb58c54fe3272ad6bbccebc', 'bidCodeHash mismatch')
-  console.log('[PASS] Mainnet OrderAskV2 & OrderBidV2 codehashes verified')
+  assert.strictEqual(contracts.tokenOrderCodeHashHex, 'e4082bffecd647405c2a9b3d5f23d7abb2f6018e', 'tokenOrderCodeHash mismatch')
+  console.log('[PASS] Mainnet OrderAskV2, OrderBidV2 & OrderTokenV2 codehashes verified')
 
   // Compute actual local contract check hashes (matching compiled tokenTransferCheck / tokenUnlockContractCheck)
   const tcHashHex = mvc.crypto.Hash.sha256ripemd160(
@@ -424,12 +425,226 @@ async function runTests() {
   // Verify remaining canonical Go proxy routes are registered (return 400 validation, never 404)
   for (const route of [
     '/internal/ob/place/ask/prepare',
+    '/internal/ob/place/token/prepare',
     '/internal/ob/take/ask/prepare',
     '/internal/ob/take/bid/prepare',
+    '/internal/ob/take/token/prepare',
   ]) {
     const resp = await axios.post(`${baseUrl}${route}`, {}, { validateStatus: () => true })
     assert.strictEqual(resp.status, 400, `expected 400 validation error on ${route}, got ${resp.status}`)
   }
+
+  // =========================================================================
+  // FLOW 6 & 7: FT <-> FT OrderTokenV2 (Place -> Partial Take -> 0-conf Full Take & Maker Cancel)
+  // =========================================================================
+  const wbtcGenInst = new TokenGenesisClass()
+  wbtcGenInst.setDataPart(
+    Common.buildScriptData(
+      Buffer.concat([
+        Buffer.alloc(40, 2),
+        Buffer.alloc(20, 2),
+        Buffer.from([8]),
+        Buffer.from(new mvc.Address(addrTaker, 'testnet').hashBuffer),
+        Buffer.alloc(8, 0),
+        Buffer.alloc(20, 0),
+        Buffer.alloc(36, 0),
+        Common.getUInt32Buf(1),
+        Common.getUInt32Buf(1),
+        Buffer.from('metacontract'),
+      ])
+    ).toString('hex')
+  )
+  const wbtcGenTx = new mvc.Transaction()
+  wbtcGenTx.version = Common.TX_VERSION
+  wbtcGenTx.addInput(
+    new mvc.Transaction.Input({
+      output: new mvc.Transaction.Output({ script: mvc.Script.buildPublicKeyHashOut(addrTaker), satoshis: DUST }),
+      prevTxId: Common.dummyTxId,
+      outputIndex: 2,
+      script: mvc.Script.empty(),
+    })
+  )
+  wbtcGenTx.addOutput(new mvc.Transaction.Output({ script: wbtcGenInst.lockingScript, satoshis: DUST }))
+  const wbtcGenTxid = chain.registerTx(wbtcGenTx)
+  const wbtcGenesisHash = mvc.crypto.Hash.sha256ripemd160(wbtcGenInst.lockingScript.toBuffer())
+  const wbtcGenesisTxidBuf = Buffer.concat([Common.getTxIdBuf(wbtcGenTxid), Common.getUInt32Buf(0)])
+
+  function mintWbtcFor(ownerAddr: string, amount: bigint) {
+    const ownerHash = Buffer.from(new mvc.Address(ownerAddr, 'testnet').hashBuffer)
+    const tokInst = new contracts.Token(
+      transferCheckHashesHex.map((h) => new scrypt.Bytes(h)),
+      unlockCheckHashesHex.map((h) => new scrypt.Bytes(h))
+    )
+    const data = Common.buildScriptData(
+      Buffer.concat([
+        Buffer.alloc(40, 2),
+        Buffer.alloc(20, 2),
+        Buffer.from([8]),
+        ownerHash,
+        Common.getUInt64Buf(amount),
+        wbtcGenesisHash,
+        wbtcGenesisTxidBuf,
+        Common.getUInt32Buf(1),
+        Common.getUInt32Buf(1),
+        Buffer.from('metacontract'),
+      ])
+    )
+    tokInst.setDataPart(data.toString('hex'))
+    const tx = new mvc.Transaction()
+    tx.version = Common.TX_VERSION
+    tx.addInput(
+      new mvc.Transaction.Input({
+        output: new mvc.Transaction.Output({ script: wbtcGenInst.lockingScript, satoshis: DUST }),
+        prevTxId: wbtcGenTxid,
+        outputIndex: 0,
+        script: mvc.Script.empty(),
+      })
+    )
+    tx.addOutput(new mvc.Transaction.Output({ script: tokInst.lockingScript, satoshis: DUST }))
+    const txid = chain.registerTx(tx)
+    const buf = tokInst.lockingScript.toBuffer()
+    return {
+      txid,
+      vout: 0,
+      satoshis: DUST,
+      scriptHex: buf.toString('hex'),
+      tokenAmount: amount,
+      tokenCodeHash: TokenProto.getScriptCodeHash(buf).toString('hex'),
+      tokenID: TokenProto.getTokenID(buf).toString('hex'),
+    }
+  }
+
+  const makerMcForTok = mintTokenFor(addrMaker, BigInt(1000))
+  const takerWbtc1 = mintWbtcFor(addrTaker, BigInt(1000000))
+  const makerWbtc1 = mintWbtcFor(addrMaker, BigInt(300000))
+  const wbtcMeta = { codeHash: takerWbtc1.tokenCodeHash, tokenID: takerWbtc1.tokenID }
+  chain.setTokenUtxos(addrMaker, [makerMcForTok, makerWbtc1])
+  chain.setTokenUtxos(addrTaker, [takerWbtc1])
+  chain.setMvcUtxos(addrMaker, [fundMvc(addrMaker, 5_000_000)])
+  chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+
+  // Flow 6: Maker sells 1000 MC for WBTC (500 WBTC per MC) -> Taker partial fills 400 -> 0-conf full fills 600
+  const tokPlaceDraft = await builder.buildPlaceTokenOrder({
+    makerAddress: addrMaker,
+    sellTokenCodeHash: tokenCodeHash,
+    sellTokenID: tokenID,
+    buyTokenCodeHash: wbtcMeta.codeHash,
+    buyTokenID: wbtcMeta.tokenID,
+    sellAmount: '1000',
+    priceNum: '500',
+    priceDen: '1',
+    minFillAmount: '200',
+    feeBps: 25,
+    feeAddress: addrFee,
+  })
+  const tokPlaceRes = await completeDraft(builder, tokPlaceDraft, privMaker)
+  assert.strictEqual(tokPlaceRes.verified, true)
+  assert.strictEqual(tokPlaceRes.newOrders.length, 1)
+  const tokOrder1 = tokPlaceRes.newOrders[0]
+  assert.strictEqual(tokOrder1.side, 'token')
+  assert.strictEqual(tokOrder1.remainAmount, '1000')
+
+  const tokTake1Draft = await builder.buildTakeTokenOrder({
+    takerAddress: addrTaker,
+    buyTokenCodeHash: wbtcMeta.codeHash,
+    buyTokenID: wbtcMeta.tokenID,
+    legs: [
+      {
+        orderTxid: tokOrder1.txid,
+        orderVout: tokOrder1.vout,
+        tokenTxid: tokOrder1.tokenTxid!,
+        tokenVout: tokOrder1.tokenVout!,
+        fillSellAmount: '400',
+      },
+    ],
+  })
+  const tokTake1Res = await completeDraft(builder, tokTake1Draft, privTaker)
+  assert.strictEqual(tokTake1Res.verified, true)
+  assert.strictEqual(tokTake1Res.txids.length, 3) // PrepTx + DepositTx + 0-sig SettleTx
+  assert.strictEqual(tokTake1Res.newOrders.length, 1)
+  const tokOrder2 = tokTake1Res.newOrders[0]
+  assert.strictEqual(tokOrder2.remainAmount, '600')
+
+  // 0-conf Full Take on continuation OrderTokenV2!
+  const takerWbtc2 = mintWbtcFor(addrTaker, BigInt(1000000))
+  chain.setTokenUtxos(addrTaker, [takerWbtc2])
+  chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+  const tokTake2Draft = await builder.buildTakeTokenOrder({
+    takerAddress: addrTaker,
+    buyTokenCodeHash: wbtcMeta.codeHash,
+    buyTokenID: wbtcMeta.tokenID,
+    legs: [
+      {
+        orderTxid: tokOrder2.txid,
+        orderVout: tokOrder2.vout,
+        tokenTxid: tokOrder2.tokenTxid!,
+        tokenVout: tokOrder2.tokenVout!,
+        fillSellAmount: '600',
+      },
+    ],
+  })
+  const tokTake2Res = await completeDraft(builder, tokTake2Draft, privTaker)
+  assert.strictEqual(tokTake2Res.verified, true)
+  assert.strictEqual(tokTake2Res.newOrders.length, 0)
+  console.log('[PASS] Flow 6: FT<->FT Place -> Partial Take -> 0-conf Full Take via OrderTokenFiller verified')
+
+  // Flow 7: Maker places WBTC->MC order via HTTP & cancels via HTTP /internal/ob/cancel/prepare (side: token)
+  const httpTokPrep = await axios.post(`${baseUrl}/internal/ob/place/token/prepare`, {
+    makerAddress: addrMaker,
+    sellTokenCodeHash: wbtcMeta.codeHash,
+    sellTokenID: wbtcMeta.tokenID,
+    buyTokenCodeHash: tokenCodeHash,
+    buyTokenID: tokenID,
+    sellAmount: '200000',
+    priceNum: '1',
+    priceDen: '500',
+    minFillAmount: '50000',
+    feeBps: 0,
+  })
+  assert.strictEqual(httpTokPrep.data.code, 0)
+  let tokDraft = httpTokPrep.data.data
+  let tokFinData: any = null
+  for (let s = 0; s < 3; s++) {
+    const sigs = signRequestsWithPrivKey(tokDraft.signRequests, privMaker)
+    const fin = await axios.post(`${baseUrl}/internal/ob/finalize`, {
+      draftId: tokDraft.draftId,
+      signatures: sigs,
+      broadcast: true,
+    })
+    assert.strictEqual(fin.data.code, 0)
+    tokFinData = fin.data.data
+    if (tokFinData.status === 'completed') break
+    tokDraft = tokFinData
+  }
+  assert.strictEqual(tokFinData.status, 'completed')
+  const tokCancelTarget = tokFinData.newOrders[0]
+
+  const httpTokCancelPrep = await axios.post(`${baseUrl}/internal/ob/cancel/prepare`, {
+    makerAddress: addrMaker,
+    side: 'token',
+    orderTxid: tokCancelTarget.txid,
+    orderVout: tokCancelTarget.vout,
+    tokenTxid: tokCancelTarget.tokenTxid,
+    tokenVout: tokCancelTarget.tokenVout,
+  })
+  assert.strictEqual(httpTokCancelPrep.data.code, 0)
+  let cDraft = httpTokCancelPrep.data.data
+  let cFinData: any = null
+  for (let s = 0; s < 3; s++) {
+    const sigs = signRequestsWithPrivKey(cDraft.signRequests, privMaker)
+    const fin = await axios.post(`${baseUrl}/internal/ob/finalize`, {
+      draftId: cDraft.draftId,
+      signatures: sigs,
+      broadcast: true,
+    })
+    assert.strictEqual(fin.data.code, 0)
+    cFinData = fin.data.data
+    if (cFinData.status === 'completed') break
+    cDraft = cFinData
+  }
+  assert.strictEqual(cFinData.status, 'completed')
+  assert.strictEqual(cFinData.verified, true)
+  console.log('[PASS] Flow 7: FT<->FT HTTP Place & Maker Cancel verified')
 
   srv.close()
   console.log('[PASS] Flow 5: HTTP sidecar health & canonical Go proxy routes verified')

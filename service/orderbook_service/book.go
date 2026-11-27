@@ -14,38 +14,47 @@ const (
 	maxInMemoryTradesPerPair = 500
 )
 
-// LiveOrder represents one currently unspent OrderAskV2 or OrderBidV2 UTXO in the orderbook.
+// LiveOrder represents one currently unspent OrderAskV2, OrderBidV2, or OrderTokenV2 UTXO in the orderbook.
 type LiveOrder struct {
-	Outpoint       string          `json:"outpoint"`
-	Txid           string          `json:"txid"`
-	Vout           int             `json:"vout"`
-	TokenTxid      string          `json:"tokenTxid,omitempty"`
-	TokenVout      int             `json:"tokenVout"`
-	CodeHash       string          `json:"codeHash"`
-	Side           uint8           `json:"side"` // 1=ask, 2=bid
-	SideName       string          `json:"sideName"`
-	PairKey        string          `json:"pairKey"`
-	TokenCodeHash  string          `json:"tokenCodeHash"`
-	TokenID        string          `json:"tokenID"`
-	MakerAddr      string          `json:"makerAddr"`
-	MakerHash20    string          `json:"makerHash20"`
-	PriceNum       uint64          `json:"priceNum"`
-	PriceDen       uint64          `json:"priceDen"`
-	Price          string          `json:"price"`
-	PriceDecimal   decimal.Decimal `json:"-"`
-	RemainAmount   uint64          `json:"remainAmount"` // ask=token, bid=sats
-	RemainToken    uint64          `json:"remainToken"`  // normalized token capacity
-	RemainSats     uint64          `json:"remainSats"`   // normalized SPACE capacity
-	MinFillAmount  uint64          `json:"minFillAmount"`
-	FeeBps         uint16          `json:"feeBps"`
-	FeeAddr        string          `json:"feeAddr"`
-	SaltHex        string          `json:"saltHex"`
-	Satoshis       uint64          `json:"satoshis"`
-	ScriptHex      string          `json:"scriptHex,omitempty"`
-	Height         int64           `json:"height"`
-	IsMempool      bool            `json:"isMempool"`
-	CreatedAt      int64           `json:"createdAt"` // unix ms
-	SoftLocked     bool            `json:"softLocked,omitempty"`
+	Outpoint           string          `json:"outpoint"`
+	Txid               string          `json:"txid"`
+	Vout               int             `json:"vout"`
+	TokenTxid          string          `json:"tokenTxid,omitempty"`
+	TokenVout          int             `json:"tokenVout"`
+	CodeHash           string          `json:"codeHash"`
+	IsTokenOrder       bool            `json:"isTokenOrder,omitempty"`
+	Side               uint8           `json:"side"` // 1=ask, 2=bid (canonical in PairKey)
+	SideName           string          `json:"sideName"`
+	PairKey            string          `json:"pairKey"`
+	TokenCodeHash      string          `json:"tokenCodeHash"`
+	TokenID            string          `json:"tokenID"`
+	QuoteTokenCodeHash string          `json:"quoteTokenCodeHash,omitempty"`
+	QuoteTokenID       string          `json:"quoteTokenID,omitempty"`
+	SellTokenCodeHash  string          `json:"sellTokenCodeHash,omitempty"`
+	SellTokenID        string          `json:"sellTokenID,omitempty"`
+	BuyTokenCodeHash   string          `json:"buyTokenCodeHash,omitempty"`
+	BuyTokenID         string          `json:"buyTokenID,omitempty"`
+	MakerAddr          string          `json:"makerAddr"`
+	MakerHash20        string          `json:"makerHash20"`
+	PriceNum           uint64          `json:"priceNum"`
+	PriceDen           uint64          `json:"priceDen"`
+	RawPriceNum        uint64          `json:"rawPriceNum,omitempty"`
+	RawPriceDen        uint64          `json:"rawPriceDen,omitempty"`
+	Price              string          `json:"price"`
+	PriceDecimal       decimal.Decimal `json:"-"`
+	RemainAmount       uint64          `json:"remainAmount"` // SPACE ask=base, SPACE bid=sats, FT/FT=sellToken
+	RemainToken        uint64          `json:"remainToken"`  // normalized Base token capacity
+	RemainSats         uint64          `json:"remainSats"`   // normalized Quote capacity (sats or Quote FT raw units)
+	MinFillAmount      uint64          `json:"minFillAmount"`
+	FeeBps             uint16          `json:"feeBps"`
+	FeeAddr            string          `json:"feeAddr"`
+	SaltHex            string          `json:"saltHex"`
+	Satoshis           uint64          `json:"satoshis"`
+	ScriptHex          string          `json:"scriptHex,omitempty"`
+	Height             int64           `json:"height"`
+	IsMempool          bool            `json:"isMempool"`
+	CreatedAt          int64           `json:"createdAt"` // unix ms
+	SoftLocked         bool            `json:"softLocked,omitempty"`
 }
 
 // DepthLevel is a single aggregated price bucket in the L2 orderbook.
@@ -105,37 +114,46 @@ type KlineBar struct {
 
 // PairSummary is returned by GET /api/v1/orderbook/pairs.
 type PairSummary struct {
-	PairKey       string `json:"pairKey"`
-	TokenCodeHash string `json:"tokenCodeHash"`
-	TokenID       string `json:"tokenID"`
-	Symbol        string `json:"symbol"`
-	Decimals      int    `json:"decimals"`
-	BestBid       string `json:"bestBid"`
-	BestAsk       string `json:"bestAsk"`
-	LastPrice     string `json:"lastPrice"`
-	Change24hPct  string `json:"change24hPct"`
-	Volume24hTok  uint64 `json:"volume24hToken"`
-	Volume24hSats uint64 `json:"volume24hSats"`
-	AskCount      int    `json:"askCount"`
-	BidCount      int    `json:"bidCount"`
+	PairKey            string `json:"pairKey"`
+	IsTokenPair        bool   `json:"isTokenPair,omitempty"`
+	TokenCodeHash      string `json:"tokenCodeHash"`
+	TokenID            string `json:"tokenID"`
+	Symbol             string `json:"symbol"`
+	Decimals           int    `json:"decimals"`
+	QuoteTokenCodeHash string `json:"quoteTokenCodeHash,omitempty"`
+	QuoteTokenID       string `json:"quoteTokenID,omitempty"`
+	QuoteSymbol        string `json:"quoteSymbol"`
+	QuoteDecimals      int    `json:"quoteDecimals"`
+	BestBid            string `json:"bestBid"`
+	BestAsk            string `json:"bestAsk"`
+	LastPrice          string `json:"lastPrice"`
+	Change24hPct       string `json:"change24hPct"`
+	Volume24hTok       uint64 `json:"volume24hToken"`
+	Volume24hSats      uint64 `json:"volume24hSats"`
+	AskCount           int    `json:"askCount"`
+	BidCount           int    `json:"bidCount"`
 }
 
 // PairMetadata stores optional display info for a token pair.
 type PairMetadata struct {
-	Symbol   string
-	Decimals int
+	Symbol        string
+	Decimals      int
+	QuoteSymbol   string
+	QuoteDecimals int
+	OrderIndex    int
 }
 
 // OrderBook maintains the live in-memory L3 orderbook, L2 aggregator, and recent trades.
 type OrderBook struct {
-	mu       sync.RWMutex
-	net      string
-	locker   SoftLocker
-	orders   map[string]*LiveOrder            // outpoint -> LiveOrder
-	byPair   map[string]map[string]*LiveOrder // pairKey -> outpoint -> LiveOrder
-	bySalt   map[string]*LiveOrder            // saltHex -> latest active LiveOrder
-	trades   map[string][]TradeRecord         // pairKey -> newest-last ring buffer
-	pairMeta map[string]PairMetadata
+	mu           sync.RWMutex
+	net          string
+	locker       SoftLocker
+	orders       map[string]*LiveOrder            // outpoint -> LiveOrder
+	byPair       map[string]map[string]*LiveOrder // pairKey -> outpoint -> LiveOrder
+	bySalt       map[string]*LiveOrder            // saltHex -> latest active LiveOrder
+	trades       map[string][]TradeRecord         // pairKey -> newest-last ring buffer
+	pairMeta     map[string]PairMetadata
+	nextMetaSeq  int
 }
 
 func NewOrderBook(net string, locker SoftLocker) *OrderBook {
@@ -158,9 +176,41 @@ func (b *OrderBook) Locker() SoftLocker {
 }
 
 func (b *OrderBook) SetPairMetadata(pairKey, symbol string, decimals int) {
+	b.SetPairMetadataFull(pairKey, symbol, decimals, "", 0)
+}
+
+func (b *OrderBook) SetPairMetadataFull(pairKey, symbol string, decimals int, quoteSymbol string, quoteDecimals int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.pairMeta[strings.ToLower(pairKey)] = PairMetadata{Symbol: symbol, Decimals: decimals}
+	k := strings.ToLower(pairKey)
+	if quoteSymbol == "" && !IsTokenPairKey(k) {
+		quoteSymbol = "SPACE"
+	}
+	if quoteDecimals <= 0 {
+		quoteDecimals = 8
+	}
+	existing, ok := b.pairMeta[k]
+	orderIdx := existing.OrderIndex
+	if !ok {
+		b.nextMetaSeq++
+		orderIdx = b.nextMetaSeq
+	}
+	if symbol == "" {
+		symbol = existing.Symbol
+	}
+	if decimals <= 0 && existing.Decimals > 0 {
+		decimals = existing.Decimals
+	}
+	if quoteSymbol == "" {
+		quoteSymbol = existing.QuoteSymbol
+	}
+	b.pairMeta[k] = PairMetadata{
+		Symbol:        symbol,
+		Decimals:      decimals,
+		QuoteSymbol:   quoteSymbol,
+		QuoteDecimals: quoteDecimals,
+		OrderIndex:    orderIdx,
+	}
 }
 
 // ResetSnapshot replaces the entire live order table atomically (used on bootstrap or Higun resetRequired).
@@ -189,6 +239,14 @@ func (b *OrderBook) UpsertOrder(o *LiveOrder) {
 }
 
 func (b *OrderBook) upsertLocked(o *LiveOrder) {
+	// Preserve exact LockTokenTx outpoint when an optimistic entry already knows it
+	// and a subsequent Higun created event arrives with only the default vout+1 heuristic.
+	if prev, ok := b.orders[o.Outpoint]; ok && prev != nil {
+		if prev.TokenTxid != "" && prev.TokenTxid != prev.Txid && (o.TokenTxid == "" || o.TokenTxid == o.Txid) {
+			o.TokenTxid = prev.TokenTxid
+			o.TokenVout = prev.TokenVout
+		}
+	}
 	b.orders[o.Outpoint] = o
 	pm, ok := b.byPair[o.PairKey]
 	if !ok {
@@ -263,33 +321,54 @@ func ParseLiveOrder(txid string, vout int, satoshis uint64, scriptHex string, he
 	}
 	outpoint := fmt.Sprintf("%s:%d", strings.ToLower(txid), vout)
 	lo := &LiveOrder{
-		Outpoint:      outpoint,
-		Txid:          strings.ToLower(txid),
-		Vout:          vout,
-		TokenVout:     -1,
-		CodeHash:      parsed.ScriptCodeHash,
-		Side:          parsed.OrderSide,
-		PairKey:       parsed.PairKey,
-		TokenCodeHash: parsed.TokenCodeHash,
-		TokenID:       parsed.TokenID,
-		MakerAddr:     parsed.MakerAddr,
-		MakerHash20:   parsed.MakerHash20,
-		PriceNum:      parsed.PriceNum,
-		PriceDen:      parsed.PriceDen,
-		Price:         parsed.PriceDecimal.String(),
-		PriceDecimal:  parsed.PriceDecimal,
-		RemainAmount:  parsed.RemainAmount,
-		MinFillAmount: parsed.MinFillAmount,
-		FeeBps:        parsed.FeeBps,
-		FeeAddr:       parsed.FeeAddr,
-		SaltHex:       parsed.SaltHex,
-		Satoshis:      satoshis,
-		ScriptHex:     scriptHex,
-		Height:        height,
-		IsMempool:     isMempool,
-		CreatedAt:     createdAt,
+		Outpoint:           outpoint,
+		Txid:               strings.ToLower(txid),
+		Vout:               vout,
+		TokenVout:          -1,
+		CodeHash:           parsed.ScriptCodeHash,
+		IsTokenOrder:       parsed.IsTokenOrder,
+		Side:               parsed.OrderSide,
+		PairKey:            parsed.PairKey,
+		TokenCodeHash:      parsed.TokenCodeHash,
+		TokenID:            parsed.TokenID,
+		QuoteTokenCodeHash: parsed.QuoteTokenCodeHash,
+		QuoteTokenID:       parsed.QuoteTokenID,
+		SellTokenCodeHash:  parsed.SellTokenCodeHash,
+		SellTokenID:        parsed.SellTokenID,
+		BuyTokenCodeHash:   parsed.BuyTokenCodeHash,
+		BuyTokenID:         parsed.BuyTokenID,
+		MakerAddr:          parsed.MakerAddr,
+		MakerHash20:        parsed.MakerHash20,
+		PriceNum:           parsed.PriceNum,
+		PriceDen:           parsed.PriceDen,
+		RawPriceNum:        parsed.RawPriceNum,
+		RawPriceDen:        parsed.RawPriceDen,
+		Price:              parsed.PriceDecimal.String(),
+		PriceDecimal:       parsed.PriceDecimal,
+		RemainAmount:       parsed.RemainAmount,
+		MinFillAmount:      parsed.MinFillAmount,
+		FeeBps:             parsed.FeeBps,
+		FeeAddr:            parsed.FeeAddr,
+		SaltHex:            parsed.SaltHex,
+		Satoshis:           satoshis,
+		ScriptHex:          scriptHex,
+		Height:             height,
+		IsMempool:          isMempool,
+		CreatedAt:          createdAt,
 	}
-	if parsed.OrderSide == SideAsk {
+	if parsed.IsTokenOrder {
+		lo.TokenTxid = lo.Txid
+		lo.TokenVout = vout + 1
+		if parsed.OrderSide == SideAsk {
+			lo.SideName = "ask"
+			lo.RemainToken = parsed.RemainAmount
+			lo.RemainSats = CalcAskGrossSats(parsed.RemainAmount, parsed.PriceNum, parsed.PriceDen)
+		} else {
+			lo.SideName = "bid"
+			lo.RemainSats = parsed.RemainAmount
+			lo.RemainToken = CalcAskGrossSats(parsed.RemainAmount, parsed.RawPriceNum, parsed.RawPriceDen)
+		}
+	} else if parsed.OrderSide == SideAsk {
 		lo.SideName = "ask"
 		lo.TokenTxid = lo.Txid
 		// Spec convention: Ask Order output is at vout, locked FT token output is at vout+1
@@ -595,18 +674,27 @@ func (b *OrderBook) ListPairs() []PairSummary {
 	cutoff24h := time.Now().Add(-24 * time.Hour).UnixMilli()
 	out := make([]PairSummary, 0, len(keys))
 	for pk := range keys {
-		parts := strings.SplitN(pk, ":", 2)
-		codeHash, tokenID := "", ""
-		if len(parts) == 2 {
-			codeHash, tokenID = parts[0], parts[1]
-		}
+		baseCH, baseID, quoteCH, quoteID, isTokenPair := SplitPairKey(pk)
 		meta := b.pairMeta[pk]
+		quoteSym := meta.QuoteSymbol
+		if quoteSym == "" && !isTokenPair {
+			quoteSym = "SPACE"
+		}
+		quoteDec := meta.QuoteDecimals
+		if quoteDec <= 0 {
+			quoteDec = 8
+		}
 		sum := PairSummary{
-			PairKey:       pk,
-			TokenCodeHash: codeHash,
-			TokenID:       tokenID,
-			Symbol:        meta.Symbol,
-			Decimals:      meta.Decimals,
+			PairKey:            pk,
+			IsTokenPair:        isTokenPair,
+			TokenCodeHash:      baseCH,
+			TokenID:            baseID,
+			Symbol:             meta.Symbol,
+			Decimals:           meta.Decimals,
+			QuoteTokenCodeHash: quoteCH,
+			QuoteTokenID:       quoteID,
+			QuoteSymbol:        quoteSym,
+			QuoteDecimals:      quoteDec,
 		}
 		var bestAsk, bestBid *LiveOrder
 		for _, o := range b.byPair[pk] {
@@ -658,9 +746,29 @@ func (b *OrderBook) ListPairs() []PairSummary {
 	}
 	b.mu.RUnlock()
 
+	b.mu.RLock()
+	orderIdxMap := make(map[string]int, len(b.pairMeta))
+	for k, m := range b.pairMeta {
+		orderIdxMap[k] = m.OrderIndex
+	}
+	b.mu.RUnlock()
+
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Volume24hSats != out[j].Volume24hSats {
 			return out[i].Volume24hSats > out[j].Volume24hSats
+		}
+		oi := out[i].AskCount + out[i].BidCount
+		oj := out[j].AskCount + out[j].BidCount
+		if oi != oj {
+			return oi > oj
+		}
+		mi, oki := orderIdxMap[out[i].PairKey]
+		mj, okj := orderIdxMap[out[j].PairKey]
+		if oki && okj && mi != mj {
+			return mi < mj
+		}
+		if oki != okj {
+			return oki
 		}
 		return out[i].PairKey < out[j].PairKey
 	})

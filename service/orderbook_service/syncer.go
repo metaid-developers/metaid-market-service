@@ -129,13 +129,67 @@ func (s *Syncer) Start() {
 	s.cancelFn = cancel
 	s.mu.Unlock()
 
+	if len(s.cfg.QuoteTokens) > 0 {
+		SetQuoteTokenPriority(s.cfg.QuoteTokens)
+	}
+
 	if s.persistDB {
 		if err := models.OrderbookDao().AutoMigrate(); err != nil {
 			log.Printf("[Orderbook] AutoMigrate warning: %v", err)
 		}
+	}
+
+	// Register default / configured preset pairs first so mainstream markets (WBTC, METAID, MC)
+	// are immediately selectable with accurate metadata even before the first order is placed.
+	for _, p := range s.cfg.PresetPairs {
+		pk := strings.ToLower(strings.TrimSpace(p.PairKey))
+		if pk == "" && p.TokenCodeHash != "" && p.TokenID != "" {
+			if p.QuoteTokenCodeHash != "" && p.QuoteTokenID != "" {
+				pk = MakeTokenPairKey(p.TokenCodeHash, p.TokenID, p.QuoteTokenCodeHash, p.QuoteTokenID)
+			} else {
+				pk = MakePairKey(p.TokenCodeHash, p.TokenID)
+			}
+		}
+		if pk == "" {
+			continue
+		}
+		dec := p.Decimals
+		if dec <= 0 {
+			dec = 8
+		}
+		qDec := p.QuoteDecimals
+		if qDec <= 0 {
+			qDec = 8
+		}
+		qSym := p.QuoteSymbol
+		if qSym == "" && !IsTokenPairKey(pk) {
+			qSym = "SPACE"
+		}
+		s.book.SetPairMetadataFull(pk, p.Symbol, dec, qSym, qDec)
+		if s.persistDB {
+			baseCH, baseID, quoteCH, quoteID, _ := SplitPairKey(pk)
+			nowMs := time.Now().UnixMilli()
+			_ = models.OrderbookDao().UpsertPair(&models.OrderbookPairModel{
+				PairKey:       pk,
+				TokenCodeHash: baseCH,
+				TokenID:       baseID,
+				Symbol:        p.Symbol,
+				Decimals:      dec,
+				QuoteCodeHash: quoteCH,
+				QuoteTokenID:  quoteID,
+				QuoteSymbol:   qSym,
+				QuoteDecimals: qDec,
+				Status:        1,
+				CreatedAt:     nowMs,
+				UpdatedAt:     nowMs,
+			})
+		}
+	}
+
+	if s.persistDB {
 		if pairs, err := models.OrderbookDao().ListPairs(); err == nil {
 			for _, p := range pairs {
-				s.book.SetPairMetadata(p.PairKey, p.Symbol, p.Decimals)
+				s.book.SetPairMetadataFull(p.PairKey, p.Symbol, p.Decimals, p.QuoteSymbol, p.QuoteDecimals)
 			}
 		}
 	}
@@ -181,6 +235,11 @@ func (s *Syncer) BootstrapSnapshot(ctx context.Context) error {
 		return fmt.Errorf("no orderbook codehashes configured")
 	}
 
+	var dbOpenMap map[string]models.OrderbookOrderModel
+	if s.persistDB {
+		dbOpenMap, _ = models.OrderbookDao().ListOpenOrdersMap()
+	}
+
 	var allOrders []*LiveOrder
 	var snapSeq uint64
 
@@ -201,6 +260,10 @@ func (s *Syncer) BootstrapSnapshot(ctx context.Context) error {
 				lo, err := ParseLiveOrder(item.TxID, item.Vout, item.Satoshis, item.ScriptHex, item.Height, item.Mempool, 0, s.net)
 				if err != nil {
 					continue
+				}
+				if dbRow, ok := dbOpenMap[lo.Outpoint]; ok && dbRow.TokenTxid != "" && dbRow.TokenTxid != lo.Txid {
+					lo.TokenTxid = dbRow.TokenTxid
+					lo.TokenVout = dbRow.TokenVout
 				}
 				allOrders = append(allOrders, lo)
 			}
@@ -353,19 +416,37 @@ func (s *Syncer) applyEventsBatch(events []HigunOrderbookEvent) {
 				// Confirmed partial fill!
 				var fillToken, satsAmount, feeSats uint64
 				var tradeSide string
-				if prev.Side == SideAsk {
+				if prev.IsTokenOrder {
+					if prev.Side == SideAsk {
+						fillToken = prev.RemainAmount - cont.RemainAmount
+						satsAmount = CalcAskGrossSats(fillToken, prev.RawPriceNum, prev.RawPriceDen)
+						feeSats = CalcFeeSats(satsAmount, prev.FeeBps)
+						tradeSide = "buy"
+					} else {
+						satsAmount = prev.RemainAmount - cont.RemainAmount
+						fillToken = CalcAskGrossSats(satsAmount, prev.RawPriceNum, prev.RawPriceDen)
+						feeSats = CalcFeeSats(fillToken, prev.FeeBps)
+						tradeSide = "sell"
+					}
+					if prev.FeeAddr == "" {
+						feeSats = 0
+					}
+				} else if prev.Side == SideAsk {
 					fillToken = prev.RemainAmount - cont.RemainAmount
 					satsAmount = CalcAskGrossSats(fillToken, prev.PriceNum, prev.PriceDen)
 					feeSats = CalcFeeSats(satsAmount, prev.FeeBps)
 					tradeSide = "buy"
+					if prev.FeeAddr == "" || feeSats < DustLimit {
+						feeSats = 0
+					}
 				} else {
 					satsAmount = prev.RemainAmount - cont.RemainAmount
 					fillToken = CalcBidMaxToken(satsAmount, prev.PriceNum, prev.PriceDen)
 					feeSats = CalcFeeSats(satsAmount, prev.FeeBps)
 					tradeSide = "sell"
-				}
-				if prev.FeeAddr == "" || feeSats < DustLimit {
-					feeSats = 0
+					if prev.FeeAddr == "" || feeSats < DustLimit {
+						feeSats = 0
+					}
 				}
 				tr := TradeRecord{
 					TradeKey:      spentBy + ":" + outpoint,
@@ -475,7 +556,7 @@ func (s *Syncer) HandleFinalizeResult(draftID, action, status string, txids []st
 			if prev != nil {
 				dirtyPairs[prev.PairKey] = struct{}{}
 			}
-			if (action == "take_ask" || action == "take_bid") && idx < len(res.Legs) {
+			if (action == "take_ask" || action == "take_bid" || action == "take_token") && idx < len(res.Legs) {
 				leg := res.Legs[idx]
 				settleTxid := ""
 				if len(txids) > 0 {
@@ -508,7 +589,7 @@ func (s *Syncer) HandleFinalizeResult(draftID, action, status string, txids []st
 					}
 					_ = models.OrderbookDao().UpdateOrderStatus(op, st, strings.ToLower(settleTxid), 0, 1, now)
 				}
-			} else if (action == "cancel_ask" || action == "cancel_bid") && s.persistDB {
+			} else if (action == "cancel_ask" || action == "cancel_bid" || action == "cancel_token") && s.persistDB {
 				cancelTxid := ""
 				if len(txids) > 0 {
 					cancelTxid = strings.ToLower(txids[len(txids)-1])
@@ -589,11 +670,14 @@ func (s *Syncer) broadcastDepth(pairKey string) {
 }
 
 func (s *Syncer) configuredCodehashes() []string {
-	out := make([]string, 0, 2)
+	out := make([]string, 0, 3)
 	if h := strings.ToLower(strings.TrimSpace(s.cfg.AskCodeHash)); len(h) == 40 {
 		out = append(out, h)
 	}
 	if h := strings.ToLower(strings.TrimSpace(s.cfg.BidCodeHash)); len(h) == 40 {
+		out = append(out, h)
+	}
+	if h := strings.ToLower(strings.TrimSpace(s.cfg.TokenCodeHash)); len(h) == 40 {
 		out = append(out, h)
 	}
 	return out
@@ -662,15 +746,20 @@ func (s *Syncer) fetchHigunEvents(ctx context.Context, afterSeq uint64, limit in
 
 func liveOrderToModel(lo *LiveOrder, status, spentBy string, now int64) *models.OrderbookOrderModel {
 	return &models.OrderbookOrderModel{
-		Outpoint:      lo.Outpoint,
-		Txid:          lo.Txid,
-		Vout:          lo.Vout,
-		TokenTxid:     lo.TokenTxid,
-		TokenVout:     lo.TokenVout,
-		PairKey:       lo.PairKey,
-		TokenCodeHash: lo.TokenCodeHash,
-		TokenID:       lo.TokenID,
-		Side:          lo.Side,
+		Outpoint:          lo.Outpoint,
+		Txid:              lo.Txid,
+		Vout:              lo.Vout,
+		TokenTxid:         lo.TokenTxid,
+		TokenVout:         lo.TokenVout,
+		PairKey:           lo.PairKey,
+		TokenCodeHash:     lo.TokenCodeHash,
+		TokenID:           lo.TokenID,
+		IsTokenOrder:      boolToInt(lo.IsTokenOrder),
+		SellTokenCodeHash: lo.SellTokenCodeHash,
+		SellTokenID:       lo.SellTokenID,
+		BuyTokenCodeHash:  lo.BuyTokenCodeHash,
+		BuyTokenID:        lo.BuyTokenID,
+		Side:              lo.Side,
 		MakerAddr:     lo.MakerAddr,
 		PriceNum:      lo.PriceNum,
 		PriceDen:      lo.PriceDen,

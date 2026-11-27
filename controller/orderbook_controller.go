@@ -278,8 +278,11 @@ func OrderbookPlacePrepare(c *gin.Context) {
 	}
 	side, _ := payload["side"].(string)
 	side = strings.ToLower(strings.TrimSpace(side))
-	if side != "ask" && side != "bid" {
-		obErr(c, http.StatusBadRequest, "side must be 'ask' or 'bid'")
+	if sellCH, _ := payload["sellTokenCodeHash"].(string); strings.TrimSpace(sellCH) != "" {
+		side = "token"
+	}
+	if side != "ask" && side != "bid" && side != "token" {
+		obErr(c, http.StatusBadRequest, "side must be 'ask', 'bid', or 'token'")
 		return
 	}
 
@@ -298,6 +301,8 @@ func OrderbookPlacePrepare(c *gin.Context) {
 	path := "/internal/ob/place/ask/prepare"
 	if side == "bid" {
 		path = "/internal/ob/place/bid/prepare"
+	} else if side == "token" {
+		path = "/internal/ob/place/token/prepare"
 	}
 	status, raw, err := callOrderbookSidecar(c, s.Config().ServiceUrl, path, payload)
 	if err != nil {
@@ -379,7 +384,25 @@ func OrderbookTakePrepare(c *gin.Context) {
 	// Build sidecar request
 	var sidecarPath string
 	var sidecarBody map[string]interface{}
-	if plan.Side == "buy" {
+	if plan.IsTokenPair {
+		sidecarPath = "/internal/ob/take/token/prepare"
+		legs := make([]map[string]interface{}, 0, len(plan.Legs))
+		for _, l := range plan.Legs {
+			legs = append(legs, map[string]interface{}{
+				"orderTxid":      l.OrderTxid,
+				"orderVout":      l.OrderVout,
+				"tokenTxid":      l.TokenTxid,
+				"tokenVout":      l.TokenVout,
+				"fillSellAmount": strconv.FormatUint(l.FillSellAmount, 10),
+			})
+		}
+		sidecarBody = map[string]interface{}{
+			"takerAddress":     req.TakerAddress,
+			"buyTokenCodeHash": plan.BuyTokenCodeHash,
+			"buyTokenID":       plan.BuyTokenID,
+			"legs":             legs,
+		}
+	} else if plan.Side == "buy" {
 		sidecarPath = "/internal/ob/take/ask/prepare"
 		legs := make([]map[string]interface{}, 0, len(plan.Legs))
 		for _, l := range plan.Legs {
@@ -479,28 +502,31 @@ func OrderbookCancelPrepare(c *gin.Context) {
 		return
 	}
 	req.Side = strings.ToLower(strings.TrimSpace(req.Side))
-	if req.MakerAddress == "" || req.OrderTxid == "" || (req.Side != "ask" && req.Side != "bid") {
-		obErr(c, http.StatusBadRequest, "makerAddress, side ('ask'|'bid'), and orderTxid are required")
+	if req.MakerAddress == "" || req.OrderTxid == "" || (req.Side != "ask" && req.Side != "bid" && req.Side != "token") {
+		obErr(c, http.StatusBadRequest, "makerAddress, side ('ask'|'bid'|'token'), and orderTxid are required")
 		return
 	}
 
 	s := ob.GetOrderbookSyncer()
 	outpoint := fmt.Sprintf("%s:%d", strings.ToLower(req.OrderTxid), req.OrderVout)
 
-	// Fill tokenTxid/tokenVout from live book if omitted for Ask cancel
+	// Auto-detect OrderTokenV2 orders and fill tokenTxid/tokenVout from live book if omitted
 	tokenTxid := req.TokenTxid
 	tokenVout := -1
 	if req.TokenVout != nil {
 		tokenVout = *req.TokenVout
 	}
-	if req.Side == "ask" && (tokenTxid == "" || tokenVout < 0) {
-		if lo, ok := s.Book().GetOrder(outpoint); ok {
+	if lo, ok := s.Book().GetOrder(outpoint); ok {
+		if lo.IsTokenOrder {
+			req.Side = "token"
+		}
+		if (req.Side == "ask" || req.Side == "token") && (tokenTxid == "" || tokenVout < 0) {
 			tokenTxid = lo.TokenTxid
 			tokenVout = lo.TokenVout
-		} else {
-			tokenTxid = req.OrderTxid
-			tokenVout = req.OrderVout + 1
 		}
+	} else if (req.Side == "ask" || req.Side == "token") && (tokenTxid == "" || tokenVout < 0) {
+		tokenTxid = req.OrderTxid
+		tokenVout = req.OrderVout + 1
 	}
 
 	reservationID := newReservationID()
@@ -520,7 +546,7 @@ func OrderbookCancelPrepare(c *gin.Context) {
 		"orderTxid":    req.OrderTxid,
 		"orderVout":    req.OrderVout,
 	}
-	if req.Side == "ask" {
+	if req.Side == "ask" || req.Side == "token" {
 		body["tokenTxid"] = tokenTxid
 		body["tokenVout"] = tokenVout
 	}

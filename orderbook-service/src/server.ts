@@ -61,6 +61,11 @@ export function createOrderbookSidecarServer(builder: OrderbookTxBuilder): http.
         const data = await builder.buildPlaceBid(body)
         return sendJson(res, 200, { code: 0, data })
       }
+      if (method === 'POST' && (url === '/internal/ob/place/token/prepare' || url === '/internal/ob/build-place-token')) {
+        const body = await readJsonBody(req)
+        const data = await builder.buildPlaceTokenOrder(body)
+        return sendJson(res, 200, { code: 0, data })
+      }
       if (method === 'POST' && (url === '/internal/ob/take/ask/prepare' || url === '/internal/ob/build-take-ask')) {
         const body = await readJsonBody(req)
         const data = await builder.buildTakeAsk(body)
@@ -69,6 +74,11 @@ export function createOrderbookSidecarServer(builder: OrderbookTxBuilder): http.
       if (method === 'POST' && (url === '/internal/ob/take/bid/prepare' || url === '/internal/ob/build-take-bid')) {
         const body = await readJsonBody(req)
         const data = await builder.buildTakeBid(body)
+        return sendJson(res, 200, { code: 0, data })
+      }
+      if (method === 'POST' && (url === '/internal/ob/take/token/prepare' || url === '/internal/ob/build-take-token')) {
+        const body = await readJsonBody(req)
+        const data = await builder.buildTakeTokenOrder(body)
         return sendJson(res, 200, { code: 0, data })
       }
       if (method === 'POST' && (url === '/internal/ob/cancel/prepare' || url === '/internal/ob/build-cancel')) {

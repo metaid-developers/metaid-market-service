@@ -98,6 +98,9 @@ orderbook:
   higun_url: "http://127.0.0.1:8080"
   ask_codehash: "2704a8071b898b895b6d7bac3158959cea17c6d7"
   bid_codehash: "fdf3bc81875c241e4bb58c54fe3272ad6bbccebc"
+  token_codehash: "****************************************"
+  quote_tokens:
+    - "c9cc7bbd1010b44873959a8b1a2bcedeb62302b7:2ee1af1ae2d3605f08894c17358c99f1fc4c1325" # WBTC
   fee_bps: 25
   fee_address: ""
   poll_interval_ms: 300

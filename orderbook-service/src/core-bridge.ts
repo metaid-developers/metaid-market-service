@@ -64,6 +64,7 @@ export const Common = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'common'))
 export const TokenProto = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'tokenProto'))
 export const ProtoHeader = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'protoheader'))
 export const OrderProto = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'orderbookProto'))
+export const OrderTokenProto = require(path.join(MVCSWAP_CORE_DIR, 'tslib', 'orderbookTokenProto'))
 export const SwapEngine = require(path.join(MVCSWAP_CORE_DIR, 'scripts', 'swap-engine'))
 
 export const PROD_TRANSFER_CHECK_HASHES: string[] = SwapEngine.PROD_TRANSFER_CHECK_HASHES
@@ -125,6 +126,8 @@ export interface LoadedOrderbookContracts {
   OrderAskV2: any
   OrderBidV2: any
   OrderBidFiller: any
+  OrderTokenV2: any
+  OrderTokenFiller: any
   Token: any
   TokenTransferCheck: any
   TokenUnlockContractCheck: any
@@ -134,6 +137,7 @@ export interface LoadedOrderbookContracts {
   askUnlockCheckHashes: any[]
   askCodeHashHex: string
   bidCodeHashHex: string
+  tokenOrderCodeHashHex: string
 }
 
 let cachedOBContracts: LoadedOrderbookContracts | null = null
@@ -144,6 +148,8 @@ export function loadOrderbookContracts(cacheDir: string, unlockCheckHashesHex = 
   const OrderAskV2 = scrypt.buildContractClass(loadVerifiedContractDesc('orderbook/orderAskV2', cacheDir))
   const OrderBidV2 = scrypt.buildContractClass(loadVerifiedContractDesc('orderbook/orderBidV2', cacheDir))
   const OrderBidFiller = scrypt.buildContractClass(loadVerifiedContractDesc('orderbook/orderBidFiller', cacheDir))
+  const OrderTokenV2 = scrypt.buildContractClass(loadVerifiedContractDesc('orderbook/orderTokenV2', cacheDir))
+  const OrderTokenFiller = scrypt.buildContractClass(loadVerifiedContractDesc('orderbook/orderTokenFiller', cacheDir))
   const Token = scrypt.buildContractClass(loadVerifiedContractDesc('token/token', cacheDir))
   const TokenTransferCheck = scrypt.buildContractClass(loadVerifiedContractDesc('token/tokenTransferCheck', cacheDir))
   const TokenUnlockContractCheck = scrypt.buildContractClass(loadVerifiedContractDesc('token/tokenUnlockContractCheck', cacheDir))
@@ -187,10 +193,30 @@ export function loadOrderbookContracts(cacheDir: string, unlockCheckHashesHex = 
   sampleBid.setDataPart(dummyBidData.toString('hex'))
   const bidCodeHashHex = OrderProto.getScriptCodeHash(sampleBid.lockingScript.toBuffer()).toString('hex')
 
+  const dummyTokenData = OrderTokenProto.buildOrderTokenDataPart({
+    salt: Buffer.alloc(8, 0),
+    feeBps: 0,
+    feeAddr: Buffer.alloc(20, 0),
+    minFillAmount: BigInt(1),
+    remainAmount: BigInt(1000),
+    priceDen: BigInt(1),
+    priceNum: BigInt(1),
+    buyTokenCodeHash: Buffer.alloc(20, 0),
+    buyTokenID: Buffer.alloc(20, 0),
+    sellTokenCodeHash: Buffer.alloc(20, 0),
+    sellTokenID: Buffer.alloc(20, 0),
+    makerAddr: Buffer.alloc(20, 0),
+  })
+  const sampleTokenOrder = new OrderTokenV2(askUnlockCheckHashes)
+  sampleTokenOrder.setDataPart(dummyTokenData.toString('hex'))
+  const tokenOrderCodeHashHex = OrderTokenProto.getScriptCodeHash(sampleTokenOrder.lockingScript.toBuffer()).toString('hex')
+
   cachedOBContracts = {
     OrderAskV2,
     OrderBidV2,
     OrderBidFiller,
+    OrderTokenV2,
+    OrderTokenFiller,
     Token,
     TokenTransferCheck,
     TokenUnlockContractCheck,
@@ -200,6 +226,7 @@ export function loadOrderbookContracts(cacheDir: string, unlockCheckHashesHex = 
     askUnlockCheckHashes,
     askCodeHashHex,
     bidCodeHashHex,
+    tokenOrderCodeHashHex,
   }
   return cachedOBContracts
 }
