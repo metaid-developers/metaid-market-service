@@ -102,3 +102,7 @@ type BookTakeMintBidCommitReq struct {
 	CommitTxOutIndex int64  `json:"commitTxOutIndex"`
 	RevealPrePsbtRaw string `json:"revealPrePsbtRaw"`
 }
+
+type FetchAddressIdCoinInfoRequest struct {
+	IssuerAddress string `json:"issuerAddress"`
+}

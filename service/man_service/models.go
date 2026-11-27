@@ -95,3 +95,17 @@ type MetaIDUserInfo struct {
 	//IsInit        bool   `json:"isInit"`
 	//Unconfirmed   string `json:"unconfirmed"`
 }
+
+type FollowersResp struct {
+	List  []string `json:"list"`
+	Total int64    `json:"total"`
+}
+
+type FollowInfo struct {
+	MetaId        string `json:"metaId"`
+	FollowMetaId  string `json:"followMetaId"`
+	FollowTime    int64  `json:"followTime"`
+	FollowPinId   string `json:"followPinId"`
+	UnFollowPinId string `json:"unFollowPinId"`
+	Status        bool   `json:"status"`
+}

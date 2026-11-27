@@ -160,6 +160,9 @@ type IdCoinsInfoResp struct {
 	TotalVolume      int64       `json:"totalVolume"`
 	OrdersPrice      string      `json:"ordersPrice"`
 	OrdersPool       int64       `json:"ordersPool"`
+	// Progress only exists on the retired service's address/coins-info response.
+	// It is a pointer so the other endpoints keep omitting the key entirely.
+	Progress *float64 `json:"progress,omitempty"`
 }
 
 type FetchIdCoinsDeployCheckResp struct {
@@ -203,4 +206,17 @@ type BookMintOrderTakeCommitResp struct {
 	CommitTxId string `json:"commitTxId"`
 	RevealTxId string `json:"revealTxId"`
 	TickId     string `json:"tickId"`
+}
+
+type FetchIdCoinsSimpleInfoListResp struct {
+	Total int64                    `json:"total"`
+	List  []*IdCoinsSimpleInfoResp `json:"list"`
+}
+
+type IdCoinsSimpleInfoResp struct {
+	TickId          string `json:"tickId"`
+	Tick            string `json:"tick"`
+	TokenName       string `json:"tokenName"`
+	DeployerMetaId  string `json:"deployerMetaId"`
+	DeployerAddress string `json:"deployerAddress"`
 }

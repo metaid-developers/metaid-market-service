@@ -192,3 +192,96 @@ func FetchUtxoPinInfo(net, txId string, txIndex int64) (*PinInfo, error) {
 	}
 	return data, nil
 }
+
+// FetchPinsByPath fetches creator/owner pins with a server-side path filter.
+func FetchPinsByPath(net, addressType, address, path string, cursor, size int64) (*PinInfoList, error) {
+	var (
+		url    string
+		result string
+		resp   *ManResp
+		data   *PinInfoList
+		err    error
+	)
+	query := map[string]string{
+		"cursor": fmt.Sprintf("%d", cursor),
+		"size":   fmt.Sprintf("%d", size),
+		"cnt":    "true",
+	}
+	if path != "" {
+		query["path"] = path
+	}
+	url = fmt.Sprintf("%s/api/address/pin/list/%s/%s", conf.ManDomain, addressType, address)
+	result, err = tool.GetUrl(url, query, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	if resp.Code != ManCodeSuccess {
+		return nil, fmt.Errorf("msg:%s", resp.Message)
+	}
+	if resp.Data == nil {
+		return data, nil
+	}
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	return data, nil
+}
+
+func FetchFollowers(net, metaId string, cursor, size int64) (*FollowersResp, error) {
+	var (
+		result string
+		resp   *ManResp
+		data   *FollowersResp
+		err    error
+	)
+	query := map[string]string{
+		"cursor": fmt.Sprintf("%d", cursor),
+		"size":   fmt.Sprintf("%d", size),
+	}
+	url := fmt.Sprintf("%s/api/metaid/followerList/%s", conf.ManDomain, metaId)
+	result, err = tool.GetUrl(url, query, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	if resp.Code != ManCodeSuccess {
+		return nil, fmt.Errorf("msg:%s", resp.Message)
+	}
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	return data, nil
+}
+
+func FetchFollowInfo(net, metaId, followerMetaId string) (*FollowInfo, error) {
+	var (
+		result string
+		resp   *ManResp
+		data   *FollowInfo
+		err    error
+	)
+	query := map[string]string{
+		"followerMetaId": followerMetaId,
+		"metaId":         metaId,
+	}
+	url := fmt.Sprintf("%s/api/follow/record", conf.ManDomain)
+	result, err = tool.GetUrl(url, query, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = tool.JsonToObject(result, &resp); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	if resp.Code != ManCodeSuccess {
+		return nil, fmt.Errorf("msg:%s", resp.Message)
+	}
+	if err = tool.JsonToAny(resp.Data, &data); err != nil {
+		return nil, fmt.Errorf("get request err:%s", err.Error())
+	}
+	return data, nil
+}

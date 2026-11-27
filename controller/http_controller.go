@@ -83,6 +83,8 @@ func Run() {
 		v1.GET("/id-coins/address/mint/order", auth.AuthSignMiddleware(), FetchIdCoinsAddressMintOrder)
 		v1.GET("/id-coins/coins-list", FetchIdCoinsList)
 		v1.GET("/id-coins/coins-info", FetchOneIdCoinsInfo)
+		v1.GET("/id-coins/address/coins-info", FetchAddressIdCoinsInfo)
+		v1.GET("/id-coins/coins-simple-list", FetchIdCoinsSimpleInfoList)
 		v1.GET("/id-coins/deploy/check/info", FetchIdCoinsDeployCheckInfo)
 
 		v1.POST("/metaname/register/pre", auth.AuthSignMiddleware(), RegisterMetaNamePre)
