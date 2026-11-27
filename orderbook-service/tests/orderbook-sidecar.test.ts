@@ -6,6 +6,7 @@ import {
   Common,
   loadOrderbookContracts,
   OrderProto,
+  OrderTokenProto,
   scrypt,
   TokenProto,
 } from '../src/core-bridge'
@@ -537,6 +538,10 @@ async function runTests() {
     feeBps: 25,
     feeAddress: addrFee,
   })
+  assert.ok(
+    tokPlaceDraft.signRequests.every((r) => r.address === addrMaker),
+    'default path (no fundingAddress): all sign requests must be keyed to makerAddress'
+  )
   const tokPlaceRes = await completeDraft(builder, tokPlaceDraft, privMaker)
   assert.strictEqual(tokPlaceRes.verified, true)
   assert.strictEqual(tokPlaceRes.newOrders.length, 1)
@@ -645,6 +650,194 @@ async function runTests() {
   assert.strictEqual(cFinData.status, 'completed')
   assert.strictEqual(cFinData.verified, true)
   console.log('[PASS] Flow 7: FT<->FT HTTP Place & Maker Cancel verified')
+
+
+  // =========================================================================
+  // FLOW 8: Burn-maker floor bid funded by a separate fundingAddress
+  // (lock WBTC -> buy MC; makerAddr = zero hash; uncancellable by design)
+  // =========================================================================
+  const burnAddr = mvc.Address.fromPublicKeyHash(Buffer.alloc(20, 0), 'testnet').toString()
+  const burnHash20 = Buffer.alloc(20, 0)
+  const privFunder = new mvc.PrivateKey.fromRandom('testnet')
+  const addrFunder = privFunder.toAddress('testnet').toString()
+  const funderP2pkhHex = mvc.Script.buildPublicKeyHashOut(new mvc.Address(addrFunder, 'testnet')).toHex()
+  const burnP2pkhHex = mvc.Script.buildPublicKeyHashOut(new mvc.Address(burnAddr, 'testnet')).toHex()
+
+  async function assertThrowsErr(fn: () => Promise<any>, re: RegExp, label: string) {
+    try {
+      await fn()
+    } catch (err) {
+      assert.ok(re.test(String(err?.message || err)), label + ': unexpected error message: ' + String(err?.message || err))
+      console.log('[PASS] ' + label)
+      return
+    }
+    throw new Error(label + ': expected error was not thrown')
+  }
+
+  const burnBidParams = {
+    makerAddress: burnAddr,
+    fundingAddress: addrFunder,
+    sellTokenCodeHash: wbtcMeta.codeHash,
+    sellTokenID: wbtcMeta.tokenID,
+    buyTokenCodeHash: tokenCodeHash,
+    buyTokenID: tokenID,
+    sellAmount: '200000',
+    priceNum: '1',
+    priceDen: '500',
+    minFillAmount: '50000',
+    feeBps: 0,
+    feeAddress: '',
+  }
+
+  // --- rejections ---
+  await assertThrowsErr(
+    () => builder.buildPlaceTokenOrder({ ...burnBidParams, fundingAddress: 'not-a-valid-address' }),
+    /fundingAddress is not a valid/,
+    'Flow 8a: invalid fundingAddress rejected'
+  )
+  await assertThrowsErr(
+    () => builder.buildPlaceTokenOrder({ ...burnBidParams, fundingAddress: burnAddr }),
+    /fundingAddress cannot be the burn/,
+    'Flow 8b: burn fundingAddress rejected'
+  )
+  await assertThrowsErr(
+    () => builder.buildPlaceTokenOrder({ ...burnBidParams, fundingAddress: undefined }),
+    /makerAddress cannot be the burn/,
+    'Flow 8c: burn makerAddress without fundingAddress rejected'
+  )
+
+  // --- fund the funder with WBTC + SPACE, spy on UTXO lookups ---
+  const funderWbtc = mintWbtcFor(addrFunder, BigInt(300000))
+  chain.setTokenUtxos(addrFunder, [funderWbtc])
+  chain.setMvcUtxos(addrFunder, [fundMvc(addrFunder, 5_000_000)])
+
+  const origGetTokenUtxos = chain.getTokenUtxos.bind(chain)
+  const origGetMvcUtxos = chain.getMvcUtxos.bind(chain)
+  const queriedTokenAddrs: string[] = []
+  const queriedMvcAddrs: string[] = []
+  ;(chain as any).getTokenUtxos = async (a: string, ch: string, id: string) => {
+    queriedTokenAddrs.push(a)
+    return origGetTokenUtxos(a, ch, id)
+  }
+  ;(chain as any).getMvcUtxos = async (a: string) => {
+    queriedMvcAddrs.push(a)
+    return origGetMvcUtxos(a)
+  }
+
+  const burnDraft = await builder.buildPlaceTokenOrder({ ...burnBidParams })
+
+  ;(chain as any).getTokenUtxos = origGetTokenUtxos
+  ;(chain as any).getMvcUtxos = origGetMvcUtxos
+
+  assert.ok(queriedTokenAddrs.length > 0 && queriedTokenAddrs.every((a) => a === addrFunder), 'token UTXO lookups must hit fundingAddress only')
+  assert.ok(queriedMvcAddrs.length > 0 && queriedMvcAddrs.every((a) => a === addrFunder), 'SPACE UTXO lookups must hit fundingAddress only')
+  console.log('[PASS] Flow 8d: UTXO lookups hit fundingAddress only')
+
+  // --- drive both steps with the funder key, collecting all sign requests ---
+  const allBurnReqs: SignRequestItem[] = [...burnDraft.signRequests]
+  let burnRes: FinalizeResult | null = null
+  let burnReqs = burnDraft.signRequests
+  for (let g = 0; g < 5; g++) {
+    const sigs = signRequestsWithPrivKey(burnReqs, privFunder)
+    const res = await builder.finalizeAndBroadcast(burnDraft.draftId, sigs, true)
+    if (res.status === 'completed') {
+      burnRes = res
+      break
+    }
+    burnReqs = res.signRequests || []
+    allBurnReqs.push(...burnReqs)
+  }
+  assert.ok(burnRes, 'burn-maker place draft did not complete')
+  assert.strictEqual(burnRes!.verified, true)
+  assert.ok(allBurnReqs.length > 0 && allBurnReqs.every((r) => r.address === addrFunder), 'every sign request (step0+step1) must be keyed to fundingAddress')
+  console.log('[PASS] Flow 8e: 2-step burn-maker place completed with funder key; all sign requests keyed to fundingAddress')
+
+  // --- change outputs go to funder, never to burn ---
+  const burnPrepTx = new mvc.Transaction(burnRes!.txHexes[0])
+  const burnLockTx = new mvc.Transaction(burnRes!.txHexes[1])
+  assert.strictEqual(burnPrepTx.outputs[2].script.toHex(), funderP2pkhHex, 'prep vout2 (lock-fee UTXO) must pay fundingAddress')
+  assert.ok(
+    burnPrepTx.outputs.every((o: any) => o.script.toHex() !== burnP2pkhHex) &&
+      burnLockTx.outputs.every((o: any) => o.script.toHex() !== burnP2pkhHex),
+    'no output may pay the burn address'
+  )
+  // token change (300000 - 200000 = 100000 WBTC) locked to funder hash20
+  const tokChangeBuf = burnLockTx.outputs[1].script.toBuffer()
+  assert.ok(TokenProto.getTokenAddress(tokChangeBuf).equals(Buffer.from(new mvc.Address(addrFunder, 'testnet').hashBuffer)), 'token change must go to fundingAddress hash20')
+  assert.strictEqual(TokenProto.getTokenAmount(tokChangeBuf).toString(), '100000')
+  console.log('[PASS] Flow 8f: prep/lock change outputs pay fundingAddress, token change locked to funder')
+
+  // --- order tail: makerAddr zero hash, zero fee, requested economics ---
+  const burnOrder = burnRes!.newOrders[0]
+  const burnTail = OrderTokenProto.parseOrderTokenScript(Buffer.from(burnOrder.scriptHex, 'hex'))
+  assert.ok(burnTail.makerAddr.equals(burnHash20), 'order tail makerAddr must be 20 zero bytes')
+  assert.ok(burnTail.feeAddr.equals(OrderTokenProto.NULL_ADDRESS), 'feeAddr must be NULL_ADDRESS')
+  assert.strictEqual(burnTail.feeBps, 0)
+  assert.strictEqual(burnTail.remainAmount.toString(), '200000')
+  assert.strictEqual(burnTail.minFillAmount.toString(), '50000')
+  assert.strictEqual(burnTail.priceNum.toString(), '1')
+  assert.strictEqual(burnTail.priceDen.toString(), '500')
+  assert.strictEqual(burnTail.sellTokenID.toString('hex'), wbtcMeta.tokenID)
+  assert.strictEqual(burnTail.buyTokenID.toString('hex'), tokenID)
+  console.log('[PASS] Flow 8g: order tail makerAddr = zero hash, zero-fee NULL feeAddr, economics as requested')
+
+  // --- taker partially fills the burn bid: pays 100 MC, receives 50000 WBTC ---
+  const takerMc = mintTokenFor(addrTaker, BigInt(500))
+  chain.setTokenUtxos(addrTaker, [takerMc])
+  chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+  const burnTakeDraft = await builder.buildTakeTokenOrder({
+    takerAddress: addrTaker,
+    buyTokenCodeHash: tokenCodeHash,
+    buyTokenID: tokenID,
+    legs: [
+      {
+        orderTxid: burnOrder.txid,
+        orderVout: burnOrder.vout,
+        tokenTxid: burnOrder.tokenTxid!,
+        tokenVout: burnOrder.tokenVout!,
+        fillSellAmount: '50000',
+      },
+    ],
+  })
+  const burnTakeRes = await completeDraft(builder, burnTakeDraft, privTaker)
+  assert.strictEqual(burnTakeRes.verified, true)
+  assert.strictEqual(burnTakeRes.newOrders.length, 1)
+  assert.strictEqual(burnTakeRes.newOrders[0].remainAmount, '150000')
+
+  const settleTx = new mvc.Transaction(burnTakeRes.txHexes[burnTakeRes.txHexes.length - 1])
+  const settleScripts = settleTx.outputs.map((o: any) => o.script.toBuffer())
+  // bought MC (ceil(50000 * 1 / 500) = 100, zero fee) locked to the zero hash
+  const mcSampleBuf = Buffer.from(takerMc.scriptHex, 'hex')
+  const expectedBurnMc = TokenProto.getNewTokenScript(mcSampleBuf, burnHash20, BigInt(100))
+  assert.ok(
+    settleScripts.some((s: Buffer) => s.equals(Buffer.from(expectedBurnMc))),
+    'settle tx must contain the bought MC output locked to the zero/burn hash'
+  )
+  // taker receives the 50000 WBTC
+  const lockedWbtcSample = burnLockTx.outputs[0].script.toBuffer()
+  const takerHash20 = Buffer.from(new mvc.Address(addrTaker, 'testnet').hashBuffer)
+  const expectedTakerWbtc = TokenProto.getNewTokenScript(lockedWbtcSample, takerHash20, BigInt(50000))
+  assert.ok(
+    settleScripts.some((s: Buffer) => s.equals(Buffer.from(expectedTakerWbtc))),
+    'settle tx must contain the 50000 WBTC output locked to the taker'
+  )
+  console.log('[PASS] Flow 8h: take-token against burn-maker bid: taker receives WBTC, bought MC locked to zero hash, remain updated')
+
+  // --- cancel of the burn-maker continuation order must fail explicitly ---
+  const burnContinuation = burnTakeRes.newOrders[0]
+  await assertThrowsErr(
+    () =>
+      builder.buildCancel({
+        makerAddress: burnAddr,
+        side: 'token',
+        orderTxid: burnContinuation.txid,
+        orderVout: burnContinuation.vout,
+        tokenTxid: burnContinuation.tokenTxid,
+        tokenVout: burnContinuation.tokenVout,
+      }),
+    /uncancellable by design/,
+    'Flow 8i: cancel of burn-maker order fails with explicit error'
+  )
 
   srv.close()
   console.log('[PASS] Flow 5: HTTP sidecar health & canonical Go proxy routes verified')
