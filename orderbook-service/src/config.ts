@@ -18,7 +18,7 @@ export function loadConfig(): OrderbookSidecarConfig {
     port: Number(process.env.ORDERBOOK_SERVICE_PORT || 18082),
     net: netRaw === 'testnet' ? 'testnet' : 'livenet',
     higunUrl: (process.env.HIGUN_URL || process.env.ORDERBOOK_HIGUN_URL || '').replace(/\/+$/, ''),
-    metaletApiBase: (process.env.METALET_API_BASE || 'https://www.metalet.space/wallet-api').replace(/\/+$/, ''),
+    metaletApiBase: (process.env.METALET_API_BASE || 'https://www.metalet.space/wallet-api/v4/mvc').replace(/\/+$/, ''),
     feeRateSatPerByte: Number(process.env.ORDERBOOK_FEE_RATE || 1.25),
     draftTtlMs: Number(process.env.ORDERBOOK_DRAFT_TTL_MS || 120000),
     artifactsDir:
