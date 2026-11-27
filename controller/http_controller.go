@@ -120,6 +120,9 @@ func Run() {
 		v1.POST("/swap/session/start", SwapSessionStart)
 		v1.POST("/swap/session/:id/sign", SwapSessionSign)
 		v1.POST("/swap/session/:id/cancel", SwapSessionCancel)
+
+		// MVC Orderbook DEX V2 (non-custodial smart-contract orderbook)
+		RegisterOrderbookRoutes(v1)
 	}
 
 	url := ginSwagger.URL("/swagger/doc.json")

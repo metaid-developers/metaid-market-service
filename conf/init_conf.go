@@ -54,7 +54,35 @@ var (
 	AdminAPIKey string = ""
 
 	SwapServiceUrl string = "http://127.0.0.1:18080"
+
+	OrderbookConfigData *OrderbookConfig = DefaultOrderbookConfig()
 )
+
+type OrderbookConfig struct {
+	Enabled        bool   `json:"enabled"`
+	ServiceUrl     string `json:"service_url"`
+	HigunUrl       string `json:"higun_url"`
+	AskCodeHash    string `json:"ask_codehash"`
+	BidCodeHash    string `json:"bid_codehash"`
+	FeeBps         int    `json:"fee_bps"`
+	FeeAddress     string `json:"fee_address"`
+	PollIntervalMs int    `json:"poll_interval_ms"`
+	SoftLockTTLSec int    `json:"soft_lock_ttl_sec"`
+}
+
+func DefaultOrderbookConfig() *OrderbookConfig {
+	return &OrderbookConfig{
+		Enabled:        false,
+		ServiceUrl:     "http://127.0.0.1:18082",
+		HigunUrl:       "http://127.0.0.1:8080",
+		AskCodeHash:    "2704a8071b898b895b6d7bac3158959cea17c6d7",
+		BidCodeHash:    "fdf3bc81875c241e4bb58c54fe3272ad6bbccebc",
+		FeeBps:         25,
+		FeeAddress:     "",
+		PollIntervalMs: 300,
+		SoftLockTTLSec: 25,
+	}
+}
 
 type ServiceFeeConfig struct {
 	ServiceAddress       string `json:"service_address"`
@@ -145,4 +173,34 @@ func InitConfig() {
 	if v := viper.GetString("swap.service_url"); v != "" {
 		SwapServiceUrl = v
 	}
+
+	obCfg := DefaultOrderbookConfig()
+	if viper.IsSet("orderbook.enabled") {
+		obCfg.Enabled = viper.GetBool("orderbook.enabled")
+	}
+	if v := viper.GetString("orderbook.service_url"); v != "" {
+		obCfg.ServiceUrl = v
+	}
+	if v := viper.GetString("orderbook.higun_url"); v != "" {
+		obCfg.HigunUrl = v
+	}
+	if v := viper.GetString("orderbook.ask_codehash"); v != "" {
+		obCfg.AskCodeHash = v
+	}
+	if v := viper.GetString("orderbook.bid_codehash"); v != "" {
+		obCfg.BidCodeHash = v
+	}
+	if viper.IsSet("orderbook.fee_bps") {
+		obCfg.FeeBps = viper.GetInt("orderbook.fee_bps")
+	}
+	if v := viper.GetString("orderbook.fee_address"); v != "" {
+		obCfg.FeeAddress = v
+	}
+	if v := viper.GetInt("orderbook.poll_interval_ms"); v > 0 {
+		obCfg.PollIntervalMs = v
+	}
+	if v := viper.GetInt("orderbook.soft_lock_ttl_sec"); v > 0 {
+		obCfg.SoftLockTTLSec = v
+	}
+	OrderbookConfigData = obCfg
 }

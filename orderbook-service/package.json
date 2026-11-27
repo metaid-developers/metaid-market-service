@@ -1,0 +1,13 @@
+{
+  "name": "metaid-market-orderbook-service",
+  "version": "0.1.0",
+  "description": "Stateless MVC Orderbook V2 sCrypt transaction builder, local verifier & broadcaster sidecar",
+  "private": true,
+  "scripts": {
+    "start": "ts-node --transpile-only src/server.ts",
+    "test": "ts-node --transpile-only tests/orderbook-sidecar.test.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  }
+}

@@ -1,0 +1,73 @@
+-- MVC Orderbook DEX V2 Tables
+
+CREATE TABLE IF NOT EXISTS `tb_ob_pairs` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `pair_key` VARCHAR(100) NOT NULL COMMENT 'tokenCodeHash:tokenID',
+  `token_codehash` VARCHAR(40) NOT NULL,
+  `token_id` VARCHAR(40) NOT NULL,
+  `symbol` VARCHAR(32) NOT NULL DEFAULT '',
+  `decimals` INT NOT NULL DEFAULT 8,
+  `tick_size` VARCHAR(64) NOT NULL DEFAULT '1',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1=active, 0=disabled',
+  `created_at` BIGINT NOT NULL,
+  `updated_at` BIGINT NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_pair_key` (`pair_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `tb_ob_orders` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `outpoint` VARCHAR(80) NOT NULL COMMENT 'txid:vout',
+  `txid` VARCHAR(64) NOT NULL,
+  `vout` INT NOT NULL,
+  `token_txid` VARCHAR(64) NOT NULL DEFAULT '',
+  `token_vout` INT NOT NULL DEFAULT -1,
+  `pair_key` VARCHAR(100) NOT NULL,
+  `token_codehash` VARCHAR(40) NOT NULL,
+  `token_id` VARCHAR(40) NOT NULL,
+  `side` TINYINT NOT NULL COMMENT '1=ask, 2=bid',
+  `maker_addr` VARCHAR(64) NOT NULL,
+  `price_num` BIGINT UNSIGNED NOT NULL,
+  `price_den` BIGINT UNSIGNED NOT NULL,
+  `price_dec` VARCHAR(64) NOT NULL,
+  `remain_amount` BIGINT UNSIGNED NOT NULL COMMENT 'ask=token, bid=sats',
+  `min_fill_amount` BIGINT UNSIGNED NOT NULL,
+  `fee_bps` INT NOT NULL DEFAULT 0,
+  `fee_addr` VARCHAR(64) NOT NULL DEFAULT '',
+  `salt_hex` VARCHAR(16) NOT NULL,
+  `status` VARCHAR(24) NOT NULL COMMENT 'open, partial_filled, filled, cancelled, evicted',
+  `spent_by` VARCHAR(64) NOT NULL DEFAULT '',
+  `height` BIGINT NOT NULL DEFAULT 0,
+  `is_mempool` TINYINT NOT NULL DEFAULT 0,
+  `created_at` BIGINT NOT NULL,
+  `updated_at` BIGINT NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_outpoint` (`outpoint`),
+  KEY `idx_pair_side_status` (`pair_key`, `side`, `status`),
+  KEY `idx_maker_status` (`maker_addr`, `status`),
+  KEY `idx_salt` (`salt_hex`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `tb_ob_trades` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `trade_key` VARCHAR(128) NOT NULL COMMENT 'txid:orderOutpoint',
+  `txid` VARCHAR(64) NOT NULL,
+  `order_outpoint` VARCHAR(80) NOT NULL,
+  `pair_key` VARCHAR(100) NOT NULL,
+  `side` VARCHAR(8) NOT NULL COMMENT 'buy (taker bought ask) | sell (taker sold into bid)',
+  `maker_addr` VARCHAR(64) NOT NULL,
+  `taker_addr` VARCHAR(64) NOT NULL DEFAULT '',
+  `price_num` BIGINT UNSIGNED NOT NULL,
+  `price_den` BIGINT UNSIGNED NOT NULL,
+  `price_dec` VARCHAR(64) NOT NULL,
+  `fill_token` BIGINT UNSIGNED NOT NULL,
+  `sats_amount` BIGINT UNSIGNED NOT NULL,
+  `fee_sats` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `is_partial` TINYINT NOT NULL DEFAULT 0,
+  `height` BIGINT NOT NULL DEFAULT 0,
+  `is_mempool` TINYINT NOT NULL DEFAULT 0,
+  `trade_time` BIGINT NOT NULL COMMENT 'unix milliseconds',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_trade_key` (`trade_key`),
+  KEY `idx_pair_time` (`pair_key`, `trade_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
