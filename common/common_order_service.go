@@ -121,13 +121,11 @@ func BatchMakeAskTakerPsbtRaw(net, chain string, psbtRawList []string, preOutVal
 	})
 
 	// add buyer receive pin output: 1
-	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
+	adjustedBuyerOutValue, err := adjustedAssetOutputValue(net, chain, buyerAddress, int64(totalBuyerReceiveOutValue))
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	if totalBuyerReceiveOutValue < 546 && !isTaproot {
-		totalBuyerReceiveOutValue = 546
-	}
+	totalBuyerReceiveOutValue = uint64(adjustedBuyerOutValue)
 	outputs = append(outputs, Output{
 		Address: buyerAddress,
 		Amount:  uint64(totalBuyerReceiveOutValue),
@@ -137,6 +135,10 @@ func BatchMakeAskTakerPsbtRaw(net, chain string, psbtRawList []string, preOutVal
 	for _, askBuilder := range askBuilderList {
 		askOutputList := askBuilder.GetOutputs()
 		askOutput := askOutputList[0]
+		sellerDust := MinScriptDustLimit(net, chain, askOutput.PkScript)
+		if askOutput.Value < sellerDust {
+			return "", feeAmountForPlatform, fmt.Errorf("seller payout %d is below dust limit %d", askOutput.Value, sellerDust)
+		}
 		outputs = append(outputs, Output{
 			Amount: uint64(askOutput.Value),
 			Script: hex.EncodeToString(askOutput.PkScript),
@@ -162,6 +164,10 @@ func BatchMakeAskTakerPsbtRaw(net, chain string, psbtRawList []string, preOutVal
 
 	// add change output: 6
 	if buyerChangeAmount > 0 {
+		changeDust := MinOutputDustLimit(net, chain, buyerAddress)
+		if int64(buyerChangeAmount) < changeDust {
+			return "", feeAmountForPlatform, fmt.Errorf("buyer change amount %d is below dust limit %d", buyerChangeAmount, changeDust)
+		}
 		changeOut := Output{
 			Address: buyerAddress,
 			Amount:  buyerChangeAmount,
@@ -399,12 +405,9 @@ func MakeAskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue int64,
 	})
 
 	// add buyer receive brc20 output: 1
-	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
+	preOutValue, err = adjustedAssetOutputValue(net, chain, buyerAddress, preOutValue)
 	if err != nil {
 		return "", feeAmountForPlatform, err
-	}
-	if preOutValue < 546 && !isTaproot {
-		preOutValue = 546
 	}
 	outputs = append(outputs, Output{
 		Address: buyerAddress,
@@ -412,6 +415,10 @@ func MakeAskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue int64,
 	})
 
 	// add receive btc output: 2
+	sellerDust := MinScriptDustLimit(net, chain, askOutput.PkScript)
+	if askOutput.Value < sellerDust {
+		return "", feeAmountForPlatform, fmt.Errorf("seller payout %d is below dust limit %d", askOutput.Value, sellerDust)
+	}
 	outputs = append(outputs, Output{
 		Amount: uint64(askOutput.Value),
 		Script: hex.EncodeToString(askOutput.PkScript),
@@ -436,6 +443,10 @@ func MakeAskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue int64,
 
 	// add change output: 6
 	if buyerChangeAmount > 0 {
+		changeDust := MinOutputDustLimit(net, chain, buyerAddress)
+		if int64(buyerChangeAmount) < changeDust {
+			return "", feeAmountForPlatform, fmt.Errorf("buyer change amount %d is below dust limit %d", buyerChangeAmount, changeDust)
+		}
 		changeOut := Output{
 			Address: buyerAddress,
 			Amount:  buyerChangeAmount,
@@ -707,13 +718,17 @@ func MakeAskTakerPsbtRawForPreMake(net, chain, orderId, psbtRaw string, preOutVa
 	askOutputList[0] = wire.NewTxOut(int64(dummyOutValue), dummyAskPkScriptBytes)
 
 	// add buyer receive brc20 output: 1
-	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
+	preOutValue, err = adjustedAssetOutputValue(net, chain, buyerAddress, preOutValue)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	if preOutValue < preOutValueLimit && !isTaproot {
-		preOutValue = preOutValueLimit
+	if len(askOutputList) > 2 {
+		sellerDust := MinScriptDustLimit(net, chain, askOutputList[2].PkScript)
+		if askOutputList[2].Value < sellerDust {
+			return "", feeAmountForPlatform, fmt.Errorf("seller payout %d is below dust limit %d", askOutputList[2].Value, sellerDust)
+		}
 	}
+	_ = preOutValueLimit
 
 	buyerAddressPkScript, err := AddressToPkScript(net, chain, buyerAddress)
 	if err != nil {
@@ -761,6 +776,10 @@ func MakeAskTakerPsbtRawForPreMake(net, chain, orderId, psbtRaw string, preOutVa
 
 	// add change output: 6
 	if buyerChangeAmount > 0 {
+		changeDust := MinOutputDustLimit(net, chain, buyerAddress)
+		if int64(buyerChangeAmount) < changeDust {
+			return "", feeAmountForPlatform, fmt.Errorf("buyer change amount %d is below dust limit %d", buyerChangeAmount, changeDust)
+		}
 		changeOut := Output{
 			Address: buyerAddress,
 			Amount:  buyerChangeAmount,
@@ -898,12 +917,9 @@ func MakeMrc20AskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue i
 	// make outputs
 	outputs := make([]Output, 0)
 	// add buyer receive brc20 output: 0
-	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
+	preOutValue, err = adjustedAssetOutputValue(net, chain, buyerAddress, preOutValue)
 	if err != nil {
 		return "", feeAmountForPlatform, err
-	}
-	if preOutValue < 546 && !isTaproot {
-		preOutValue = 546
 	}
 	outputs = append(outputs, Output{
 		Address: buyerAddress,
@@ -911,6 +927,10 @@ func MakeMrc20AskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue i
 	})
 
 	// add receive btc output: 1
+	sellerDust := MinScriptDustLimit(net, chain, askOutput.PkScript)
+	if askOutput.Value < sellerDust {
+		return "", feeAmountForPlatform, fmt.Errorf("seller payout %d is below dust limit %d", askOutput.Value, sellerDust)
+	}
 	outputs = append(outputs, Output{
 		Amount: uint64(askOutput.Value),
 		Script: hex.EncodeToString(askOutput.PkScript),
@@ -934,6 +954,10 @@ func MakeMrc20AskTakerPsbtRaw(net, chain, orderId, psbtRaw string, preOutValue i
 
 	// add change output: 4
 	if buyerChangeAmount > 0 {
+		changeDust := MinOutputDustLimit(net, chain, buyerAddress)
+		if int64(buyerChangeAmount) < changeDust {
+			return "", feeAmountForPlatform, fmt.Errorf("buyer change amount %d is below dust limit %d", buyerChangeAmount, changeDust)
+		}
 		changeOut := Output{
 			Address: buyerAddress,
 			Amount:  buyerChangeAmount,
@@ -1139,13 +1163,17 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, chain, orderId, psbtRaw string, pre
 
 	outputs := make([]Output, 0)
 	// add buyer receive brc20 output: 0
-	isTaproot, err := CheckTaprootAddressType(net, chain, buyerAddress)
+	preOutValue, err = adjustedAssetOutputValue(net, chain, buyerAddress, preOutValue)
 	if err != nil {
 		return "", feeAmountForPlatform, err
 	}
-	if preOutValue < preOutValueLimit && !isTaproot {
-		preOutValue = preOutValueLimit
+	if len(askOutputList) > 1 {
+		sellerDust := MinScriptDustLimit(net, chain, askOutputList[1].PkScript)
+		if askOutputList[1].Value < sellerDust {
+			return "", feeAmountForPlatform, fmt.Errorf("seller payout %d is below dust limit %d", askOutputList[1].Value, sellerDust)
+		}
 	}
+	_ = preOutValueLimit
 	buyerAddressPkScript, err := AddressToPkScript(net, chain, buyerAddress)
 	if err != nil {
 		return "", feeAmountForPlatform, errors.New("AddressToPkScript err: " + err.Error())
@@ -1175,6 +1203,10 @@ func MakeMrc20AskTakerPsbtRawForPreMake(net, chain, orderId, psbtRaw string, pre
 
 	// add change output: 4
 	if buyerChangeAmount > 0 {
+		changeDust := MinOutputDustLimit(net, chain, buyerAddress)
+		if int64(buyerChangeAmount) < changeDust {
+			return "", feeAmountForPlatform, fmt.Errorf("buyer change amount %d is below dust limit %d", buyerChangeAmount, changeDust)
+		}
 		changeOut := Output{
 			Address: buyerAddress,
 			Amount:  buyerChangeAmount,

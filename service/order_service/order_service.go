@@ -91,6 +91,10 @@ func BatchPushMarketOrder(req *request.BatchPushOrderReq, publicKey, ip string) 
 
 		out := outList[i]
 		sellerPriceAmount := out.Value
+		minPriceAmount := common.GetMinOrderPriceAmount(chain)
+		if sellerPriceAmount < minPriceAmount {
+			return nil, fmt.Errorf("Wrong Psbt: seller price %d is below minimum %d. ", sellerPriceAmount, minPriceAmount)
+		}
 		pkScript := hex.EncodeToString(out.PkScript)
 		address, err := common.PkScriptToAddress(conf.Net, chain, pkScript)
 		if err != nil {
@@ -327,6 +331,10 @@ func BatchFetchOrderPsbt(req *request.BatchFetchOrderPsbtReq, publicKey, ip stri
 			if entity.SellerAddress == req.BuyerAddress {
 				return nil, errors.New("Buyer address is same as seller. ")
 			}
+			sellerDust := common.MinOutputDustLimit(conf.Net, chain, entity.SellerAddress)
+			if entity.SellPriceAmount < sellerDust {
+				return nil, fmt.Errorf("order price %d is below chain dust limit %d", entity.SellPriceAmount, sellerDust)
+			}
 			if err := risk_service.CheckAssetOrderListing(entity.Chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
 				_ = risk_service.CancelBlockedPinOrder(entity)
 				return nil, err
@@ -553,7 +561,14 @@ func BatchTakeMarketOrder(req *request.BatchTakeOrderReq, publicKey, ip string) 
 	}
 	broadcastTxId, err := common.BroadcastTx(chain, txRaw)
 	if err != nil {
-		return nil, err
+		if _, checkErr := common_service.GetTxInfo(chain, txId); checkErr == nil {
+			broadcastTxId = txId
+		} else if IsDeterministicBroadcastRejection(err) {
+			_ = models.RevertBatchPinOrdersBroadcast(entityList, txId)
+			return nil, err
+		} else {
+			return nil, err
+		}
 	}
 	if broadcastTxId != txId {
 		return nil, errors.New("broadcast transaction id does not match the prepared batch")
@@ -732,8 +747,9 @@ func PushMarketOrder(req *request.PushOrderReq, publicKey, ip string) (*respond.
 			return nil, errors.New("Address does not match in output. ")
 		}
 		sellerPriceAmount = v.Value
-		if sellerPriceAmount <= 0 {
-			return nil, errors.New("Wrong Psbt: invalid seller price. ")
+		minPriceAmount := common.GetMinOrderPriceAmount(chain)
+		if sellerPriceAmount < minPriceAmount {
+			return nil, fmt.Errorf("Wrong Psbt: seller price %d is below minimum %d. ", sellerPriceAmount, minPriceAmount)
 		}
 		if err := common.ValidateMakerAssetInput(conf.Net, chain, psbtBuilder, i, sellerAddress); err != nil {
 			return nil, err
@@ -880,6 +896,10 @@ func FetchOrderPsbt(req *request.FetchOrderPsbtReq, publicKey, ip string) (*resp
 
 	if entity.SellerAddress == req.BuyerAddress {
 		return nil, errors.New("Buyer address is same as seller. ")
+	}
+	sellerDust := common.MinOutputDustLimit(conf.Net, chain, entity.SellerAddress)
+	if entity.SellPriceAmount < sellerDust {
+		return nil, fmt.Errorf("order price %d is below chain dust limit %d", entity.SellPriceAmount, sellerDust)
 	}
 	if err := risk_service.CheckAddress(chain, req.BuyerAddress); err != nil {
 		return nil, err
@@ -1168,7 +1188,14 @@ func TakeMarketOrder(req *request.TakeOrderReq, publicKey, ip string) (*respond.
 	}
 	broadcastTxId, err := common.BroadcastTx(chain, txRaw)
 	if err != nil {
-		return nil, err
+		if _, checkErr := common_service.GetTxInfo(chain, txId); checkErr == nil {
+			broadcastTxId = txId
+		} else if IsDeterministicBroadcastRejection(err) {
+			_ = models.RevertPinOrderBroadcast(entity)
+			return nil, err
+		} else {
+			return nil, err
+		}
 	}
 	if broadcastTxId != txId {
 		return nil, errors.New("broadcast transaction id does not match the prepared order")

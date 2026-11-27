@@ -2,13 +2,62 @@ package common
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"metaid-market-service/conf"
 	"metaid-market-service/models"
+	"strings"
 
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 )
+
+func GetMinOrderPriceAmount(chain string) int64 {
+	if strings.EqualFold(chain, "doge") {
+		if conf.MinOrderPriceAmountDoge > 1000000 {
+			return conf.MinOrderPriceAmountDoge
+		}
+		return 1000000
+	}
+	if conf.MinOrderPriceAmountBtc > 546 {
+		return conf.MinOrderPriceAmountBtc
+	}
+	return 546
+}
+
+func MinOutputDustLimit(net, chain, address string) int64 {
+	if strings.EqualFold(chain, "doge") {
+		return 1000000
+	}
+	if address == "" {
+		return 546
+	}
+	addr, err := btcutil.DecodeAddress(address, GetNetParams(net, chain))
+	if err != nil {
+		return 546
+	}
+	switch addr.(type) {
+	case *btcutil.AddressTaproot, *btcutil.AddressWitnessScriptHash:
+		return 330
+	case *btcutil.AddressWitnessPubKeyHash:
+		return 294
+	default:
+		return 546
+	}
+}
+
+func MinScriptDustLimit(net, chain string, pkScript []byte) int64 {
+	if strings.EqualFold(chain, "doge") {
+		return 1000000
+	}
+	addr, err := PkScriptToAddress(net, chain, hex.EncodeToString(pkScript))
+	if err != nil {
+		return 546
+	}
+	return MinOutputDustLimit(net, chain, addr)
+}
 
 var checkUtxoSpendForValidation = CheckUtxoSpendWithMempool
 
@@ -244,9 +293,13 @@ func validateChangeAndFees(net, chain string, builder *PsbtBuilder, buyerAddress
 		}
 		inputSum += output.Value
 	}
-	for _, output := range builder.GetOutputs() {
+	for i, output := range builder.GetOutputs() {
 		if output.Value <= 0 {
 			return errors.New("transaction contains a non-positive output")
+		}
+		dustLimit := MinScriptDustLimit(net, chain, output.PkScript)
+		if output.Value < dustLimit {
+			return fmt.Errorf("transaction output %d value %d is below dust limit %d", i, output.Value, dustLimit)
 		}
 		outputSum += output.Value
 	}
@@ -265,10 +318,13 @@ func adjustedAssetOutputValue(net, chain, buyerAddress string, value int64) (int
 		return 0, err
 	}
 	limit := int64(546)
-	if chain == "doge" {
+	if isTaproot {
+		limit = 330
+	}
+	if strings.EqualFold(chain, "doge") {
 		limit = 1000000
 	}
-	if value < limit && !isTaproot {
+	if value < limit {
 		value = limit
 	}
 	return value, nil
@@ -300,6 +356,10 @@ func ValidateMrc20TakePsbt(net, chain string, entity *models.MarketMrc20OrderMod
 	}
 	if err := validateExpectedOutput(net, chain, builder, 0, buyerAddress, assetValue); err != nil {
 		return "", err
+	}
+	sellerDust := MinOutputDustLimit(net, chain, entity.SellerAddress)
+	if entity.PriceAmount < sellerDust {
+		return "", fmt.Errorf("seller payout %d is below dust limit %d", entity.PriceAmount, sellerDust)
 	}
 	if err := validateExpectedOutput(net, chain, builder, 1, entity.SellerAddress, entity.PriceAmount); err != nil {
 		return "", err
@@ -366,6 +426,10 @@ func ValidatePinTakePsbt(net, chain string, entity *models.MarketOrderModel, bui
 	}
 	if err := validateExpectedOutput(net, chain, builder, 1, buyerAddress, assetValue); err != nil {
 		return "", err
+	}
+	sellerDust := MinOutputDustLimit(net, chain, entity.SellerAddress)
+	if entity.SellPriceAmount < sellerDust {
+		return "", fmt.Errorf("seller payout %d is below dust limit %d", entity.SellPriceAmount, sellerDust)
 	}
 	if err := validateExpectedOutput(net, chain, builder, 2, entity.SellerAddress, entity.SellPriceAmount); err != nil {
 		return "", err
@@ -443,6 +507,10 @@ func ValidateBatchPinTakePsbt(net, chain string, entities []*models.MarketOrderM
 		return "", err
 	}
 	for i, entity := range entities {
+		sellerDust := MinOutputDustLimit(net, chain, entity.SellerAddress)
+		if entity.SellPriceAmount < sellerDust {
+			return "", fmt.Errorf("seller payout %d is below dust limit %d", entity.SellPriceAmount, sellerDust)
+		}
 		if err := validateExpectedOutput(net, chain, builder, 2+i, entity.SellerAddress, entity.SellPriceAmount); err != nil {
 			return "", err
 		}

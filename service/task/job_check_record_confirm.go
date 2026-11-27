@@ -333,15 +333,18 @@ func jobForCheckMrc20PreTransferOrderAskConfirm() {
 			}
 			tick := mrc20Info.Tick
 
-			coinAmountStr := mrc20Info.AmtChange
-			coinAmount, _ := strconv.ParseInt(coinAmountStr, 10, 64)
+			coinAmountStr := strings.TrimSpace(mrc20Info.AmtChange)
+			coinAmount, _, err := order_service.ParseMrc20DisplayAmount(coinAmountStr, entity.Decimals)
+			if err != nil {
+				fmt.Printf("[JOB][%s][%s] ParseMrc20DisplayAmount error: %v\n", jobName, entity.OrderId, err)
+			}
 			//outValue := mrc20Info.PointValue
 
 			entity.Tick = tick
 			entity.TickId = mrc20Info.Mrc20Id
 
 			entity.AmountStr = coinAmountStr
-			entity.Amount = int64(coinAmount)
+			entity.Amount = coinAmount
 			//entity.OutValue = outValue
 
 			entity.AskType = models.AskTypePreTransferCheck

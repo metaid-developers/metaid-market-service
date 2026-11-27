@@ -22,6 +22,49 @@ import (
 	"gorm.io/gorm"
 )
 
+func ParseMrc20DisplayAmount(amountStr string, decimals int64) (int64, decimal.Decimal, error) {
+	trimmed := strings.TrimSpace(amountStr)
+	if trimmed == "" {
+		return 0, decimal.Zero, errors.New("Wrong Psbt: empty MRC-20 amount. ")
+	}
+	amountDe, err := decimal.NewFromString(trimmed)
+	if err != nil || !amountDe.IsPositive() {
+		return 0, decimal.Zero, errors.New("Wrong Psbt: invalid MRC-20 amount. ")
+	}
+	if decimals >= 0 && !amountDe.Round(int32(decimals)).Equal(amountDe) {
+		return 0, decimal.Zero, fmt.Errorf("Wrong Psbt: MRC-20 amount %s exceeds token decimals %d. ", trimmed, decimals)
+	}
+	return amountDe.IntPart(), amountDe, nil
+}
+
+func FormatTokenPriceRate(rate decimal.Decimal) string {
+	if !rate.IsPositive() {
+		return "0.000000"
+	}
+	if rate.GreaterThanOrEqual(decimal.New(1, -6)) {
+		return rate.StringFixed(6)
+	}
+	formatted := strings.TrimRight(strings.TrimRight(rate.StringFixed(12), "0"), ".")
+	if formatted == "" || formatted == "0" {
+		formatted = strings.TrimRight(strings.TrimRight(rate.StringFixed(18), "0"), ".")
+	}
+	if formatted == "" || formatted == "0" {
+		return rate.String()
+	}
+	return formatted
+}
+
+func FormatChange24H(change24H int64) string {
+	if change24H == 0 {
+		return "+0.00%"
+	}
+	val := decimal.New(change24H, 0).Div(decimal.New(100, 0)).StringFixed(2)
+	if change24H > 0 {
+		return "+" + val + "%"
+	}
+	return val + "%"
+}
+
 func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) (*respond.PushMrc20OrderResp, error) {
 	var (
 		orderEntity *models.MarketMrc20OrderModel
@@ -152,8 +195,11 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 				return nil, errors.New(fmt.Sprintf("Wrong Psbt: chain not match. %s != %s", chain, mrc20Info.Chain))
 			}
 
-			amountStr = mrc20Info.AmtChange
-			amount, _ = strconv.ParseInt(amountStr, 10, 64)
+			amountStr = strings.TrimSpace(mrc20Info.AmtChange)
+			amount, _, err = ParseMrc20DisplayAmount(amountStr, decimals)
+			if err != nil {
+				return nil, err
+			}
 			outValue = mrc20Info.PointValue
 		} else if askType == models.AskTypePreTransfer {
 			if reqCoinAmountStr == "" || reqUtxoOutValue == 0 {
@@ -170,10 +216,11 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 				return nil, errors.New(fmt.Sprintf("Wrong Psbt: chain not match. %s != %s", chain, tickInfo.Chain))
 			}
 
-			amountStr = reqCoinAmountStr
-			//amount, _ = strconv.ParseInt(amountStr, 10, 64)
-			amountDe, _ := decimal.NewFromString(amountStr)
-			amount = amountDe.IntPart()
+			amountStr = strings.TrimSpace(reqCoinAmountStr)
+			amount, _, err = ParseMrc20DisplayAmount(amountStr, decimals)
+			if err != nil {
+				return nil, err
+			}
 			outValue = reqUtxoOutValue
 		} else {
 			return nil, errors.New("Wrong AskType. ")
@@ -205,8 +252,9 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 		priceAmount = v.Value
 		priceDecimal = 8
 		// priceCoin = "BTC"
-		if priceAmount <= 0 {
-			return nil, errors.New("Wrong Psbt: invalid seller price. ")
+		minPriceAmount := common.GetMinOrderPriceAmount(chain)
+		if priceAmount < minPriceAmount {
+			return nil, fmt.Errorf("Wrong Psbt: seller price %d is below minimum %d. ", priceAmount, minPriceAmount)
 		}
 		if err := common.ValidateMakerAssetInput(conf.Net, chain, psbtBuilder, i, sellerAddress); err != nil {
 			return nil, err
@@ -215,13 +263,13 @@ func PushMarketMrc20Order(req *request.PushMrc20OrderReq, publicKey, ip string) 
 	//if !psbtBuilder.IsComplete() {
 	//	return nil, errors.New("Wrong Psbt: incomplete. ")
 	//}
-	amountDe, err := decimal.NewFromString(amountStr)
-	if err != nil || !amountDe.IsPositive() {
-		return nil, errors.New("Wrong Psbt: invalid MRC-20 amount. ")
+	amount, amountDe, err := ParseMrc20DisplayAmount(amountStr, decimals)
+	if err != nil {
+		return nil, err
 	}
 	priceAmountDe := decimal.New(priceAmount, 0)
 	tokenPriceRateDe := priceAmountDe.Div(amountDe)
-	tokenPriceRateStr = tokenPriceRateDe.StringFixed(6)
+	tokenPriceRateStr = FormatTokenPriceRate(tokenPriceRateDe)
 	tokenPriceRate, _ = tokenPriceRateDe.Float64()
 	//if tokenPriceRate < 1 {
 	//	return nil, errors.New("Wrong Psbt: token price rate < 1. ")
@@ -369,6 +417,10 @@ func FetchMrc20OrderPsbt(req *request.FetchMrc20OrderPsbtReq, publicKey, ip stri
 	if entity.AskType == models.AskTypePreTransfer {
 		return nil, errors.New("The asset-utxo of this order is waiting for confirmation. " +
 			"Please wait for the confirmation or select a different order. ")
+	}
+	sellerDust := common.MinOutputDustLimit(conf.Net, chain, entity.SellerAddress)
+	if entity.PriceAmount < sellerDust {
+		return nil, fmt.Errorf("order price %d is below chain dust limit %d", entity.PriceAmount, sellerDust)
 	}
 	if err := risk_service.CheckMrc20OrderListing(chain, entity.SellerAddress, entity.UtxoId, entity.OutValue, nil); err != nil {
 		_ = risk_service.CancelBlockedMrc20Order(entity, "Blocked stolen asset")
@@ -694,7 +746,14 @@ func TakeMarketMrc20Order(req *request.TakeMrc20OrderReq, publicKey, ip string) 
 	}
 	broadcastTxId, err := common.BroadcastTx(chain, txRaw)
 	if err != nil {
-		return nil, err
+		if _, checkErr := common_service.GetTxInfo(chain, txId); checkErr == nil {
+			broadcastTxId = txId
+		} else if IsDeterministicBroadcastRejection(err) {
+			_ = models.RevertMrc20OrderBroadcast(entity)
+			return nil, err
+		} else {
+			return nil, err
+		}
 	}
 	if broadcastTxId != txId {
 		return nil, errors.New("broadcast transaction id does not match the prepared order")
@@ -966,9 +1025,7 @@ func FetchMarketMrc20HotList(req *request.FetchMarketMrc20HotListReq, publicKey,
 	var list []*respond.Mrc20HotInfo = make([]*respond.Mrc20HotInfo, 0)
 	t = tool.MakeTimestamp()
 	for _, item := range hotList {
-		change24h := "+0.00%"
-		change24HDe := decimal.New(item.Change24H, 0)
-		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		change24h := FormatChange24H(item.Change24H)
 		t2 := tool.MakeTimestamp()
 		cacheTickInfo := common_service.GetCacheMrc20TickInfo(item.TickId)
 		fmt.Printf("FetchMarketMrc20HotList: cacheTickInfo time[%s] %d\n", item.TickId, tool.MakeTimestamp()-t2)
@@ -1024,9 +1081,7 @@ func FetchMarketMrc20NewestList(req *request.FetchMarketMrc20NewestListReq, publ
 
 	for _, item := range newestList {
 		//fmt.Printf("FetchMarketMrc20NewestList: item: %+v\n", item)
-		change24h := "+0.00%"
-		change24HDe := decimal.New(item.Change24H, 0)
-		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		change24h := FormatChange24H(item.Change24H)
 		cacheTickInfo := common_service.GetCacheMrc20TickInfo(item.TickId)
 
 		newestInfo := &respond.Mrc20NewestInfo{

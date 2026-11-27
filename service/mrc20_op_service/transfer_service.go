@@ -102,8 +102,8 @@ func Mrc20TransferPre(req *request.Mrc20TransferPreRequest, publicKey, ip string
 	}
 	outValue := int64(0)
 	for _, v := range req.Mrc20Outs {
-		mrc20AmountDe, _ := decimal.NewFromString(v.Amount)
-		if mrc20AmountDe.LessThanOrEqual(decimal.New(0, 0)) {
+		mrc20AmountDe, err := decimal.NewFromString(v.Amount)
+		if err != nil || !mrc20AmountDe.IsPositive() {
 			return nil, errors.New("transfer mrc20 parameter error")
 		}
 

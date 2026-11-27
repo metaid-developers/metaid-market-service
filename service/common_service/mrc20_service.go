@@ -30,6 +30,34 @@ func isMrc20V2Source(source string) bool {
 	return strings.EqualFold(source, "mrc20-v2")
 }
 
+func formatMarketChange24H(change24H int64) string {
+	if change24H == 0 {
+		return "+0.00%"
+	}
+	val := decimal.New(change24H, 0).Div(decimal.New(100, 0)).StringFixed(2)
+	if change24H > 0 {
+		return "+" + val + "%"
+	}
+	return val + "%"
+}
+
+func formatUsdAmount(usd decimal.Decimal) string {
+	if !usd.IsPositive() {
+		return "0.00"
+	}
+	if usd.GreaterThanOrEqual(decimal.New(1, -3)) {
+		return usd.StringFixed(3)
+	}
+	formatted := strings.TrimRight(strings.TrimRight(usd.StringFixed(8), "0"), ".")
+	if formatted == "" || formatted == "0" {
+		formatted = strings.TrimRight(strings.TrimRight(usd.StringFixed(12), "0"), ".")
+	}
+	if formatted == "" || formatted == "0" {
+		return usd.String()
+	}
+	return formatted
+}
+
 func FetchMrc20TickList(req *request.FetchMrc20TickListReq) (*respond.Mrc20TickListResp, error) {
 	if req.Tag == "id-coins" {
 		return FetchIdCoinsTickList(req)
@@ -114,8 +142,7 @@ func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc2
 			if marketInfo != nil {
 				price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
 				marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
-				change24HDe := decimal.New(marketInfo.Change24H, 0)
-				change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+				change24h = formatMarketChange24H(marketInfo.Change24H)
 
 				btcUsd := GetPriceForUsd("BTC")
 				btcUsdDe, _ := decimal.NewFromString(btcUsd)
@@ -127,9 +154,9 @@ func FetchMrc20TickListByGrpc(req *request.FetchMrc20TickListReq) (*respond.Mrc2
 				}
 
 				priceDe, _ := decimal.NewFromString(price)
-				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+				priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 				marketCapDe, _ := decimal.NewFromString(marketCap)
-				marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+				marketCapUsd = formatUsdAmount(marketCapDe.Mul(satUsdDe))
 
 				totalVolume = marketInfo.TotalVolume
 			}
@@ -239,8 +266,7 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 			if marketInfo != nil {
 				price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
 				marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
-				change24HDe := decimal.New(marketInfo.Change24H, 0)
-				change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+				change24h = formatMarketChange24H(marketInfo.Change24H)
 
 				btcUsd := GetPriceForUsd("BTC")
 				btcUsdDe, _ := decimal.NewFromString(btcUsd)
@@ -252,9 +278,9 @@ func FetchMrc20TickListByMan(req *request.FetchMrc20TickListReq) (*respond.Mrc20
 				}
 
 				priceDe, _ := decimal.NewFromString(price)
-				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+				priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 				marketCapDe, _ := decimal.NewFromString(marketCap)
-				marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+				marketCapUsd = formatUsdAmount(marketCapDe.Mul(satUsdDe))
 
 				totalVolume = marketInfo.TotalVolume
 			}
@@ -336,8 +362,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 		floorPrice = strconv.FormatFloat(v.FloorPrice, 'f', -1, 64)
 		price = strconv.FormatFloat(v.LastPrice, 'f', -1, 64)
 		marketCap = strconv.FormatInt(v.MarketCap, 10)
-		change24HDe := decimal.New(v.Change24H, 0)
-		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		change24h = formatMarketChange24H(v.Change24H)
 
 		btcUsd := GetPriceForUsd("BTC")
 		btcUsdDe, _ := decimal.NewFromString(btcUsd)
@@ -349,11 +374,11 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 		}
 
 		priceDe, _ := decimal.NewFromString(price)
-		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 		floorPriceDe, _ := decimal.NewFromString(floorPrice)
-		floorPriceUsd = floorPriceDe.Mul(satUsdDe).StringFixed(3)
+		floorPriceUsd = formatUsdAmount(floorPriceDe.Mul(satUsdDe))
 		marketCapDe, _ := decimal.NewFromString(marketCap)
-		marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+		marketCapUsd = formatUsdAmount(marketCapDe.Mul(satUsdDe))
 
 		totalVolume = v.TotalVolume
 
@@ -488,8 +513,7 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 			if marketInfo != nil {
 				price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
 				marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
-				change24HDe := decimal.New(marketInfo.Change24H, 0)
-				change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+				change24h = formatMarketChange24H(marketInfo.Change24H)
 
 				btcUsd := GetPriceForUsd("BTC")
 				btcUsdDe, _ := decimal.NewFromString(btcUsd)
@@ -501,9 +525,9 @@ func FetchMrc20TickListByMarket(req *request.FetchMrc20TickListReq) (*respond.Mr
 				}
 
 				priceDe, _ := decimal.NewFromString(price)
-				priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+				priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 				marketCapDe, _ := decimal.NewFromString(marketCap)
-				marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+				marketCapUsd = formatUsdAmount(marketCapDe.Mul(satUsdDe))
 
 				totalVolume = marketInfo.TotalVolume
 			}
@@ -615,8 +639,7 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		floorPrice = strconv.FormatFloat(marketInfo.FloorPrice, 'f', -1, 64)
 		price = strconv.FormatFloat(marketInfo.LastPrice, 'f', -1, 64)
 		marketCap = strconv.FormatInt(marketInfo.MarketCap, 10)
-		change24HDe := decimal.New(marketInfo.Change24H, 0)
-		change24h = change24HDe.Div(decimal.New(100, 0)).String() + "%"
+		change24h = formatMarketChange24H(marketInfo.Change24H)
 
 		btcUsd := GetPriceForUsd("BTC")
 		btcUsdDe, _ := decimal.NewFromString(btcUsd)
@@ -628,11 +651,11 @@ func FetchMrc20TickInfo(req *request.FetchMrc20TickInfoReq) (*respond.Mrc20TickI
 		}
 
 		priceDe, _ := decimal.NewFromString(price)
-		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 		floorPriceDe, _ := decimal.NewFromString(floorPrice)
-		floorPriceUsd = floorPriceDe.Mul(satUsdDe).StringFixed(3)
+		floorPriceUsd = formatUsdAmount(floorPriceDe.Mul(satUsdDe))
 		marketCapDe, _ := decimal.NewFromString(marketCap)
-		marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+		marketCapUsd = formatUsdAmount(marketCapDe.Mul(satUsdDe))
 		totalVolume = marketInfo.TotalVolume
 	}
 
@@ -1127,7 +1150,7 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 
 		price = ticketPriceInfo.TicketPriceStr
 		priceDe, _ := decimal.NewFromString(price)
-		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 
 		return &respond.Mrc20TickMarketPriceResp{
 			TickId:        ticketPriceInfo.TicketId,
@@ -1171,11 +1194,11 @@ func FetchMrc20TickMarketPrice(req *request.FetchMrc20TickMarketPriceResp) (*res
 	}
 
 	priceDe, _ := decimal.NewFromString(price)
-	priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+	priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 	floorPriceDe, _ := decimal.NewFromString(floorPrice)
-	floorPriceUsd = floorPriceDe.Mul(satUsdDe).StringFixed(3)
+	floorPriceUsd = formatUsdAmount(floorPriceDe.Mul(satUsdDe))
 	marketCapDe, _ := decimal.NewFromString(marketCap)
-	marketCapUsd = marketCapDe.Mul(satUsdDe).StringFixed(3)
+	marketCapUsd = formatUsdAmount(marketCapDe.Mul(satUsdDe))
 
 	totalVolume = marketInfo.TotalVolume
 
@@ -1305,7 +1328,7 @@ func loadMrc20TickMarketPriceList() (*respond.Mrc20TickMarketPriceListResp, erro
 		}
 
 		priceDe, _ := decimal.NewFromString(price)
-		priceUsd = priceDe.Mul(satUsdDe).StringFixed(3)
+		priceUsd = formatUsdAmount(priceDe.Mul(satUsdDe))
 		item := &respond.Mrc20TickMarketPriceInfo{
 			TickId:    v.TickId,
 			Tick:      v.Tick,
