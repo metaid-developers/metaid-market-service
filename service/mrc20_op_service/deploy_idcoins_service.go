@@ -12,11 +12,8 @@ import (
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_service"
-	"metaid-market-service/service/orders_exchange_service"
-	"metaid-market-service/service/risk_service"
 	"metaid-market-service/service/wallet_service"
 	"metaid-market-service/tool"
-	"strings"
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -24,85 +21,11 @@ import (
 )
 
 func BuildIdCoinsPre(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {
-	if strings.ToLower(req.Tick) == "wukong" {
-		return nil, errors.New("tick error")
-	}
-	if err := risk_service.CheckAddress("btc", req.IssuerAddress); err != nil {
-		return nil, err
-	}
-
-	return buildIdCoinsPreFromOrders(req, publicKey, ip)
+	return nil, errIdCoinsMaintenance
 }
 
 func BuildIdCoinsCommit(req *request.BuildIdCoinsCommitRequest, publicKey, ip string) (*respond.BuildIdCoinsCommitResp, error) {
-	if err := risk_service.CheckRawBtcTx("btc", req.CommitTxRaw); err != nil {
-		return nil, err
-	}
-	return buildIdCoinsCommitFromOrder(req, publicKey, ip)
-}
-
-func buildIdCoinsPreFromOrders(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {
-	var (
-		headers map[string]string = map[string]string{
-			"X-Public-Key": publicKey,
-		}
-
-		reqOrders *orders_exchange_service.BuildIdCoinsPreRequest = &orders_exchange_service.BuildIdCoinsPreRequest{
-			Tick:             req.Tick,
-			TokenName:        req.TokenName,
-			IssuerMetaId:     req.IssuerMetaId,
-			IssuerAddress:    req.IssuerAddress,
-			IssuerSign:       req.IssuerSign,
-			Message:          req.Message,
-			FollowersNum:     req.FollowersNum,
-			AmountPerMint:    req.AmountPerMint,
-			LiquidityPerMint: req.LiquidityPerMint,
-			NetworkFeeRate:   req.NetworkFeeRate,
-		}
-		respOrders *orders_exchange_service.BuildIdCoinsPreResp
-		err        error
-	)
-	respOrders, err = orders_exchange_service.BuildIdCoinsPre(reqOrders, headers)
-	if err != nil {
-		return nil, err
-	}
-	return &respond.BuildIdCoinsPreResp{
-		OrderId:        respOrders.OrderId,
-		TotalFee:       respOrders.TotalFee,
-		ReceiveAddress: respOrders.ReceiveAddress,
-		MinerFee:       respOrders.MinerFee,
-		MinerGas:       respOrders.MinerGas,
-		MinerOutValue:  respOrders.MinerOutValue,
-		ServiceFee:     respOrders.ServiceFee,
-	}, nil
-}
-
-func buildIdCoinsCommitFromOrder(req *request.BuildIdCoinsCommitRequest, publicKey, ip string) (*respond.BuildIdCoinsCommitResp, error) {
-	var (
-		headers map[string]string = map[string]string{
-			"X-Public-Key": publicKey,
-		}
-
-		reqOrders *orders_exchange_service.BuildIdCoinsCommitRequest = &orders_exchange_service.BuildIdCoinsCommitRequest{
-			OrderId:          req.OrderId,
-			CommitTxRaw:      req.CommitTxRaw,
-			CommitTxOutIndex: req.CommitTxOutIndex,
-		}
-		respOrders *orders_exchange_service.BuildIdCoinsCommitResp
-		err        error
-	)
-	respOrders, err = orders_exchange_service.BuildIdCoinsCommit(reqOrders, headers)
-	if err != nil {
-		return nil, err
-	}
-	return &respond.BuildIdCoinsCommitResp{
-		OrderId:    respOrders.OrderId,
-		TickId:     respOrders.TickId,
-		CommitTxId: respOrders.CommitTxId,
-		RevealTxId: respOrders.RevealTxId,
-		PinId:      respOrders.PinId,
-		TxId:       respOrders.TxId,
-	}, nil
+	return nil, errIdCoinsMaintenance
 }
 
 func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {

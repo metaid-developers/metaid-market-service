@@ -83,3 +83,18 @@ func IdCoinsTickIdList() []string {
 	}
 	return tickIds
 }
+
+// IdCoinSnapshotCoin is one entry from the fixed ID-coin snapshot.
+type IdCoinSnapshotCoin struct {
+	Tick   string
+	TickId string
+}
+
+// IdCoinsSnapshot returns a copy of the fixed snapshot in snapshot order.
+func IdCoinsSnapshot() []IdCoinSnapshotCoin {
+	list := make([]IdCoinSnapshotCoin, 0, len(idCoins))
+	for _, coin := range idCoins {
+		list = append(list, IdCoinSnapshotCoin{Tick: coin.Tick, TickId: coin.TickId})
+	}
+	return list
+}

@@ -305,6 +305,54 @@ func FetchOneIdCoinsInfo(c *gin.Context) {
 	return
 }
 
+// @Summary Fetch id-coins info by issuer address
+// @Description Fetch id-coins info by issuer address
+// @Produce  json
+// @Tags IdCoins
+// @Param issuerAddress query string true "issuerAddress"
+// @Success 200 {object} respond.IdCoinsInfoResp ""
+// @Router /api/v1/id-coins/address/coins-info [get]
+func FetchAddressIdCoinsInfo(c *gin.Context) {
+	var (
+		t         int64                                  = tool.MakeTimestamp()
+		publicKey                                        = getAuthParams(c)
+		req       *request.FetchAddressIdCoinInfoRequest = &request.FetchAddressIdCoinInfoRequest{
+			IssuerAddress: c.DefaultQuery("issuerAddress", ""),
+		}
+	)
+	resp, err := mrc20_op_service.FetchAddressIdCoinsInfo(req, publicKey, c.ClientIP())
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
+}
+
+// @Summary Fetch simple id-coins list
+// @Description Fetch simple id-coins list
+// @Produce  json
+// @Tags IdCoins
+// @Param cursor query int false "default:0"
+// @Param size query int false "default:10"
+// @Success 200 {object} respond.FetchIdCoinsSimpleInfoListResp ""
+// @Router /api/v1/id-coins/coins-simple-list [get]
+func FetchIdCoinsSimpleInfoList(c *gin.Context) {
+	var (
+		t         int64  = tool.MakeTimestamp()
+		publicKey        = getAuthParams(c)
+		cursorStr string = c.DefaultQuery("cursor", "0")
+		sizeStr   string = c.DefaultQuery("size", "10")
+	)
+	cursor, _ := strconv.ParseInt(cursorStr, 10, 64)
+	size, _ := strconv.ParseInt(sizeStr, 10, 64)
+	resp, err := mrc20_op_service.FetchIdCoinsSimpleInfoList(cursor, size, publicKey, c.ClientIP())
+	if err != nil {
+		c.JSONP(http.StatusOK, respond.RespErr(err, tool.MakeTimestamp()-t, respond.HttpsCodeError))
+		return
+	}
+	c.JSONP(http.StatusOK, respond.RespSuccess(resp, tool.MakeTimestamp()-t))
+}
+
 // @Summary Check id-coins deploy check info
 // @Description Fetch id-coins info
 // @Produce  json
