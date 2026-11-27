@@ -143,6 +143,7 @@ export interface CancelOrderParams {
 
 export interface PlaceTokenOrderParams {
   makerAddress: string
+  fundingAddress?: string   // optional; pays FT + SPACE inputs and receives change. Defaults to makerAddress.
   sellTokenCodeHash: string
   sellTokenID: string
   buyTokenCodeHash: string
@@ -186,6 +187,28 @@ interface InternalDraft {
 function addressToHash20(address: string, net: 'livenet' | 'testnet'): Buffer {
   if (!address) return Buffer.alloc(20, 0)
   return Buffer.from(new mvc.Address(address, net).hashBuffer)
+}
+
+const ZERO_HASH20 = Buffer.alloc(20, 0)
+
+function isZeroHash20(hash20: Buffer): boolean {
+  return hash20.length === 20 && hash20.equals(ZERO_HASH20)
+}
+
+function parseP2pkhAddress(address: string, net: 'livenet' | 'testnet', field: string): any {
+  if (!address || typeof address !== 'string') {
+    throw new Error(`${field} is required`)
+  }
+  let addr: any
+  try {
+    addr = new mvc.Address(address, net)
+  } catch (err) {
+    throw new Error(`${field} is not a valid ${net} address: ${err?.message || err}`)
+  }
+  if (addr.type !== 'pubkeyhash') {
+    throw new Error(`${field} must be a P2PKH address`)
+  }
+  return addr
 }
 
 function p2pkhScript(address: string, net: 'livenet' | 'testnet'): any {
@@ -2287,8 +2310,19 @@ export class OrderbookTxBuilder {
   // =========================================================================
   async buildPlaceTokenOrder(params: PlaceTokenOrderParams): Promise<DraftBuildResult> {
     const feeRate = params.feeRate ?? this.defaultFeeRate
-    const makerHash20 = addressToHash20(params.makerAddress, this.net)
-    const makerP2pkh = p2pkhScript(params.makerAddress, this.net)
+    const makerHash20 = Buffer.from(parseP2pkhAddress(params.makerAddress, this.net, 'makerAddress').hashBuffer)
+    const fundingAddress = params.fundingAddress ?? params.makerAddress
+    const fundingHash20 = Buffer.from(parseP2pkhAddress(fundingAddress, this.net, 'fundingAddress').hashBuffer)
+    const fundingP2pkh = p2pkhScript(fundingAddress, this.net)
+    if (isZeroHash20(makerHash20) && !params.fundingAddress) {
+      throw new Error(
+        'makerAddress cannot be the burn (zero-hash) address without an explicit fundingAddress: ' +
+        'the burn hash cannot sign for the order inputs'
+      )
+    }
+    if (isZeroHash20(fundingHash20)) {
+      throw new Error('fundingAddress cannot be the burn (zero-hash) address')
+    }
     const sellCodeHashBuf = Buffer.from(params.sellTokenCodeHash, 'hex')
     const sellTokenIDBuf = Buffer.from(params.sellTokenID, 'hex')
     const buyCodeHashBuf = Buffer.from(params.buyTokenCodeHash, 'hex')
@@ -2334,14 +2368,14 @@ export class OrderbookTxBuilder {
     const orderHash20 = mvc.crypto.Hash.sha256ripemd160(orderLockScript.toBuffer())
 
     const [tokenUtxos, mvcUtxos] = await Promise.all([
-      this.chain.getTokenUtxos(params.makerAddress, params.sellTokenCodeHash, params.sellTokenID),
-      this.chain.getMvcUtxos(params.makerAddress),
+      this.chain.getTokenUtxos(fundingAddress, params.sellTokenCodeHash, params.sellTokenID),
+      this.chain.getMvcUtxos(fundingAddress),
     ])
     const { selected: selTokens, total: totalTok } = selectTokenUtxos(tokenUtxos, sellAmount, 3)
     const tokChange = totalTok - sellAmount
 
     const recAmounts = tokChange > BigInt(0) ? [sellAmount, tokChange] : [sellAmount]
-    const recAddrs = tokChange > BigInt(0) ? [orderHash20, makerHash20] : [orderHash20]
+    const recAddrs = tokChange > BigInt(0) ? [orderHash20, fundingHash20] : [orderHash20]
     const transferCheckInst = SwapEngine.buildTokenTransferCheck(
       this.contracts,
       sellTokenIDBuf,
@@ -2364,10 +2398,10 @@ export class OrderbookTxBuilder {
     }
     prepTx.addOutput(new mvc.Transaction.Output({ script: orderLockScript, satoshis: DUST }))
     prepTx.addOutput(new mvc.Transaction.Output({ script: transferCheckInst.lockingScript, satoshis: DUST }))
-    prepTx.addOutput(new mvc.Transaction.Output({ script: makerP2pkh, satoshis: lockUtxoSats }))
+    prepTx.addOutput(new mvc.Transaction.Output({ script: fundingP2pkh, satoshis: lockUtxoSats }))
     const prepChange = totalMvc - needPrepSats
     if (prepChange >= DUST) {
-      prepTx.addOutput(new mvc.Transaction.Output({ script: makerP2pkh, satoshis: prepChange }))
+      prepTx.addOutput(new mvc.Transaction.Output({ script: fundingP2pkh, satoshis: prepChange }))
     }
 
     const prepHex = prepTx.uncheckedSerialize()
@@ -2378,7 +2412,7 @@ export class OrderbookTxBuilder {
       scriptHex: u.scriptHex,
       satoshis: u.satoshis,
       sigtype: SIG_ALL,
-      address: params.makerAddress,
+      address: fundingAddress,
       kind: 'p2pkh',
       message: 'Sign Place Token Order prep transaction',
     }))
@@ -2406,6 +2440,8 @@ export class OrderbookTxBuilder {
         priceDen: priceDen.toString(),
         minFillAmount: minFillAmount.toString(),
         feeBps: params.feeBps,
+        makerAddress: params.makerAddress,
+        fundingAddress,
         saltHex: saltBuf.toString('hex'),
         estimatedMinerFee: prepFeeBudget + lockFeeBudget,
       },
@@ -2428,19 +2464,19 @@ export class OrderbookTxBuilder {
             addTxInput(lockTx, u.txid, u.vout, tokenTxs[i].outputs[u.vout].script, u.satoshis)
           }
           addTxInput(lockTx, signedPrepTxid, 1, transferCheckInst.lockingScript, DUST)
-          addTxInput(lockTx, signedPrepTxid, 2, makerP2pkh, lockUtxoSats)
+          addTxInput(lockTx, signedPrepTxid, 2, fundingP2pkh, lockUtxoSats)
 
           const lockedTokBuf = TokenProto.getNewTokenScript(sampleTokBuf, orderHash20, sellAmount)
           lockTx.addOutput(new mvc.Transaction.Output({ script: mvc.Script.fromBuffer(lockedTokBuf), satoshis: DUST }))
           if (tokChange > BigInt(0)) {
-            const chgTokBuf = TokenProto.getNewTokenScript(sampleTokBuf, makerHash20, tokChange)
+            const chgTokBuf = TokenProto.getNewTokenScript(sampleTokBuf, fundingHash20, tokChange)
             lockTx.addOutput(new mvc.Transaction.Output({ script: mvc.Script.fromBuffer(chgTokBuf), satoshis: DUST }))
           }
           const lockInSats = selTokens.reduce((a, u) => a + u.satoshis, 0) + DUST + lockUtxoSats
           const lockOutTokSats = DUST * recAmounts.length
           actualLockChange = lockInSats - lockOutTokSats - lockFeeBudget
           if (actualLockChange >= DUST) {
-            lockTx.addOutput(new mvc.Transaction.Output({ script: makerP2pkh, satoshis: actualLockChange }))
+            lockTx.addOutput(new mvc.Transaction.Output({ script: fundingP2pkh, satoshis: actualLockChange }))
           } else {
             actualLockChange = 0
           }
@@ -2455,7 +2491,7 @@ export class OrderbookTxBuilder {
               scriptHex: tokenTxs[i].outputs[selTokens[i].vout].script.toHex(),
               satoshis: selTokens[i].satoshis,
               sigtype: SIG_ALL,
-              address: params.makerAddress,
+              address: fundingAddress,
               kind: 'token_p2pkh',
               message: `Sign sellToken lock input #${i}`,
             })
@@ -2464,10 +2500,10 @@ export class OrderbookTxBuilder {
             txIndex: 0,
             inputIndex: feeInputIdx,
             txHex: lockHex,
-            scriptHex: makerP2pkh.toHex(),
+            scriptHex: fundingP2pkh.toHex(),
             satoshis: lockUtxoSats,
             sigtype: SIG_ALL,
-            address: params.makerAddress,
+            address: fundingAddress,
             kind: 'p2pkh',
             message: 'Sign Place Token Order lock fee input',
           })
@@ -2514,7 +2550,7 @@ export class OrderbookTxBuilder {
           selTokens.map((u) => u.vout),
           DUST,
           actualLockChange,
-          makerHash20
+          fundingHash20
         )
         applyP2PKHSig(lockTx, feeInputIdx, getSigOrThrow(sigMap, 0, feeInputIdx))
 
@@ -3191,6 +3227,12 @@ export class OrderbookTxBuilder {
     const orderScriptBuf = orderOut.script.toBuffer()
     const orderData = OrderTokenProto.parseOrderTokenScript(orderScriptBuf)
 
+    if (isZeroHash20(orderData.makerAddr)) {
+      throw new Error(
+        'This token order is uncancellable by design: its makerAddr is the zero/burn hash, ' +
+        'so no public key can ever satisfy the maker signature check'
+      )
+    }
     if (!orderData.makerAddr.equals(makerHash20)) {
       throw new Error('Only the order maker can cancel this token order')
     }
