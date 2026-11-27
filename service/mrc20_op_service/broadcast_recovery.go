@@ -131,3 +131,37 @@ func RetryIdCoinsMintInscription(order *models.IdCoinsMintOrderModel) error {
 	}
 	return finalize()
 }
+
+// RetryIdCoinsDeployInscription rebroadcasts commit -> reveal when a crash
+// happened between the first persistence and the broadcast, re-extracting the
+// signed reveal raw from the stored final PSBT. Once the deploy tx is visible
+// on-chain it only finalizes storage.
+func RetryIdCoinsDeployInscription(order *models.IdCoinsDeployOrderModel) error {
+	if order == nil || order.TxId == "" {
+		return nil
+	}
+	if order.CommitTxRaw == "" && order.RevealFinalPsbtRaw == "" {
+		return nil
+	}
+	finalize := func() error {
+		return models.IdCoinsDeployOrderModelDao().UpdateEntityForInscribing(order.Chain, order, nil, nil)
+	}
+	if _, err := common_service.GetTxInfo(order.Chain, order.TxId); err == nil {
+		return finalize()
+	}
+	revealRaw := ""
+	if order.RevealFinalPsbtRaw != "" {
+		builder, err := common.NewPsbtBuilder(common.GetNetParams(conf.Net, order.Chain), order.RevealFinalPsbtRaw)
+		if err != nil {
+			return err
+		}
+		revealRaw, err = builder.ExtractPsbtTransaction()
+		if err != nil {
+			return err
+		}
+	}
+	if err := BroadcastInscribeTxs(order.Chain, []string{order.CommitTxRaw, revealRaw}); err != nil {
+		return err
+	}
+	return finalize()
+}
