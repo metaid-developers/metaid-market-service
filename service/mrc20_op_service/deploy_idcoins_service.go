@@ -12,8 +12,9 @@ import (
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/models"
 	"metaid-market-service/service/mrc20_service"
-	"metaid-market-service/service/wallet_service"
+	"metaid-market-service/service/risk_service"
 	"metaid-market-service/tool"
+	"strings"
 
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -21,11 +22,17 @@ import (
 )
 
 func BuildIdCoinsPre(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {
-	return nil, errIdCoinsMaintenance
+	if !idCoinsLaunchEnabled() {
+		return nil, errIdCoinsMaintenance
+	}
+	return buildIdCoinsPreFromSelf(req, publicKey, ip)
 }
 
 func BuildIdCoinsCommit(req *request.BuildIdCoinsCommitRequest, publicKey, ip string) (*respond.BuildIdCoinsCommitResp, error) {
-	return nil, errIdCoinsMaintenance
+	if !idCoinsLaunchEnabled() {
+		return nil, errIdCoinsMaintenance
+	}
+	return buildIdCoinsCommitFromSelf(req, publicKey, ip)
 }
 
 func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip string) (*respond.BuildIdCoinsPreResp, error) {
@@ -73,12 +80,73 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 		unsignMsg         string = ""
 		signMsg           string = ""
 	)
-	payToPublicKey, payToAddress, err = getIdCoinsPoolKeyAndAddress(tick)
+	msg, canDeploy, err := checkIdCoinsDeployer(issuerAddress)
+	if err != nil {
+		return nil, err
+	}
+	if !canDeploy {
+		return nil, errors.New(msg)
+	}
+
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, issuerAddress)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Check address err: %s. ", err.Error()))
+	}
+	if !verified {
+		return nil, errors.New(fmt.Sprintf("Check address verified: %v. ", verified))
+	}
+	if err := risk_service.CheckAddress(chain, issuerAddress); err != nil {
+		return nil, err
+	}
+
+	if len(tick) > 24 || len(tick) < 2 {
+		return nil, errors.New("tick length error")
+	}
+
+	issueVerify, err := auth.VerifyTextSign(tick, issuerSign, publicKey)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Verify issueSign err: %s. ", err.Error()))
+	}
+	if !issueVerify {
+		return nil, errors.New("verify issueSign failed")
+	}
+
+	// one launch per issuer (legacy rule)
+	existingDeploy, err := models.IdCoinsDeployOrderModelDao().GetOne(&models.IdCoinsDeployOrderModel{IssuerAddress: issuerAddress, InscribeState: models.InscribeStateFinish})
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if existingDeploy != nil {
+		return nil, errors.New("issuer has deployed id coins")
+	}
+
+	// UPPER(tick) must be unique across the snapshot, self-deployed coins and
+	// existing MAN ticks.
+	taken, err := idCoinTickTaken(tick)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, errors.New("tick already exists")
+	}
+
+	if err := checkIdCoinLaunchLiquidity(liquidityPerMint); err != nil {
+		return nil, err
+	}
+
+	// payTo is the coin's LP vault derived from the configured account xpub;
+	// no wallet-node/pool-key calls. Fails closed when unconfigured.
+	payToPublicKey, payToAddress, err = deriveIdCoinLpVault(tick)
 	if err != nil {
 		return nil, err
 	}
 
-	unsignMsg = tick + payToPublicKey + payToAddress
+	// tickSign is the platform signature over UPPER(tick) — exactly what the
+	// legacy issuer signed. Fail closed when no platform key is configured.
+	if signMsgPrivate == "" {
+		return nil, errors.New("platform sign_msg key is not configured")
+	}
+	unsignMsg = strings.ToUpper(tick)
 	signMsg, err = auth.SignTextMessage(unsignMsg, signMsgPrivate)
 	if err != nil {
 		return nil, err
@@ -209,10 +277,20 @@ func buildIdCoinsPreFromSelf(req *request.BuildIdCoinsPreRequest, publicKey, ip 
 		}
 	}
 
+	minerOutValue := int64(0)
+	if mrc20OpRequest.DeployPinOutAddress != "" {
+		minerOutValue += mrc20OpRequest.Mrc20OutValue
+	}
+	if mrc20OpRequest.DeployMrc20OutAddress != "" {
+		minerOutValue += mrc20OpRequest.Mrc20OutValue
+	}
+	minerGas := minerFee - minerOutValue - serviceFee
 	return &respond.BuildIdCoinsPreResp{
 		OrderId:        idCoinsDeploy.OrderId,
 		TotalFee:       idCoinsDeploy.TotalFee,
 		MinerFee:       idCoinsDeploy.MinerFee,
+		MinerGas:       minerGas,
+		MinerOutValue:  minerOutValue,
 		ReceiveAddress: idCoinsDeploy.RevealTxAddress,
 		ServiceFee:     idCoinsDeploy.ServiceFee,
 	}, nil
@@ -261,6 +339,9 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		return nil, errors.New("deploy order state error")
 	}
 	chain = idCoinsDeploy.Chain
+	if err := risk_service.CheckRawBtcTx(chain, commitTxRaw); err != nil {
+		return nil, err
+	}
 	txRawByte, _ = hex.DecodeString(commitTxRaw)
 	err = commitTx.Deserialize(bytes.NewReader(txRawByte))
 	if err != nil {
@@ -271,6 +352,10 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		return nil, errors.New("commitTxOutIndex error")
 	}
 
+	if err = common.ValidateCommitOutput(conf.Net, chain, commitTx, commitTxOutIndex, idCoinsDeploy.RevealTxAddress, idCoinsDeploy.MinerFee); err != nil {
+		return nil, err
+	}
+
 	txIn := commitTx.TxIn[0]
 	utxoInfo := common.GetUtxoInfo(conf.Net, chain, txIn.PreviousOutPoint.Hash.String(), int64(txIn.PreviousOutPoint.Index))
 	if utxoInfo == nil {
@@ -279,6 +364,13 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 	address = utxoInfo.Address
 	if address != idCoinsDeploy.IssuerAddress {
 		return nil, errors.New("commitTx address not match")
+	}
+	if err := risk_service.CheckTransferCommit(chain, idCoinsDeploy.IssuerAddress, address, commitTx); err != nil {
+		return nil, err
+	}
+	verified, err := common.CheckPublicKeyAddress(common.GetNetParams(conf.Net, chain), publicKey, address)
+	if err != nil || !verified {
+		return nil, errors.New("commitTx funding address does not belong to the authenticated public key")
 	}
 
 	prePsbtRaw = idCoinsDeploy.RevealPrePsbtRaw
@@ -348,7 +440,18 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		chain,
 		idCoinsDeploy,
 		txRawList,
-		common.BroadcastTx)
+		nil)
+	if err != nil {
+		return nil, err
+	}
+	if err = BroadcastInscribeTxs(chain, txRawList); err != nil {
+		return nil, err
+	}
+	err = models.IdCoinsDeployOrderModelDao().UpdateEntityForInscribing(
+		chain,
+		idCoinsDeploy,
+		nil,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -360,22 +463,4 @@ func buildIdCoinsCommitFromSelf(req *request.BuildIdCoinsCommitRequest, publicKe
 		PinId:      idCoinsDeploy.TickId,
 		TxId:       txId,
 	}, nil
-}
-
-func getIdCoinsPoolKeyAndAddress(tick string) (string, string, error) {
-	var (
-		err           error
-		protocol      string = "idCoins"
-		btcPubblicKey string = ""
-		btcAddress    string = ""
-		chain         string = "btc"
-	)
-
-	res, err := wallet_service.FetchPoolKey("", tick, protocol, nil)
-	btcAddress, err = common.GetSegwitAddressFromPublicKey(common.GetNetParams(conf.Net, chain), res.Btc)
-	if err != nil {
-		return "", "", err
-	}
-	return btcPubblicKey, btcAddress, nil
-
 }

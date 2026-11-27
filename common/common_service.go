@@ -673,9 +673,20 @@ func CheckIdCoins(tick, metaData string, deployTime int64) string {
 		return "id-coins"
 	}
 
+	// Accept the legacy issuance pubkey (idcoins.public_key) and the market
+	// platform message key used by self-hosted launch (platform.sign_msg.*).
 	verify, err = tool.VerifyTextSign(strings.ToUpper(tick), tickSign, signPublic)
 	if err != nil {
-		return ""
+		verify = false
+	}
+	if !verify {
+		_, platformPublic := GetPlatformKeyForSignMsg()
+		if platformPublic != "" && platformPublic != signPublic {
+			verify, err = tool.VerifyTextSign(strings.ToUpper(tick), tickSign, platformPublic)
+			if err != nil {
+				verify = false
+			}
+		}
 	}
 	if !verify {
 		return ""

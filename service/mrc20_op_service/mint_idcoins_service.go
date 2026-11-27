@@ -28,7 +28,7 @@ import (
 // snapshot coins AND its tick must be listed in the idcoins.mint_enabled_ticks
 // config (read through viper directly; empty means nothing is enabled).
 func idCoinMintEnabled(tickId string) bool {
-	coin := findIdCoinSnapshotByTickId(tickId)
+	coin := findMergedIdCoinByTickId(tickId)
 	if coin == nil {
 		return false
 	}
@@ -130,9 +130,12 @@ func IdCoinsMintPre(req *request.IdCoinsMintPreRequest, publicKey, ip string) (*
 		if payTo.Amount <= 546 {
 			payTo.Amount = 546
 		}
-		// All mintable coins are legacy-pool snapshot coins: the keeper sweeps
-		// the payTo output immediately, so the minter funds the sweep fee.
-		payTo.Amount += idCoinMintSweepFee(feeRate)
+		// Legacy-pool coins (the 32 snapshot coins) are swept by the keeper
+		// immediately, so the minter funds the sweep fee. Self-deployed coins
+		// pay directly into their LP vault — no sweep, no sweepFee.
+		if findIdCoinSnapshotByTickId(tickId) != nil {
+			payTo.Amount += idCoinMintSweepFee(feeRate)
+		}
 		payToAmount = payTo.Amount
 		payTos = append(payTos, payTo)
 	}

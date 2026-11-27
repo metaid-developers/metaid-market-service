@@ -216,6 +216,38 @@ func findIdCoinSnapshotByIssuer(issuerAddress string) (*common.IdCoinSnapshotCoi
 	return &matches[0].coin, matches[0].info, nil
 }
 
+// findMergedIdCoinByIssuer is findIdCoinSnapshotByIssuer over the full coin
+// set (snapshot first, then self-deployed).
+func findMergedIdCoinByIssuer(issuerAddress string) (*common.IdCoinSnapshotCoin, *man_service.Mrc20TickInfo, error) {
+	coin, info, err := findIdCoinSnapshotByIssuer(issuerAddress)
+	if err != nil || coin != nil {
+		return coin, info, err
+	}
+	type match struct {
+		coin common.IdCoinSnapshotCoin
+		info *man_service.Mrc20TickInfo
+	}
+	matches := make([]match, 0)
+	deployed, derr := listSelfDeployedCoins()
+	if derr != nil {
+		return nil, nil, derr
+	}
+	for _, dc := range deployed {
+		dinfo, derr := fetchIdCoinTickInfoCached(dc.TickId)
+		if derr != nil || dinfo == nil {
+			continue
+		}
+		if dinfo.Address == issuerAddress {
+			matches = append(matches, match{coin: dc, info: dinfo})
+		}
+	}
+	if len(matches) == 0 {
+		return nil, nil, nil
+	}
+	sort.SliceStable(matches, func(i, j int) bool { return matches[i].info.DeployTime < matches[j].info.DeployTime })
+	return &matches[0].coin, matches[0].info, nil
+}
+
 func idCoinStringFromInt(v int64) string {
 	return strconv.FormatInt(v, 10)
 }
@@ -299,12 +331,12 @@ func buildIdCoinInfoMode(coin *common.IdCoinSnapshotCoin, info *man_service.Mrc2
 		}
 	}
 	followersCount := int64(0)
-	ordersPrice := "0"
-	if listMode {
-		ordersPrice = ""
-	} else {
+	if !listMode {
 		followersCount = fetchIdCoinFollowersCountCached(info.MetaId)
 	}
+	// P5: floor display — live burn-maker OrderTokenV2 bids on the coin's
+	// FT/WBTC pair. "0"/0 when the coin has no bridged FT or no such bids.
+	ordersPrice, ordersPool := idCoinFloorData(coin.TickId)
 	resp := &respond.IdCoinsInfoResp{
 		TickId:           coin.TickId,
 		Tick:             coin.Tick,
@@ -339,7 +371,7 @@ func buildIdCoinInfoMode(coin *common.IdCoinSnapshotCoin, info *man_service.Mrc2
 		IsFollowing:      isFollowing,
 		FollowersCount:   followersCount,
 		OrdersPrice:      ordersPrice,
-		OrdersPool:       0,
+		OrdersPool:       ordersPool,
 	}
 	return resp
 }
@@ -392,14 +424,14 @@ func fetchIdCoinsInfoLocally(req *request.FetchOneIdCoinsRequest) (*respond.IdCo
 	var info *man_service.Mrc20TickInfo
 	var err error
 	if req.TickId != "" {
-		coin = findIdCoinSnapshotByTickId(req.TickId)
+		coin = findMergedIdCoinByTickId(req.TickId)
 		if coin != nil {
 			info, err = fetchIdCoinTickInfoCached(coin.TickId)
 		}
 	} else if req.IssuerAddress != "" {
-		coin, info, err = findIdCoinSnapshotByIssuer(req.IssuerAddress)
+		coin, info, err = findMergedIdCoinByIssuer(req.IssuerAddress)
 	} else {
-		coin = findIdCoinSnapshotByTick(req.Tick)
+		coin = findMergedIdCoinByTick(req.Tick)
 		if coin != nil {
 			info, err = fetchIdCoinTickInfoCached(coin.TickId)
 		}
@@ -419,6 +451,53 @@ type idCoinListEntry struct {
 	coin common.IdCoinSnapshotCoin
 	info *man_service.Mrc20TickInfo
 	resp *respond.IdCoinsInfoResp
+}
+
+// fetchMergedIdCoinEntries is fetchIdCoinSnapshotEntries over the full coin
+// set: snapshot coins in snapshot order first (behaviour byte-identical when
+// nothing self-deployed exists), self-deployed coins appended in deploy order.
+func fetchMergedIdCoinEntries(buildResp bool) []*idCoinListEntry {
+	entries := fetchIdCoinSnapshotEntries(buildResp)
+	deployed, err := listSelfDeployedCoins()
+	if err != nil || len(deployed) == 0 {
+		return entries
+	}
+	type result struct {
+		idx   int
+		entry *idCoinListEntry
+	}
+	results := make(chan result, len(deployed))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+	for i, coin := range deployed {
+		wg.Add(1)
+		go func(idx int, coin common.IdCoinSnapshotCoin) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			info, err := fetchIdCoinTickInfoCached(coin.TickId)
+			if err != nil || info == nil {
+				return
+			}
+			entry := &idCoinListEntry{coin: coin, info: info}
+			if buildResp {
+				entry.resp = buildIdCoinInfoMode(&entry.coin, entry.info, "", false, true)
+			}
+			results <- result{idx: idx, entry: entry}
+		}(i, coin)
+	}
+	wg.Wait()
+	close(results)
+	extra := make([]*idCoinListEntry, len(deployed))
+	for r := range results {
+		extra[r.idx] = r.entry
+	}
+	for _, entry := range extra {
+		if entry != nil {
+			entries = append(entries, entry)
+		}
+	}
+	return entries
 }
 
 // fetchIdCoinSnapshotEntries fetches tick info for every snapshot coin with
@@ -469,7 +548,7 @@ func fetchIdCoinsListLocally(req *request.FetchIdCoinsListRequest) (*respond.Fet
 	if req.Size <= 0 || req.Size >= 100 {
 		req.Size = 100
 	}
-	entries := fetchIdCoinSnapshotEntries(true)
+	entries := fetchMergedIdCoinEntries(true)
 	if req.SearchTick != "" {
 		keyword := strings.ToUpper(req.SearchTick)
 		filtered := make([]*idCoinListEntry, 0, len(entries))
@@ -528,7 +607,7 @@ func fetchAddressIdCoinsInfoLocally(req *request.FetchAddressIdCoinInfoRequest) 
 	if req.IssuerAddress == "" {
 		return nil, errors.New("issuerAddress is empty")
 	}
-	coin, info, err := findIdCoinSnapshotByIssuer(req.IssuerAddress)
+	coin, info, err := findMergedIdCoinByIssuer(req.IssuerAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -576,5 +655,5 @@ func idCoinsSimpleInfoPage(entries []*idCoinListEntry, cursor, size int64) *resp
 }
 
 func fetchIdCoinsSimpleInfoListLocally(cursor, size int64) (*respond.FetchIdCoinsSimpleInfoListResp, error) {
-	return idCoinsSimpleInfoPage(fetchIdCoinSnapshotEntries(false), cursor, size), nil
+	return idCoinsSimpleInfoPage(fetchMergedIdCoinEntries(false), cursor, size), nil
 }

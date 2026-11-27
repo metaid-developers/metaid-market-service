@@ -427,3 +427,61 @@ create table if not exists tb_id_coins_self_mint_order
 create index tb_id_coins_self_mint_order_address_index on tb_id_coins_self_mint_order (address);
 create index tb_id_coins_self_mint_order_tickId_index on tb_id_coins_self_mint_order (tickId);
 create index tb_id_coins_self_mint_order_revealMintTxId_index on tb_id_coins_self_mint_order (revealMintTxId);
+
+-- Self-hosted ID-Coin launch (deploy) orders. Reveal secret material is
+-- stored for commit-time signing, scrubbed once the deploy is broadcast, and
+-- must never be exposed through any API.
+create table if not exists tb_id_coins_deploy_order
+(
+    id                  bigint auto_increment primary key,
+    orderId             varchar(128) default '' not null,
+    deployType          varchar(64)  default '' not null,
+    inscribeState       bigint       default 0  not null,
+    issuerMetaId        varchar(128) default '' not null,
+    issuerAddress       varchar(128) default '' not null,
+    issuerPublicKey     varchar(128) default '' not null,
+    issuerSign          text         null,
+    tickId              varchar(128) default '' not null,
+    tick                varchar(64)  default '' not null,
+    tokenName           varchar(255) default '' not null,
+    decimals            varchar(32)  default '' not null,
+    amtPerMint          varchar(64)  default '' not null,
+    mintCount           varchar(64)  default '' not null,
+    premineCount        varchar(64)  default '' not null,
+    startBlockHeight    varchar(64)  default '' not null,
+    endBlockHeight      varchar(64)  default '' not null,
+    metadata            text         null,
+    tickSign            text         null,
+    pinCheck            text         null,
+    payCheckPublicKey   varchar(128) default '' not null,
+    payCheckAddress     varchar(128) default '' not null,
+    payCheckAmount      bigint       default 0  not null,
+    payload             text         null,
+    chain               varchar(32)  default '' not null,
+    totalFee            bigint       default 0  not null,
+    minerFee            bigint       default 0  not null,
+    serviceFee          bigint       default 0  not null,
+    redeemScript        longtext     null,
+    controlBlockWitness longtext     null,
+    revealTxPrivateKey  varchar(128) default '' not null,
+    revealTxAddress     varchar(128) default '' not null,
+    revealInputIndex    bigint       default 0  not null,
+    commitTxRaw         longtext     null,
+    revealPrePsbtRaw    longtext     null,
+    revealFinalPsbtRaw  longtext     null,
+    commitTxId          varchar(128) default '' not null,
+    revealTxId          varchar(128) default '' not null,
+    txId                varchar(128) default '' not null,
+    blockHeight         bigint       default 0  not null,
+    confirmationState   bigint       default 0  not null,
+    timestamp           bigint       default 0  not null,
+    version             bigint       default 0  not null,
+    createTime          bigint       default 0  not null,
+    updateTime          bigint       default 0  not null,
+    state               bigint       default 0  not null,
+    constraint tb_id_coins_deploy_order_orderId_uindex
+        unique (orderId)
+);
+create index tb_id_coins_deploy_order_issuerAddress_index on tb_id_coins_deploy_order (issuerAddress);
+create index tb_id_coins_deploy_order_tick_index on tb_id_coins_deploy_order (tick);
+create index tb_id_coins_deploy_order_tickId_index on tb_id_coins_deploy_order (tickId);

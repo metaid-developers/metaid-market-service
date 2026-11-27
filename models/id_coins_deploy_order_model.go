@@ -165,32 +165,32 @@ func (_ *idCoinsDeployOrderModelDao) Update(q *IdCoinsDeployOrderModel) error {
 }
 
 func (_ *idCoinsDeployOrderModelDao) UpdateEntityForInscribing(chain string, model *IdCoinsDeployOrderModel, txRawList []string, jobFunc func(chain, txRaw string) (string, error)) error {
-	err := major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
-		if model == nil {
-			return errors.New("model is nil")
-		}
-
-		model.CommitTxRaw = ""
+	if jobFunc != nil {
+		return errors.New("broadcast must run outside the database transaction")
+	}
+	if model == nil {
+		return errors.New("model is nil")
+	}
+	return major.GetSqlDB().Transaction(func(tx *gorm.DB) error {
+		model.Version++
+		model.UpdateTime = tool.MakeTimestamp()
+		model.RedeemScript = ""
+		model.ControlBlockWitness = ""
 		model.RevealPrePsbtRaw = ""
-		model.RevealFinalPsbtRaw = ""
+		model.RevealTxPrivateKey = ""
+		if len(txRawList) == 0 {
+			model.CommitTxRaw = ""
+			model.RevealFinalPsbtRaw = ""
+		}
 		model.InscribeState = InscribeStateFinish
 		model.ConfirmationState = ConfirmationStateUnconfirmed
-
-		if err := tx.Create(model).Error; err != nil {
-			return err
+		result := tx.Where("id = ? AND version = ?", model.Id, model.Version-1).Save(model)
+		if result.Error != nil {
+			return result.Error
 		}
-
-		for _, txRaw := range txRawList {
-			_, err := jobFunc(chain, txRaw)
-			if err != nil {
-				return err
-			}
+		if result.RowsAffected != 1 {
+			return errors.New("deploy order state conflict")
 		}
-
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
