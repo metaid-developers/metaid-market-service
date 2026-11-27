@@ -374,3 +374,56 @@ alter table tb_mrc20_mint_order
     add chain varchar(20)  default '' not null AFTER `id` ;
 alter table tb_mrc20_transfer_order
     add chain varchar(20)  default '' not null AFTER `id` ;
+-- Self-hosted ID-Coin mint orders (two-reveal flow). Reveal private keys are
+-- stored for commit-time signing and must never be exposed through any API;
+-- they are scrubbed once the mint is broadcast.
+create table if not exists tb_id_coins_self_mint_order
+(
+    id                          bigint auto_increment primary key,
+    orderId                     varchar(128) default '' not null,
+    inscribeState               bigint       default 0  not null,
+    address                     varchar(128) default '' not null,
+    tickId                      varchar(128) default '' not null,
+    payToAddress                varchar(128) default '' not null,
+    payToAmount                 bigint       default 0  not null,
+    payUtxoId                   varchar(128) default '' not null,
+    mintPins                    text         null,
+    networkFeeRate              bigint       default 0  not null,
+    totalFee                    bigint       default 0  not null,
+    inscribeMinerFee            bigint       default 0  not null,
+    mintMinerFee                bigint       default 0  not null,
+    serviceFee                  bigint       default 0  not null,
+    commitTxRaw                 longtext     null,
+    pinPrivateKey               varchar(128) default '' not null,
+    pinAddress                  varchar(128) default '' not null,
+    revealOutValue              bigint       default 0  not null,
+    revealInscribeTxPrivateKey  varchar(128) default '' not null,
+    revealMintTxPrivateKey      varchar(128) default '' not null,
+    revealInscribeTxAddress     varchar(128) default '' not null,
+    revealMintTxAddress         varchar(128) default '' not null,
+    redeemScriptInscribe        longtext     null,
+    controlBlockWitnessInscribe longtext     null,
+    revealInscribeInputIndex    bigint       default 0  not null,
+    revealInscribePrePsbtRaw    longtext     null,
+    revealInscribeFinalPsbtRaw  longtext     null,
+    redeemScriptMint            longtext     null,
+    controlBlockWitnessMint     longtext     null,
+    revealMintInputIndex        bigint       default 0  not null,
+    revealMintPrePsbtRaw        longtext     null,
+    revealMintFinalPsbtRaw      longtext     null,
+    commitTxId                  varchar(128) default '' not null,
+    revealInscribeTxId          varchar(128) default '' not null,
+    revealMintTxId              varchar(128) default '' not null,
+    blockHeight                 bigint       default 0  not null,
+    confirmationState           bigint       default 0  not null,
+    timestamp                   bigint       default 0  not null,
+    version                     bigint       default 0  not null,
+    createTime                  bigint       default 0  not null,
+    updateTime                  bigint       default 0  not null,
+    state                       bigint       default 0  not null,
+    constraint tb_id_coins_self_mint_order_orderId_uindex
+        unique (orderId)
+);
+create index tb_id_coins_self_mint_order_address_index on tb_id_coins_self_mint_order (address);
+create index tb_id_coins_self_mint_order_tickId_index on tb_id_coins_self_mint_order (tickId);
+create index tb_id_coins_self_mint_order_revealMintTxId_index on tb_id_coins_self_mint_order (revealMintTxId);

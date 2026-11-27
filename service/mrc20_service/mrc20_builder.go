@@ -39,6 +39,15 @@ type Mrc20Builder struct {
 	RevealPsbtBuilder           *common.PsbtBuilder
 	revealTx                    *wire.MsgTx
 
+	InscriberMetaIdData          *MetaIdData
+	revealInscribeDataInputIndex uint32
+	InscribeTxCtxData            *inscriptionTxCtxData
+	RevealInscribePsbtBuilder    *common.PsbtBuilder
+	pinOutValue                  int64
+	pinOutAddress                string
+	PinPrivateKeyHex             string
+	PinAddress                   string
+
 	transferAddress     string
 	TransferPsbtBuilder *common.PsbtBuilder
 
@@ -210,6 +219,9 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 				Amount:  uint64(v.PinUtxoOutValue),
 				//Script:  "",
 			}
+			if m.RevealInscribePsbtBuilder != nil && m.pinOutAddress != "" {
+				out.Address = m.pinOutAddress
+			}
 			outputs = append(outputs, out)
 		}
 		for _, mrc20OutAddress := range m.mrc20OutAddressList {
@@ -322,6 +334,117 @@ func (m *Mrc20Builder) buildEmptyRevealPsbt() error {
 		Value:    m.CalRevealPsbtFee(m.FeeRate),
 	}
 	return nil
+}
+
+// buildEmptyInscribeRevealPsbt builds the first reveal of the two-reveal
+// ID-Coin mint flow: it inscribes the /follow pin for the deployer metaId.
+// The pin is created on a fresh single-use key (stored on the builder as
+// PinPrivateKeyHex/PinAddress); the second reveal spends it.
+func (m *Mrc20Builder) buildEmptyInscribeRevealPsbt() error {
+	var (
+		revealPsbtBuilder      *common.PsbtBuilder
+		inputs                 []common.Input      = make([]common.Input, 0)
+		inSigners              []*common.InputSign = make([]*common.InputSign, 0)
+		outputs                []common.Output     = make([]common.Output, 0)
+		inscribeDataInputIndex uint32              = 0
+		err                    error
+	)
+
+	pinPrivateKey, err := btcec.NewPrivateKey()
+	if err != nil {
+		return err
+	}
+	pinPrivateKeyHex := hex.EncodeToString(pinPrivateKey.Serialize())
+	nativeSegwitAddress, err := btcutil.NewAddressWitnessPubKeyHash(btcutil.Hash160(pinPrivateKey.PubKey().SerializeCompressed()), m.Net)
+	if err != nil {
+		return err
+	}
+
+	outputs = append(outputs, common.Output{
+		Address: nativeSegwitAddress.EncodeAddress(),
+		Amount:  uint64(m.pinOutValue),
+	})
+
+	emptyTxId := "0000000000000000000000000000000000000000000000000000000000000000"
+	taprootDataIn := common.Input{
+		OutTxId:  emptyTxId,
+		OutIndex: 0,
+	}
+	inputs = append(inputs, taprootDataIn)
+
+	revealPsbtBuilder, err = common.CreatePsbtBuilder(m.Net, inputs, outputs)
+	if err != nil {
+		return err
+	}
+	m.RevealInscribePsbtBuilder = revealPsbtBuilder
+
+	taprootDataInSigner := &common.InputSign{
+		UtxoType:            common.Taproot,
+		Index:               int(inscribeDataInputIndex),
+		PkScript:            hex.EncodeToString(m.InscribeTxCtxData.CommitTxAddressPkScript),
+		RedeemScript:        hex.EncodeToString(m.InscribeTxCtxData.InscriptionScript),
+		ControlBlockWitness: hex.EncodeToString(m.InscribeTxCtxData.ControlBlockWitness),
+		Amount:              uint64(m.CalRevealInscribePsbtFee(m.FeeRate)),
+		SighashType:         txscript.SigHashAll,
+		PriHex:              "",
+	}
+	inSigners = append(inSigners, taprootDataInSigner)
+
+	err = revealPsbtBuilder.UpdateAndAddInputWitness(inSigners)
+	if err != nil {
+		return err
+	}
+
+	m.RevealInscribePsbtBuilder = revealPsbtBuilder
+	m.revealInscribeDataInputIndex = inscribeDataInputIndex
+	m.InscribeTxCtxData.revealTxPrevOutput = &wire.TxOut{
+		PkScript: m.InscribeTxCtxData.CommitTxAddressPkScript,
+		Value:    m.CalRevealInscribePsbtFee(m.FeeRate),
+	}
+
+	mintPins := make([]*MintPin, 0)
+	addressPkScript, err := AddressToPkScript(m.Net, nativeSegwitAddress.EncodeAddress())
+	if err != nil {
+		return err
+	}
+	mintPins = append(mintPins, &MintPin{
+		PinId:           emptyTxId + "i0",
+		PinUtxoTxId:     emptyTxId,
+		PinUtxoIndex:    0,
+		PinUtxoOutValue: m.pinOutValue,
+		PrivateKeyHex:   pinPrivateKeyHex,
+		Address:         nativeSegwitAddress.EncodeAddress(),
+		PkScript:        addressPkScript,
+	})
+	m.MintPins = mintPins
+	m.PinAddress = nativeSegwitAddress.EncodeAddress()
+	m.PinPrivateKeyHex = pinPrivateKeyHex
+	return nil
+}
+
+// CalRevealInscribePsbtFee mirrors the legacy fee calculation: miner fee for
+// the inscribe reveal plus the pin output value carried inside it.
+func (m *Mrc20Builder) CalRevealInscribePsbtFee(feeRate int64) int64 {
+	var (
+		tx          *wire.MsgTx = m.RevealInscribePsbtBuilder.PsbtUpdater.Upsbt.UnsignedTx
+		txTotalSize int         = tx.SerializeSize()
+		txBaseSize  int         = tx.SerializeSizeStripped()
+		txFee       int64       = 0
+		weight      int64       = 0
+		vSize       int64       = 0
+
+		revealOutValues = int64(m.pinOutValue)
+	)
+
+	emptySignature := make([]byte, 64)
+	emptyControlBlockWitness := make([]byte, 33)
+	txTotalSize += wire.TxWitness{emptySignature, m.InscribeTxCtxData.InscriptionScript, emptyControlBlockWitness}.SerializeSize()
+
+	weight = int64(txBaseSize*3 + txTotalSize)
+	vSize = (weight + (blockchain.WitnessScaleFactor - 1)) / blockchain.WitnessScaleFactor
+	vSize = vSize + 1
+	txFee = vSize * feeRate
+	return txFee + revealOutValues
 }
 
 func (m *Mrc20Builder) buildEmptyTransferRevealPsbt() error {
@@ -745,4 +868,17 @@ func createMetaIdTxCtxData(net *chaincfg.Params, metaIdData *MetaIdData) (*inscr
 		recoveryPrivateKeyWIF:   recoveryPrivateKeyWIF.String(),
 		RecoveryPrivateKeyHex:   recoveryPrivateKeyHex,
 	}, nil
+}
+
+// address to pkScript
+func AddressToPkScript(net *chaincfg.Params, address string) (string, error) {
+	addr, err := btcutil.DecodeAddress(address, net)
+	if err != nil {
+		return "", err
+	}
+	pkScriptByte, err := txscript.PayToAddrScript(addr)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(pkScriptByte), nil
 }

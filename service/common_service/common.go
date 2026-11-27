@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/man_service"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -179,4 +180,18 @@ func FetchTickUsedShove(tickId string) []string {
 	}
 
 	return shovelList
+}
+
+// ExtractMetaIDFromPath pulls the metaId out of a pinCheck path of the form
+// /follow['<metaId>'] (ported from the retired service).
+func ExtractMetaIDFromPath(path string) (string, error) {
+	if !strings.Contains(path, "/follow") {
+		return "", fmt.Errorf("path does not contain /follow")
+	}
+	re := regexp.MustCompile(`\['([^']*)'\]`)
+	matches := re.FindStringSubmatch(path)
+	if len(matches) > 1 {
+		return matches[1], nil
+	}
+	return "", fmt.Errorf("metaid not found in path")
 }

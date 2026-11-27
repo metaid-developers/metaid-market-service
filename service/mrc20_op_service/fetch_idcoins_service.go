@@ -6,11 +6,14 @@ import (
 )
 
 func FetchIdCoinsOpOrders(req *request.FetchIdCoinsOpOrdersRequest, publicKey, ip string) (*respond.FetchIdCoinsOpOrdersResp, error) {
+	if req.OpOrderType == "mint" {
+		return fetchMergedIdCoinsMintOrders(req)
+	}
 	return fetchLegacyIdCoinsOpOrders(req)
 }
 
 func FetchIdCoinsAddressMintOrder(req *request.FetchIdCoinsMintOrderRequest, publicKey, ip string) (*respond.FetchOneIdCoinsMintOrderResp, error) {
-	return fetchLegacyAddressIdCoinsMintOrder(req)
+	return fetchMergedAddressIdCoinsMintOrder(req)
 }
 
 func FetchIdCoinsList(req *request.FetchIdCoinsListRequest, publicKey, ip string) (*respond.FetchIdCoinsListResp, error) {

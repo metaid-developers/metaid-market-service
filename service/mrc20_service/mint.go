@@ -23,6 +23,8 @@ type Mrc20OpRequest struct {
 	DeployPinOutAddress   string
 	DeployMrc20OutAddress string
 	TransferAddress       string
+	PinOutValue           int64
+	PinOutAddress         string
 }
 
 type Mrc20OutInfo struct {
@@ -224,4 +226,88 @@ func Mrc20TransferBuilder(opRep *Mrc20OpRequest, feeRate int64) (*Mrc20Builder, 
 	}
 	fee = mrc20Builder.CalRevealPsbtFee(feeRate)
 	return mrc20Builder, fee, nil
+}
+
+// IdCoinsMintBuilder builds the two-reveal ID-Coin mint: the first reveal
+// inscribes a /follow pin for the deployer metaId (pinCheck requirement), the
+// second spends that pin and inscribes the MRC20 mint itself. Returns the
+// builder plus the inscribe-reveal and mint-reveal fees (each = miner fee +
+// the output values carried inside the reveal, i.e. the exact commit output
+// amounts the user must fund).
+func IdCoinsMintBuilder(opRep *Mrc20OpRequest, followMetaId string, feeRate int64) (*Mrc20Builder, int64, int64, error) {
+	var (
+		err          error
+		mrc20Builder *Mrc20Builder
+		fee          int64 = 0
+
+		content                = opRep.OpPayload
+		path                   = "/ft/mrc20/mint"
+		metaIdData *MetaIdData = &MetaIdData{
+			MetaIDFlag:  opRep.MetaIdFlag,
+			Operation:   "create",
+			Path:        path,
+			Content:     []byte(content),
+			Encryption:  "",
+			Version:     "",
+			ContentType: "application/json",
+		}
+
+		inscribeMetaIdData *MetaIdData = &MetaIdData{
+			MetaIDFlag:  opRep.MetaIdFlag,
+			Operation:   "create",
+			Path:        "/follow",
+			Content:     []byte(followMetaId),
+			Encryption:  "",
+			Version:     "",
+			ContentType: "application/json",
+		}
+
+		host string = conf.Host
+	)
+
+	if host != "" {
+		metaIdData.Path = fmt.Sprintf("%s:%s", host, path)
+		inscribeMetaIdData.Path = fmt.Sprintf("%s:%s", host, inscribeMetaIdData.Path)
+	}
+	mrc20Builder = &Mrc20Builder{
+		Net:                 opRep.Net,
+		MetaIdData:          metaIdData,
+		InscriberMetaIdData: inscribeMetaIdData,
+		PayTos:              opRep.PayTos,
+		OtherOuts:           opRep.OtherOuts,
+		FeeRate:             feeRate,
+		op:                  opRep.Op,
+
+		pinOutValue:   opRep.PinOutValue,
+		pinOutAddress: opRep.PinOutAddress,
+
+		mrc20OutValue:       opRep.Mrc20OutValue,
+		mrc20OutAddressList: opRep.Mrc20OutAddressList,
+	}
+
+	inscriberTxCtxData, err := createMetaIdTxCtxData(opRep.Net, mrc20Builder.InscriberMetaIdData)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	mrc20Builder.InscribeTxCtxData = inscriberTxCtxData
+
+	txCtxData, err := createMetaIdTxCtxData(opRep.Net, mrc20Builder.MetaIdData)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	mrc20Builder.TxCtxData = txCtxData
+
+	err = mrc20Builder.buildEmptyInscribeRevealPsbt()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	err = mrc20Builder.buildEmptyRevealPsbt()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	inscribeFee := mrc20Builder.CalRevealInscribePsbtFee(feeRate)
+	fee = mrc20Builder.CalRevealPsbtFee(feeRate)
+	return mrc20Builder, inscribeFee, fee, nil
 }
