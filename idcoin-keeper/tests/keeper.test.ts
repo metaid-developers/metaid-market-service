@@ -22,7 +22,7 @@ import {
   MVC_LP_FUNDING_PATH,
 } from '../src/keys'
 import { KeeperDb } from '../src/db'
-import { ChainUtxo } from '../src/chain'
+import { ChainUtxo, SweptInputState } from '../src/chain'
 import { refreshCoinRegistry, CoinListItem } from '../src/registry'
 import { buildSweepTx, eligibleUtxos, validateSweepInvariants, RBF_SEQUENCE } from '../src/sweep'
 import { Keeper } from '../src/keeper'
@@ -88,7 +88,8 @@ class FakeChain {
   utxosByAddress = new Map<string, ChainUtxo[]>()
   fastestFee = 5
   broadcasts: string[] = []
-  outspends = new Map<string, string>() // outpoint -> spending txid ('' = unspent)
+  sweptStates = new Map<string, SweptInputState>()
+  sweptStateCalls = 0
 
   async getUtxos(address: string): Promise<ChainUtxo[]> {
     return this.utxosByAddress.get(address) || []
@@ -100,8 +101,9 @@ class FakeChain {
     this.broadcasts.push(hex)
     return bitcoin.Transaction.fromHex(hex).getId()
   }
-  async getOutspend(txid: string, vout: number): Promise<string> {
-    return this.outspends.get(`${txid}:${vout}`) || ''
+  async getSweptInputState(txid: string, vout: number): Promise<SweptInputState> {
+    this.sweptStateCalls++
+    return this.sweptStates.get(`${txid}:${vout}`) || { state: 'unknown' }
   }
 }
 
@@ -485,15 +487,44 @@ async function run() {
     ])
     await f.keeper.sweepTick()
     const ourTxid = bitcoin.Transaction.fromHex(f.chain.broadcasts[0]).getId()
-    // attacker spends the same input with a different tx
-    f.chain.outspends.set(`${fakeTxid(15)}:0`, fakeTxid(99))
-    assert.notStrictEqual(ourTxid, fakeTxid(99))
+    // attacker spends the same input; the sweep tx no longer explains the spend
+    f.chain.sweptStates.set(`${fakeTxid(15)}:0`, { state: 'foreign' })
+    assert.ok(ourTxid)
     const before = (f.db.db.prepare('SELECT COUNT(*) AS n FROM alerts').get() as any).n
     await f.keeper.detectCompromise(f.db.listCoins()[0])
     const rows = f.db.db.prepare("SELECT * FROM alerts WHERE kind = 'compromise-double-spend'").all()
     assert.ok(rows.length >= 1, 'expected compromise alert persisted')
     const alerts = f.keeper.log.lines.filter((l) => l.includes('compromise'))
     assert.ok(f.db.counts().alerts > before)
+  })
+
+
+  await test('swept input confirmed as ours >=6 confirmations is not re-checked', async () => {
+    const f = await keeperFixture({ dryRun: false })
+    f.chain.utxosByAddress.set(f.payTo, [
+      { txid: fakeTxid(17), vout: 0, sats: 10000, confirmed: true, inscriptionBearing: false },
+    ])
+    await f.keeper.sweepTick()
+    const op = `${fakeTxid(17)}:0`
+    f.chain.sweptStates.set(op, { state: 'ours', confirmations: 6 })
+    await f.keeper.detectCompromise(f.db.listCoins()[0])
+    assert.strictEqual(f.chain.sweptStateCalls, 1)
+    await f.keeper.detectCompromise(f.db.listCoins()[0])
+    assert.strictEqual(f.chain.sweptStateCalls, 1, 'confirmed swept input must be skipped on later ticks')
+    const rows = f.db.db.prepare("SELECT * FROM alerts WHERE kind = 'compromise-double-spend'").all()
+    assert.strictEqual(rows.length, 0)
+  })
+
+  await test('unknown swept-input state raises no compromise alert', async () => {
+    const f = await keeperFixture({ dryRun: false })
+    f.chain.utxosByAddress.set(f.payTo, [
+      { txid: fakeTxid(18), vout: 0, sats: 10000, confirmed: true, inscriptionBearing: false },
+    ])
+    await f.keeper.sweepTick()
+    const before = (f.db.db.prepare("SELECT COUNT(*) AS n FROM alerts WHERE kind = 'compromise-double-spend'").get() as any).n
+    await f.keeper.detectCompromise(f.db.listCoins()[0])
+    const after = (f.db.db.prepare("SELECT COUNT(*) AS n FROM alerts WHERE kind = 'compromise-double-spend'").get() as any).n
+    assert.strictEqual(after, before)
   })
 
   await test('vanished unswept utxo -> compromise alert', async () => {

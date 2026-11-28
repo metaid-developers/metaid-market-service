@@ -37,6 +37,7 @@ export class Keeper {
   legacyKeys: Map<string, LegacyCoinKey>
   lastPollAt = 0
   lastError = ''
+  private confirmedSweptInputs = new Set<string>()
 
   constructor(deps: KeeperDeps) {
     this.config = deps.config
@@ -202,21 +203,25 @@ export class Keeper {
       this.log.alert(msg, { tickId: coin.tickId, tick: coin.tick })
       this.db.recordAlert('compromise-vanished', coin.tickId, msg, now)
     }
-    // verify outspends of swept inputs still match our sweep txids
+    // verify swept inputs through the chain client; confirmed keeper sweeps
+    // are terminal and skipped on later ticks.
     const sweptRows = this.db.db
       .prepare('SELECT outpoint, sweep_txid FROM sweeps WHERE tick_id = ? AND dry_run = 0')
       .all(coin.tickId) as any[]
     for (const row of sweptRows) {
+      if (this.confirmedSweptInputs.has(row.outpoint)) continue
       const [txid, vout] = row.outpoint.split(':')
       try {
-        const spender = await this.chain.getOutspend(txid, Number(vout))
-        if (spender && spender !== row.sweep_txid) {
-          const msg = `swept input ${row.outpoint} was spent by foreign tx ${spender} (our sweep ${row.sweep_txid}) — possible key compromise`
+        const state = await this.chain.getSweptInputState(txid, Number(vout), row.sweep_txid)
+        if (state.state === 'foreign') {
+          const msg = `swept input ${row.outpoint} is spent but not by our sweep ${row.sweep_txid} — possible key compromise`
           this.log.alert(msg, { tickId: coin.tickId, tick: coin.tick })
           this.db.recordAlert('compromise-double-spend', coin.tickId, msg, now)
+        } else if (state.state === 'ours' && state.confirmations >= 6) {
+          this.confirmedSweptInputs.add(row.outpoint)
         }
       } catch {
-        // best-effort; mempool.space may not know old txs
+        // best-effort; chain verification may be unavailable
       }
     }
   }

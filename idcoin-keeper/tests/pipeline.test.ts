@@ -85,7 +85,7 @@ class FakeChain {
   async getUtxos() { return [] }
   async getFastestFee() { return this.fastestFee }
   async broadcastTx() { return '' }
-  async getOutspend() { return '' }
+  async getSweptInputState() { return { state: 'unknown' as const } }
 }
 
 function baseConfig(envExtra: Record<string, string> = {}) {
