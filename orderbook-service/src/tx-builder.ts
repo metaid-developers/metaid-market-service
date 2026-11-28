@@ -2702,6 +2702,9 @@ export class OrderbookTxBuilder {
     if (!params.legs || params.legs.length === 0) {
       throw new Error('At least one token order leg is required')
     }
+    if (params.legs.length > 2) {
+      throw new Error('Single-batch Take Token Order supports up to 2 legs per DepositTx (3-output TokenTransferCheck)')
+    }
     const feeRate = params.feeRate ?? this.defaultFeeRate
     const takerHash20 = addressToHash20(params.takerAddress, this.net)
     const takerP2pkh = p2pkhScript(params.takerAddress, this.net)

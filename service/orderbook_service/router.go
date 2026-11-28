@@ -10,8 +10,12 @@ import (
 )
 
 const (
-	DefaultMaxAskLegs = 4
-	DefaultMaxBidLegs = 2
+	DefaultMaxAskLegs   = 4
+	DefaultMaxBidLegs   = 2
+	DefaultMaxTokenLegs = 2
+	// Mirrors buildTakeBid's SettleTx miner fee floor (Math.max(11000, ...)) so RouteTake
+	// never selects a tiny Bid leg that buildTakeBid would reject for insufficient proceeds.
+	MinBidSettleMinerFee uint64 = 11000
 )
 
 // RouteRequest defines a Taker quote or sweep routing request.
@@ -95,14 +99,23 @@ func (b *OrderBook) RouteTake(req RouteRequest) (*RoutePlan, error) {
 
 	targetOrderSide := SideAsk
 	maxLegs := req.MaxLegs
+	isTokenPairReq := IsTokenPairKey(pairKey)
 	if side == "buy" {
 		targetOrderSide = SideAsk
 		if maxLegs <= 0 {
-			maxLegs = DefaultMaxAskLegs
+			if isTokenPairReq {
+				maxLegs = DefaultMaxTokenLegs
+			} else {
+				maxLegs = DefaultMaxAskLegs
+			}
+		} else if isTokenPairReq && maxLegs > DefaultMaxTokenLegs {
+			maxLegs = DefaultMaxTokenLegs
 		}
 	} else {
 		targetOrderSide = SideBid
 		if maxLegs <= 0 {
+			maxLegs = DefaultMaxBidLegs
+		} else if maxLegs > DefaultMaxBidLegs {
 			maxLegs = DefaultMaxBidLegs
 		}
 	}
@@ -285,6 +298,12 @@ func planOrderLeg(o *LiveOrder, wantToken uint64) (PlannedLeg, bool) {
 	if maxTok == 0 {
 		return PlannedLeg{}, false
 	}
+	// When o.RemainSats is not evenly divisible by priceNum/priceDen, floor(RemainSats * priceDen / priceNum)
+	// can leave a 1-sat rounding remainder that fails the partial-fill dust guard; maxTok+1 closes it cleanly.
+	if CalcBidSpendSats(maxTok, o.PriceNum, o.PriceDen) < o.RemainSats &&
+		CalcBidSpendSats(maxTok+1, o.PriceNum, o.PriceDen) == o.RemainSats {
+		maxTok++
+	}
 	fill := wantToken
 	if fill > maxTok {
 		fill = maxTok
@@ -323,8 +342,8 @@ func planOrderLeg(o *LiveOrder, wantToken uint64) (PlannedLeg, bool) {
 	if o.FeeAddr == "" || fee < DustLimit {
 		fee = 0
 	}
-	// Taker also pays ~11000 sat SettleTx miner fee out of spendSats (offset by 2*546 dust)
-	if spend <= fee+DustLimit {
+	// Taker pays SettleTx miner fee (~11000 sats) out of spendSats + 2*546 dust, and must receive >= 546 dust.
+	if spend+2*DustLimit < fee+MinBidSettleMinerFee+DustLimit {
 		return PlannedLeg{}, false
 	}
 	return PlannedLeg{

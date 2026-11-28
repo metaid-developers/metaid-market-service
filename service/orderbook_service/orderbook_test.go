@@ -569,3 +569,144 @@ func TestSubUnitPricesDistinctAtDefaultPrecision(t *testing.T) {
 	}
 }
 
+func TestLimitCrossingAndBidEdgeCases(t *testing.T) {
+	tokenCodeHash := bytes.Repeat([]byte{0xa2}, 20)
+	tokenID := bytes.Repeat([]byte{0x07}, 20)
+	maker := bytes.Repeat([]byte{0x12}, 20)
+	fee := make([]byte, 20)
+	pairKey := MakePairKey(hex.EncodeToString(tokenCodeHash), hex.EncodeToString(tokenID))
+
+	book := NewOrderBook("livenet", NewMemorySoftLocker())
+
+	// Two Asks: 100 MC @ 0.01, 20 MC @ 0.011
+	ask1Script := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideAsk, maker, tokenID, tokenCodeHash, 1, 100, 100_0000_0000, 1_0000_0000, fee, 0, bytes.Repeat([]byte{0x11}, 8))
+	ask1, err := ParseLiveOrder(strings.Repeat("a1", 32), 0, 546, ask1Script, 200000, false, 1000, "livenet")
+	if err != nil {
+		t.Fatalf("ask1 parse failed: %v", err)
+	}
+	book.UpsertOrder(ask1)
+
+	ask2Script := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideAsk, maker, tokenID, tokenCodeHash, 11, 1000, 20_0000_0000, 2000_0000, fee, 0, bytes.Repeat([]byte{0x12}, 8))
+	ask2, err := ParseLiveOrder(strings.Repeat("a2", 32), 0, 546, ask2Script, 200000, false, 1001, "livenet")
+	if err != nil {
+		t.Fatalf("ask2 parse failed: %v", err)
+	}
+	book.UpsertOrder(ask2)
+
+	// Limit Buy at 0.01 for 150 MC -> fills 100 MC @ 0.01, leaves 50 MC unfilled
+	planExact, err := book.RouteTake(RouteRequest{
+		PairKey:     pairKey,
+		Side:        "buy",
+		TargetToken: 150_0000_0000,
+		MaxPriceNum: 1,
+		MaxPriceDen: 100,
+	})
+	if err != nil {
+		t.Fatalf("limit buy @ 0.01 failed: %v", err)
+	}
+	if len(planExact.Legs) != 1 || planExact.FilledToken != 100_0000_0000 || planExact.UnfilledToken != 50_0000_0000 {
+		t.Fatalf("unexpected exact limit buy plan: %+v", planExact)
+	}
+
+	// Limit Buy at 0.011 for 110 MC -> sweeps 100 MC @ 0.01 + 10 MC @ 0.011
+	planHigher, err := book.RouteTake(RouteRequest{
+		PairKey:     pairKey,
+		Side:        "buy",
+		TargetToken: 110_0000_0000,
+		MaxPriceNum: 11,
+		MaxPriceDen: 1000,
+	})
+	if err != nil {
+		t.Fatalf("limit buy @ 0.011 failed: %v", err)
+	}
+	if len(planHigher.Legs) != 2 || planHigher.FilledToken != 110_0000_0000 || planHigher.UnfilledToken != 0 {
+		t.Fatalf("unexpected higher limit buy plan: %+v", planHigher)
+	}
+
+	// Limit Buy at 0.009 -> no crossing liquidity
+	if _, err := book.RouteTake(RouteRequest{
+		PairKey:     pairKey,
+		Side:        "buy",
+		TargetToken: 10_0000_0000,
+		MaxPriceNum: 9,
+		MaxPriceDen: 1000,
+	}); err == nil {
+		t.Fatalf("expected error for non-crossing limit buy @ 0.009")
+	}
+
+	// Tiny Bid (5000 sats) should be skipped because proceeds < MinBidSettleMinerFee - DustLimit
+	tinyBidScript := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideBid, maker, tokenID, tokenCodeHash, 1, 100, 5000, 1000, fee, 0, bytes.Repeat([]byte{0x21}, 8))
+	tinyBid, err := ParseLiveOrder(strings.Repeat("b1", 32), 0, 5000, tinyBidScript, 200000, false, 1000, "livenet")
+	if err != nil {
+		t.Fatalf("tinyBid parse failed: %v", err)
+	}
+	book.UpsertOrder(tinyBid)
+	if _, err := book.RouteTake(RouteRequest{
+		PairKey:     pairKey,
+		Side:        "sell",
+		TargetToken: 1_0000_0000,
+	}); err == nil {
+		t.Fatalf("expected tiny 5000-sat bid to be rejected by settle miner-fee guard")
+	}
+
+	// Non-divisible Bid: 20,000 sats @ 0.003 (3/1000) -> maxTok=floor(20000*1000/3)=6666666 leaves 1 sat;
+	// 6666667 spends exact 20,000 sats (remainSatsNext == 0 -> clean full fill!)
+	oddBidScript := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideBid, maker, tokenID, tokenCodeHash, 3, 1000, 20000, 100000, fee, 0, bytes.Repeat([]byte{0x22}, 8))
+	oddBid, err := ParseLiveOrder(strings.Repeat("b2", 32), 0, 20000, oddBidScript, 200000, false, 1001, "livenet")
+	if err != nil {
+		t.Fatalf("oddBid parse failed: %v", err)
+	}
+	book.UpsertOrder(oddBid)
+	sellOdd, err := book.RouteTake(RouteRequest{
+		PairKey:     pairKey,
+		Side:        "sell",
+		TargetToken: 7000000,
+		MinPriceNum: 3,
+		MinPriceDen: 1000,
+	})
+	if err != nil {
+		t.Fatalf("oddBid full-fill route failed: %v", err)
+	}
+	if len(sellOdd.Legs) != 1 || sellOdd.Legs[0].IsPartial || sellOdd.Legs[0].SatsAmount != 20000 || sellOdd.Legs[0].FillToken != 6666667 {
+		t.Fatalf("expected clean full fill of 20000 sats with fillToken=6666667, got %+v", sellOdd.Legs)
+	}
+}
+
+func TestTokenPairMaxLegsCappedAtTwo(t *testing.T) {
+	mcCH := bytes.Repeat([]byte{0xa2}, 20)
+	mcID := bytes.Repeat([]byte{0x07}, 20)
+	wbtcCH := bytes.Repeat([]byte{0xc9}, 20)
+	wbtcID := bytes.Repeat([]byte{0x2e}, 20)
+	SetQuoteTokenPriority([]string{MakePairKey(hex.EncodeToString(wbtcCH), hex.EncodeToString(wbtcID))})
+	defer SetQuoteTokenPriority(nil)
+
+	maker := bytes.Repeat([]byte{0x12}, 20)
+	fee := make([]byte, 20)
+	book := NewOrderBook("livenet", NewMemorySoftLocker())
+	codePrefix := []byte{0x01, 0x02, 0x03, 0x6a}
+
+	var pairKey string
+	for i := byte(1); i <= 3; i++ {
+		tail := BuildOrderTokenTailHex(maker, mcID, mcCH, wbtcID, wbtcCH, 1, 1000, 1000000, 10000, fee, 0, bytes.Repeat([]byte{i}, 8))
+		sc := hex.EncodeToString(append(append([]byte{}, codePrefix...), tail...))
+		lo, err := ParseLiveOrder(strings.Repeat(hex.EncodeToString([]byte{0xc0 + i}), 32), 0, 546, sc, 200000, false, 1000+int64(i), "livenet")
+		if err != nil {
+			t.Fatalf("token ask %d failed: %v", i, err)
+		}
+		pairKey = lo.PairKey
+		book.UpsertOrder(lo)
+	}
+
+	plan, err := book.RouteTake(RouteRequest{
+		PairKey:     pairKey,
+		Side:        "buy",
+		TargetToken: 3000000,
+	})
+	if err != nil {
+		t.Fatalf("FT/FT buy route failed: %v", err)
+	}
+	if len(plan.Legs) != 2 {
+		t.Fatalf("expected FT/FT buy to be capped at 2 legs (3-output TokenTransferCheck), got %d", len(plan.Legs))
+	}
+}
+

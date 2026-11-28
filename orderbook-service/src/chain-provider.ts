@@ -75,11 +75,111 @@ export class HigunChainProvider implements ChainProvider {
   private readonly metaletMvcBase: string
   private readonly net: 'livenet' | 'testnet'
   private readonly txCache = new Map<string, string>()
+  // Short-lived 0-conf UTXO overlay (60s TTL) so back-to-back transactions (e.g. Cross & Post Limit
+  // orders or multi-batch sweeps) immediately exclude just-spent inputs and see newly created change.
+  private readonly recentSpent = new Map<string, number>()
+  private readonly recentMvcOutputs = new Map<string, Array<MvcUtxo & { expiresAt: number }>>()
+  private readonly recentTokenOutputs = new Map<string, Array<TokenUtxo & { expiresAt: number }>>()
+  private static readonly ZERO_CONF_TTL_MS = 60_000
 
   constructor(opts: { higunUrl: string; metaletApiBase: string; net: 'livenet' | 'testnet' }) {
     this.higunUrl = opts.higunUrl.replace(/\/+$/, '')
     this.metaletMvcBase = normalizeMetaletMvcBase(opts.metaletApiBase)
     this.net = opts.net
+  }
+
+  private pruneZeroConfOverlay(): void {
+    const now = Date.now()
+    for (const [k, exp] of this.recentSpent.entries()) {
+      if (now > exp) this.recentSpent.delete(k)
+    }
+    for (const [k, arr] of this.recentMvcOutputs.entries()) {
+      const kept = arr.filter((u) => now <= u.expiresAt && !this.recentSpent.has(`${u.txid.toLowerCase()}:${u.vout}`))
+      if (kept.length > 0) this.recentMvcOutputs.set(k, kept)
+      else this.recentMvcOutputs.delete(k)
+    }
+    for (const [k, arr] of this.recentTokenOutputs.entries()) {
+      const kept = arr.filter((u) => now <= u.expiresAt && !this.recentSpent.has(`${u.txid.toLowerCase()}:${u.vout}`))
+      if (kept.length > 0) this.recentTokenOutputs.set(k, kept)
+      else this.recentTokenOutputs.delete(k)
+    }
+  }
+
+  private recordBroadcastedTx(tx: any, canonTxid: string): void {
+    const expiresAt = Date.now() + HigunChainProvider.ZERO_CONF_TTL_MS
+    const normTxid = canonTxid.toLowerCase()
+    const legacyTxid = String(tx.id || '').toLowerCase()
+
+    for (const inp of tx.inputs || []) {
+      const prevHex = Buffer.isBuffer(inp.prevTxId)
+        ? inp.prevTxId.toString('hex').toLowerCase()
+        : String(inp.prevTxId || '').toLowerCase()
+      if (prevHex) {
+        this.recentSpent.set(`${prevHex}:${inp.outputIndex}`, expiresAt)
+      }
+    }
+
+    for (let vout = 0; vout < (tx.outputs || []).length; vout++) {
+      const output = tx.outputs[vout]
+      if (!output || !output.script) continue
+      const scriptBuf: Buffer = output.script.toBuffer()
+      // 1) Standard P2PKH SPACE output (OP_DUP OP_HASH160 <20B> OP_EQUALVERIFY OP_CHECKSIG)
+      if (
+        scriptBuf.length === 25 &&
+        scriptBuf[0] === 0x76 &&
+        scriptBuf[1] === 0xa9 &&
+        scriptBuf[2] === 0x14 &&
+        scriptBuf[23] === 0x88 &&
+        scriptBuf[24] === 0xac &&
+        output.satoshis > 0
+      ) {
+        const addrHashHex = scriptBuf.subarray(3, 23).toString('hex').toLowerCase()
+        const list = this.recentMvcOutputs.get(addrHashHex) || []
+        const key = `${normTxid}:${vout}`
+        if (!list.some((u) => `${u.txid.toLowerCase()}:${u.vout}` === key)) {
+          list.push({
+            txid: normTxid,
+            vout,
+            satoshis: Number(output.satoshis),
+            scriptHex: scriptBuf.toString('hex'),
+            expiresAt,
+          })
+          this.recentMvcOutputs.set(addrHashHex, list)
+        }
+        continue
+      }
+
+      // 2) MetaContract FT Token output
+      if (scriptBuf.length >= TokenProto.DATA_LEN + 20) {
+        try {
+          const outTokenID = TokenProto.getTokenID(scriptBuf).toString('hex').toLowerCase()
+          const outCodeHash = TokenProto.getScriptCodeHash(scriptBuf).toString('hex').toLowerCase()
+          const outAddr = TokenProto.getTokenAddress(scriptBuf).toString('hex').toLowerCase()
+          const tokAmt = TokenProto.getTokenAmount(scriptBuf)
+          if (outTokenID.length === 40 && outCodeHash.length === 40 && outAddr.length === 40 && tokAmt > BigInt(0)) {
+            const mapKey = `${outAddr}:${outCodeHash}:${outTokenID}`
+            const list = this.recentTokenOutputs.get(mapKey) || []
+            const outKey = `${normTxid}:${vout}`
+            if (!list.some((u) => `${u.txid.toLowerCase()}:${u.vout}` === outKey || `${legacyTxid}:${vout}` === `${u.txid.toLowerCase()}:${u.vout}`)) {
+              list.push({
+                txid: normTxid,
+                vout,
+                satoshis: Number(output.satoshis),
+                scriptHex: scriptBuf.toString('hex'),
+                tokenAmount: tokAmt,
+                tokenID: outTokenID,
+                tokenCodeHash: outCodeHash,
+                expiresAt,
+              })
+              this.recentTokenOutputs.set(mapKey, list)
+            }
+          }
+        } catch (_) {
+          // non-token contract output
+        }
+      }
+    }
+    this.pruneZeroConfOverlay()
   }
 
   cacheRawTx(txid: string, rawHex: string): void {
@@ -208,7 +308,33 @@ export class HigunChainProvider implements ChainProvider {
 
     this.txCache.set(txid.toLowerCase(), txHex)
     this.txCache.set(expectedTxid.toLowerCase(), txHex)
+    try {
+      this.recordBroadcastedTx(parsed, txid)
+    } catch (_) {
+      // non-fatal overlay tracking error
+    }
     return txid
+  }
+
+  private applyMvcOverlay(address: string, fetched: MvcUtxo[]): MvcUtxo[] {
+    this.pruneZeroConfOverlay()
+    const addrHashHex = new mvc.Address(address, this.net).hashBuffer.toString('hex').toLowerCase()
+    const out: MvcUtxo[] = []
+    const seen = new Set<string>()
+    for (const u of fetched) {
+      const k = `${u.txid.toLowerCase()}:${u.vout}`
+      if (this.recentSpent.has(k) || seen.has(k)) continue
+      seen.add(k)
+      out.push(u)
+    }
+    const local = this.recentMvcOutputs.get(addrHashHex) || []
+    for (const u of local) {
+      const k = `${u.txid.toLowerCase()}:${u.vout}`
+      if (this.recentSpent.has(k) || seen.has(k)) continue
+      seen.add(k)
+      out.push({ txid: u.txid, vout: u.vout, satoshis: u.satoshis, scriptHex: u.scriptHex })
+    }
+    return out
   }
 
   async getMvcUtxos(address: string): Promise<MvcUtxo[]> {
@@ -246,7 +372,7 @@ export class HigunChainProvider implements ChainProvider {
         if (!nextFlag || nextFlag === '0' || nextFlag === flag || list.length < 10) break
         flag = nextFlag
       }
-      return all
+      return this.applyMvcOverlay(address, all)
     } catch (metaletErr) {
       if (!this.higunUrl) throw metaletErr
       const resp = await axios.get(`${this.higunUrl}/utxos`, {
@@ -258,7 +384,7 @@ export class HigunChainProvider implements ChainProvider {
         : Array.isArray(resp.data)
           ? resp.data
           : resp.data?.data || []
-      return list
+      const mapped: MvcUtxo[] = list
         .filter((u: any) => Number(u.amount ?? u.satoshis ?? u.value ?? 0) > 0)
         .map((u: any) => ({
           txid: String(u.tx_id || u.txid || u.txId),
@@ -266,6 +392,7 @@ export class HigunChainProvider implements ChainProvider {
           satoshis: Number(u.amount ?? u.satoshis ?? u.value),
           scriptHex: p2pkhHex,
         }))
+      return this.applyMvcOverlay(address, mapped)
     }
   }
 
@@ -310,7 +437,17 @@ export class HigunChainProvider implements ChainProvider {
       flag = nextFlag
     }
 
-    if (txIds.length === 0) return []
+    this.pruneZeroConfOverlay()
+    const overlayKey = `${addrHashHex}:${wantCodeHash}:${wantTokenID}`
+    const localToks = this.recentTokenOutputs.get(overlayKey) || []
+
+    if (txIds.length === 0) {
+      const onlyLocal = localToks
+        .filter((u) => !this.recentSpent.has(`${u.txid.toLowerCase()}:${u.vout}`))
+        .map(({ expiresAt: _e, ...rest }) => rest)
+      onlyLocal.sort((a, b) => (a.tokenAmount > b.tokenAmount ? -1 : a.tokenAmount < b.tokenAmount ? 1 : 0))
+      return onlyLocal
+    }
 
     const rawHexes = await runWithConcurrency(txIds, 6, (id) => this.getRawTx(id))
     const parsedTxs = rawHexes.map((hex, idx) => {
@@ -321,7 +458,7 @@ export class HigunChainProvider implements ChainProvider {
       return { tx, canonId, legacyId, apiId }
     })
 
-    const spent = new Set<string>()
+    const spent = new Set<string>(this.recentSpent.keys())
     for (const { tx } of parsedTxs) {
       for (const inp of tx.inputs) {
         spent.add(`${inp.prevTxId.toString('hex').toLowerCase()}:${inp.outputIndex}`)
@@ -365,6 +502,14 @@ export class HigunChainProvider implements ChainProvider {
           // non-token output
         }
       }
+    }
+
+    for (const u of localToks) {
+      const outKey = `${u.txid.toLowerCase()}:${u.vout}`
+      if (spent.has(outKey) || seenOut.has(outKey)) continue
+      seenOut.add(outKey)
+      const { expiresAt: _e, ...rest } = u
+      out.push(rest)
     }
 
     // Largest-first minimizes multi-UTXO merges when placing asks / token orders

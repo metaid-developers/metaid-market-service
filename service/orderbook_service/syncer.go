@@ -559,7 +559,9 @@ func (s *Syncer) HandleFinalizeResult(draftID, action, status string, txids []st
 			if (action == "take_ask" || action == "take_bid" || action == "take_token") && idx < len(res.Legs) {
 				leg := res.Legs[idx]
 				settleTxid := ""
-				if len(txids) > 0 {
+				if len(txids) >= len(res.Legs) {
+					settleTxid = txids[len(txids)-len(res.Legs)+idx]
+				} else if len(txids) > 0 {
 					settleTxid = txids[len(txids)-1]
 				}
 				tr := TradeRecord{
