@@ -5,6 +5,7 @@ import (
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/models"
+	"metaid-market-service/service/mempool_space_service"
 	"metaid-market-service/service/risk_service"
 	"strconv"
 	"strings"
@@ -53,7 +54,7 @@ func jobForCheckValidMrc20OrdersValid() {
 		}
 		if utxoInfo.SpendStatus == "spend" {
 			//Cancel only when a second on-chain source confirms the spend.
-			if chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, txId, vout) {
+			if chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, txId, vout, mempool_space_service.Background) {
 				fmt.Printf("[JOB][%s][%s] Spend not confirmed by mempool, skip cancel. [%s]\n", jobName, entity.OrderId, entity.UtxoId)
 				continue
 			}
@@ -106,7 +107,7 @@ func jobForCheckValidOrdersValid() {
 		}
 		if utxoInfo.SpendStatus == "spend" {
 			//Cancel only when a second on-chain source confirms the spend.
-			if chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, txId, vout) {
+			if chain != "doge" && !common.IsBtcUtxoSpentByMempool(chain, txId, vout, mempool_space_service.Background) {
 				fmt.Printf("[JOB][%s][%s] Spend not confirmed by mempool, skip cancel. [%s]\n", jobName, entity.OrderId, entity.UtxoId)
 				continue
 			}

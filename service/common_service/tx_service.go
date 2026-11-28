@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"metaid-market-service/common"
-	"metaid-market-service/conf"
 	"metaid-market-service/controller/request"
 	"metaid-market-service/controller/respond"
 	"metaid-market-service/protobuf/btc_service"
@@ -12,8 +11,9 @@ import (
 	"metaid-market-service/service/grpc_service"
 	"metaid-market-service/service/mempool_space_service"
 	"metaid-market-service/service/risk_service"
-	"metaid-market-service/tool"
 	"strings"
+	"sync"
+	"time"
 )
 
 func BroadcastTx(req *request.BroadcastTxReq) (*respond.BroadcastTxResp, error) {
@@ -43,8 +43,8 @@ func FetchRawTx(txId string) (*respond.FetchRawTxResp, error) {
 			return &respond.FetchRawTxResp{RawTx: grpcResp.TxRaw}, nil
 		}
 	}
-	rawTx, _, rawErr := tool.GetUrlAndCode(fmt.Sprintf("%s/api/tx/%s/hex", conf.MempoolSpace, txId), nil, nil)
-	if rawErr == nil && rawTx != "" && !strings.HasPrefix(rawTx, "{") {
+	rawTx, status, rawErr := mempool_space_service.Get(fmt.Sprintf("/api/tx/%s/hex", txId), mempool_space_service.Foreground)
+	if rawErr == nil && status == 200 && rawTx != "" && !strings.HasPrefix(rawTx, "{") {
 		return &respond.FetchRawTxResp{RawTx: strings.TrimSpace(rawTx)}, nil
 	}
 	return nil, errors.New("raw tx not found")
@@ -52,43 +52,96 @@ func FetchRawTx(txId string) (*respond.FetchRawTxResp, error) {
 
 // fee recommend
 var (
-	CurrentFeeRecommend *mempool_space_service.FeeRecommended
-	UpdateFeeTime       int64 = 0
+	feeFreshTTL     = 5 * time.Minute
+	feeRetryBackoff = 60 * time.Second
+	feeStaleTTL     = 30 * time.Minute
+	feeNowFunc      = time.Now
+
+	feeMu            sync.Mutex
+	feeLastGood      *mempool_space_service.FeeRecommended
+	feeFetchedAt     time.Time
+	feeLastFailureAt time.Time
+	feeRefreshing    bool
 )
 
-func GetFeeSummary() (*respond.FeeRecommended, error) {
-	var (
-		feeRecommended      *mempool_space_service.FeeRecommended
-		nowTime             int64 = tool.MakeTimestamp()
-		currentFeeRecommend *mempool_space_service.FeeRecommended
-	)
-	if CurrentFeeRecommend == nil || nowTime-UpdateFeeTime >= 1000*60*5 {
-		feeRecommended, _ = mempool_space_service.GetFeeRecommended()
-		if feeRecommended != nil {
-			CurrentFeeRecommend = feeRecommended
-			UpdateFeeTime = nowTime
-		} else {
-			CurrentFeeRecommend = &mempool_space_service.FeeRecommended{}
-		}
+func copyFeeRecommended(fee *mempool_space_service.FeeRecommended) *mempool_space_service.FeeRecommended {
+	if fee == nil {
+		return nil
 	}
-	currentFeeRecommend = CurrentFeeRecommend
+	copy := *fee
+	return &copy
+}
 
-	fast := int64(0)
-	if currentFeeRecommend.MinimumFee == currentFeeRecommend.FastestFee {
-		currentFeeRecommend.FastestFee += 1
+func staleFeeLocked(now time.Time) *mempool_space_service.FeeRecommended {
+	if feeLastGood == nil || now.Sub(feeFetchedAt) > feeStaleTTL {
+		return nil
 	}
-	if currentFeeRecommend.MinimumFee == currentFeeRecommend.HalfHourFee {
-		currentFeeRecommend.HalfHourFee += 1
+	return copyFeeRecommended(feeLastGood)
+}
+
+func getFeeRecommendedCached() (*mempool_space_service.FeeRecommended, error) {
+	now := feeNowFunc()
+	feeMu.Lock()
+	if feeLastGood != nil && now.Sub(feeFetchedAt) < feeFreshTTL {
+		fee := copyFeeRecommended(feeLastGood)
+		feeMu.Unlock()
+		return fee, nil
 	}
-	if currentFeeRecommend.MinimumFee == currentFeeRecommend.HourFee {
-		currentFeeRecommend.HourFee += 1
+	if feeRefreshing || (!feeLastFailureAt.IsZero() && now.Sub(feeLastFailureAt) < feeRetryBackoff) {
+		fee := staleFeeLocked(now)
+		feeMu.Unlock()
+		if fee != nil {
+			return fee, nil
+		}
+		return nil, errors.New("fee rate temporarily unavailable")
+	}
+	feeRefreshing = true
+	feeMu.Unlock()
+
+	fee, fetchErr := mempool_space_service.GetFeeRecommended()
+
+	feeMu.Lock()
+	feeRefreshing = false
+	if fetchErr == nil && fee != nil {
+		feeLastGood = copyFeeRecommended(fee)
+		feeFetchedAt = feeNowFunc()
+		feeLastFailureAt = time.Time{}
+	} else {
+		feeLastFailureAt = feeNowFunc()
+	}
+	stale := staleFeeLocked(feeNowFunc())
+	feeMu.Unlock()
+
+	if fetchErr == nil && fee != nil {
+		return copyFeeRecommended(fee), nil
+	}
+	if stale != nil {
+		return stale, nil
+	}
+	return nil, errors.New("fee rate temporarily unavailable")
+}
+
+func GetFeeSummary() (*respond.FeeRecommended, error) {
+	currentFeeRecommend, err := getFeeRecommendedCached()
+	if err != nil {
+		return nil, err
+	}
+	adjusted := *currentFeeRecommend
+	if adjusted.MinimumFee == adjusted.FastestFee {
+		adjusted.FastestFee += 1
+	}
+	if adjusted.MinimumFee == adjusted.HalfHourFee {
+		adjusted.HalfHourFee += 1
+	}
+	if adjusted.MinimumFee == adjusted.HourFee {
+		adjusted.HourFee += 1
 	}
 	return &respond.FeeRecommended{
-		FastestFee:  currentFeeRecommend.FastestFee + fast,
-		HalfHourFee: currentFeeRecommend.HalfHourFee + fast,
-		HourFee:     currentFeeRecommend.HourFee + fast,
-		EconomyFee:  currentFeeRecommend.EconomyFee + fast,
-		MinimumFee:  currentFeeRecommend.MinimumFee + fast,
+		FastestFee:  adjusted.FastestFee,
+		HalfHourFee: adjusted.HalfHourFee,
+		HourFee:     adjusted.HourFee,
+		EconomyFee:  adjusted.EconomyFee,
+		MinimumFee:  adjusted.MinimumFee,
 	}, nil
 }
 

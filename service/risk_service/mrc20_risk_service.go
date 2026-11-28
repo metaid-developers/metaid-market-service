@@ -6,13 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"metaid-market-service/common"
 	"metaid-market-service/conf"
 	"metaid-market-service/major"
 	"metaid-market-service/models"
+	"metaid-market-service/service/mempool_space_service"
 	"metaid-market-service/tool"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -117,7 +116,6 @@ type cachedTradeEntry struct {
 var (
 	defaultEngineOnce sync.Once
 	defaultEngine     *RiskEngine
-	mempoolHTTPClient = &http.Client{Timeout: 5 * time.Second}
 	sweepRunning      int32
 )
 
@@ -890,44 +888,35 @@ func defaultFetchChainTx(chain, txId string) (*ChainTx, error) {
 	if strings.ToLower(chain) != "" && strings.ToLower(chain) != "btc" {
 		return nil, errors.New("unsupported chain for taint walk")
 	}
-	domain := strings.TrimRight(conf.MempoolSpace, "/")
-	if domain == "" {
-		domain = "https://mempool.space"
-	}
-	reqURL := fmt.Sprintf("%s/api/tx/%s", domain, txId)
-	resp, err := mempoolHTTPClient.Get(reqURL)
-	if err == nil && resp != nil {
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-		_ = resp.Body.Close()
-		if readErr == nil && resp.StatusCode == http.StatusOK && len(body) > 0 {
-			var parsed mempoolTxResp
-			if jsonErr := json.Unmarshal(body, &parsed); jsonErr == nil && parsed.TxId != "" {
-				res := &ChainTx{
-					TxId:        NormalizeTxId(parsed.TxId),
-					Confirmed:   parsed.Status.Confirmed,
-					BlockHeight: parsed.Status.BlockHeight,
-					Inputs:      make([]ChainTxInput, 0, len(parsed.Vin)),
-					Outputs:     make([]ChainTxOutput, 0, len(parsed.Vout)),
-				}
-				for _, v := range parsed.Vin {
-					in := ChainTxInput{
-						TxId: NormalizeTxId(v.TxId),
-						Vout: v.Vout,
-					}
-					if v.Prevout != nil {
-						in.Address = NormalizeAddress(v.Prevout.Address)
-						in.Value = v.Prevout.Value
-					}
-					res.Inputs = append(res.Inputs, in)
-				}
-				for _, o := range parsed.Vout {
-					res.Outputs = append(res.Outputs, ChainTxOutput{
-						Address: NormalizeAddress(o.Address),
-						Value:   o.Value,
-					})
-				}
-				return res, nil
+	body, status, err := mempool_space_service.Get(fmt.Sprintf("/api/tx/%s", txId), mempool_space_service.Background)
+	if err == nil && status == 200 && body != "" {
+		var parsed mempoolTxResp
+		if jsonErr := json.Unmarshal([]byte(body), &parsed); jsonErr == nil && parsed.TxId != "" {
+			res := &ChainTx{
+				TxId:        NormalizeTxId(parsed.TxId),
+				Confirmed:   parsed.Status.Confirmed,
+				BlockHeight: parsed.Status.BlockHeight,
+				Inputs:      make([]ChainTxInput, 0, len(parsed.Vin)),
+				Outputs:     make([]ChainTxOutput, 0, len(parsed.Vout)),
 			}
+			for _, v := range parsed.Vin {
+				in := ChainTxInput{
+					TxId: NormalizeTxId(v.TxId),
+					Vout: v.Vout,
+				}
+				if v.Prevout != nil {
+					in.Address = NormalizeAddress(v.Prevout.Address)
+					in.Value = v.Prevout.Value
+				}
+				res.Inputs = append(res.Inputs, in)
+			}
+			for _, o := range parsed.Vout {
+				res.Outputs = append(res.Outputs, ChainTxOutput{
+					Address: NormalizeAddress(o.Address),
+					Value:   o.Value,
+				})
+			}
+			return res, nil
 		}
 	}
 

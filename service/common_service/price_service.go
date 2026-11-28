@@ -1,13 +1,18 @@
 package common_service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"metaid-market-service/models"
 	"metaid-market-service/service/grpc_service"
+	"metaid-market-service/service/mempool_space_service"
 	"metaid-market-service/tool"
+	"net/http"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,6 +44,9 @@ func GetPriceForUsd(coin string) string {
 		}
 		return fmt.Sprintf("%d", price.USD)
 	}
+	if marketPrice != nil && marketPrice.Usd > 0 {
+		return fmt.Sprintf("%d", marketPrice.Usd)
+	}
 	return "0"
 }
 
@@ -54,15 +62,25 @@ type BitcoinPrice struct {
 }
 
 var (
-	cachedPrice *BitcoinPrice
-	cachedTime  int64 = 0
+	mexcDomain        = "https://api.mexc.com"
+	mexcHTTPClient    = &http.Client{Timeout: 3 * time.Second}
+	priceFreshTTL     = 60 * time.Second
+	priceRetryBackoff = 30 * time.Second
+	priceStaleTTL     = 30 * time.Minute
+	priceNowFunc      = time.Now
+
+	btcPriceMu       sync.Mutex
+	btcLastGood      *BitcoinPrice
+	btcFetchedAt     time.Time
+	btcLastFailureAt time.Time
+	btcRefreshing    bool
 )
 
 // FetchCoinPrice 统一获取币价，返回 BitcoinPrice 格式（USD 为重点字段）
-// coin=btc 从 mempool.space 获取，其他币种通过 gRPC FetchCommonCoinPrice 获取
+// coin=btc 使用带缓存和降级的 BTC 价格源，其他币种通过 gRPC FetchCommonCoinPrice 获取
 func FetchCoinPrice(coin string) (*BitcoinPrice, error) {
 	if coin == "btc" {
-		return GetPriceFormMempoolSpace()
+		return fetchBtcCoinPrice()
 	}
 	conn, err := grpc_service.GetAssetBaseConn()
 	if err != nil {
@@ -84,28 +102,112 @@ func FetchCoinPrice(coin string) (*BitcoinPrice, error) {
 	}, nil
 }
 
-func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
-	var (
-		url    string = "https://mempool.space/api/v1/prices"
-		result string
-		data   *BitcoinPrice
-		err    error
-	)
-	if cachedPrice != nil && (tool.MakeTimestamp()-cachedTime) <= 5*60*1000 {
-		return cachedPrice, nil
+func copyBitcoinPrice(price *BitcoinPrice) *BitcoinPrice {
+	if price == nil {
+		return nil
 	}
+	copy := *price
+	return &copy
+}
 
-	result, err = tool.GetUrl(url, nil, nil)
+func staleBtcPriceLocked(now time.Time) *BitcoinPrice {
+	if btcLastGood == nil || now.Sub(btcFetchedAt) > priceStaleTTL {
+		return nil
+	}
+	return copyBitcoinPrice(btcLastGood)
+}
+
+func fetchBtcCoinPrice() (*BitcoinPrice, error) {
+	now := priceNowFunc()
+	btcPriceMu.Lock()
+	if btcLastGood != nil && now.Sub(btcFetchedAt) < priceFreshTTL {
+		price := copyBitcoinPrice(btcLastGood)
+		btcPriceMu.Unlock()
+		return price, nil
+	}
+	if btcRefreshing || (!btcLastFailureAt.IsZero() && now.Sub(btcLastFailureAt) < priceRetryBackoff) {
+		price := staleBtcPriceLocked(now)
+		btcPriceMu.Unlock()
+		if price != nil {
+			return price, nil
+		}
+		return nil, errors.New("btc price temporarily unavailable")
+	}
+	btcRefreshing = true
+	btcPriceMu.Unlock()
+
+	price, fetchErr := fetchBtcPriceUpstream()
+
+	btcPriceMu.Lock()
+	btcRefreshing = false
+	if fetchErr == nil && price != nil {
+		btcLastGood = copyBitcoinPrice(price)
+		btcFetchedAt = priceNowFunc()
+		btcLastFailureAt = time.Time{}
+	} else {
+		btcLastFailureAt = priceNowFunc()
+	}
+	stale := staleBtcPriceLocked(priceNowFunc())
+	btcPriceMu.Unlock()
+
+	if fetchErr == nil && price != nil {
+		return price, nil
+	}
+	if stale != nil {
+		return stale, nil
+	}
+	return nil, errors.New("btc price temporarily unavailable")
+}
+
+func fetchBtcPriceUpstream() (*BitcoinPrice, error) {
+	price, err := fetchBtcPriceFromMexc()
+	if err == nil && price != nil && price.USD > 0 {
+		return price, nil
+	}
+	return GetPriceFormMempoolSpace()
+}
+
+func fetchBtcPriceFromMexc() (*BitcoinPrice, error) {
+	url := strings.TrimRight(mexcDomain, "/") + "/api/v3/ticker/price?symbol=BTCUSDT"
+	resp, err := mexcHTTPClient.Get(url)
 	if err != nil {
-		return nil, errors.New("request err")
+		return nil, err
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("mexc price status %d", resp.StatusCode)
+	}
+	var data struct {
+		Price string `json:"price"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	usdFloat, err := strconv.ParseFloat(data.Price, 64)
+	if err != nil || usdFloat <= 0 {
+		return nil, errors.New("mexc price invalid")
+	}
+	return &BitcoinPrice{
+		Time: priceNowFunc().Unix(),
+		USD:  int64(usdFloat),
+	}, nil
+}
 
-	//fmt.Println(result)
+func GetPriceFormMempoolSpace() (*BitcoinPrice, error) {
+	result, status, err := mempool_space_service.Get("/api/v1/prices", mempool_space_service.Foreground)
+	if err != nil {
+		return nil, err
+	}
+	if status != 200 {
+		return nil, fmt.Errorf("mempool.space prices status %d", status)
+	}
+	var data *BitcoinPrice
 	if err = tool.JsonToObject(result, &data); err != nil {
 		return nil, errors.New(fmt.Sprintf("Get request err:%s", err))
 	}
-	cachedPrice = data
-	cachedTime = tool.MakeTimestamp()
+	if data == nil || data.USD <= 0 {
+		return nil, errors.New("mempool.space price invalid")
+	}
 	return data, nil
 }
 
