@@ -36,6 +36,12 @@ export function createProductionPipeline(args: {
   metaletApiBase?: string
 }): ProductionPipeline {
   const contractsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idcoin-keeper-contracts-'))
+  const artifactsDir = process.env.ORDERBOOK_ARTIFACTS_DIR
+  if (artifactsDir && fs.existsSync(artifactsDir)) {
+    for (const f of fs.readdirSync(artifactsDir)) {
+      if (f.endsWith('.json')) fs.copyFileSync(path.join(artifactsDir, f), path.join(contractsDir, f))
+    }
+  }
   const contracts = loadOrderbookContracts(contractsDir)
   const fingerprints = computeContractFingerprints(contracts)
 
