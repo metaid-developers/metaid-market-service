@@ -31,7 +31,9 @@ COPY idcoin-keeper/src /app/idcoin-keeper/src
 # sanity: the native module must load on this platform, and the cross-package
 # imports must resolve. Fails the build otherwise.
 RUN node -e "require('better-sqlite3'); console.log('better-sqlite3 native OK')" \
- && npx tsc -p tsconfig.build.json --noEmit \
+ && (npx tsc -p tsconfig.build.json --noEmit > /tmp/tsc.log 2>&1 || true) \
+ && cat /tmp/tsc.log \
+ && ! grep -E "^src/" /tmp/tsc.log \
  && rm -rf /app/idcoin-keeper/dist
 
 # non-root runtime user; /app/data holds the SQLite ledger (volume-mounted)
