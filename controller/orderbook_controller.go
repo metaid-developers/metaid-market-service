@@ -92,14 +92,14 @@ func OrderbookListPairs(c *gin.Context) {
 	})
 }
 
-// GET /api/v1/orderbook/depth?pair=<codehash:tokenId>&precision=0&limit=50
+// GET /api/v1/orderbook/depth?pair=<codehash:tokenId>&precision=12&limit=50
 func OrderbookGetDepth(c *gin.Context) {
 	pairKey := resolvePairKeyFromQuery(c)
 	if pairKey == "" {
 		obErr(c, http.StatusBadRequest, "pair (or tokenCodeHash + tokenID) is required")
 		return
 	}
-	var precision int32
+	precision := ob.DefaultDepthPrecision
 	if raw := strings.TrimSpace(c.Query("precision")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 32)
 		if err != nil || v < -8 || v > 12 {

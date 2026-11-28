@@ -526,3 +526,46 @@ func TestOrderTokenV2ProtoBookAndRouter(t *testing.T) {
 		t.Fatalf("unexpected FT/FT pair summary: %+v", pairs)
 	}
 }
+
+func TestSubUnitPricesDistinctAtDefaultPrecision(t *testing.T) {
+	tokenCodeHash := bytes.Repeat([]byte{0xa2}, 20)
+	tokenID := bytes.Repeat([]byte{0xbb}, 20)
+	maker := bytes.Repeat([]byte{0x11}, 20)
+	fee := make([]byte, 20)
+	pairKey := MakePairKey(hex.EncodeToString(tokenCodeHash), hex.EncodeToString(tokenID))
+
+	book := NewOrderBook("livenet", NewMemorySoftLocker())
+	prices := []struct {
+		txByte byte
+		num    uint64
+		den    uint64
+		sats   uint64
+		want   string
+	}{
+		{0x01, 3, 1000, 15000000, "0.003"},
+		{0x02, 2, 1000, 20000000, "0.002"},
+		{0x03, 1, 1000, 10000000, "0.001"},
+	}
+	for _, p := range prices {
+		script := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideBid, maker, tokenID, tokenCodeHash, p.num, p.den, p.sats, 546, fee, 0, bytes.Repeat([]byte{p.txByte}, 8))
+		lo, err := ParseLiveOrder(strings.Repeat(hex.EncodeToString([]byte{p.txByte}), 32), 0, p.sats, script, 200000, false, 1000, "livenet")
+		if err != nil {
+			t.Fatalf("ParseLiveOrder bid %s failed: %v", p.want, err)
+		}
+		book.UpsertOrder(lo)
+	}
+
+	depth := book.GetDepth(pairKey, DefaultDepthPrecision, 50)
+	if len(depth.Bids) != 3 {
+		t.Fatalf("expected 3 distinct bid buckets at DefaultDepthPrecision=%d, got %d: %+v", DefaultDepthPrecision, len(depth.Bids), depth.Bids)
+	}
+	for i, want := range []string{"0.003", "0.002", "0.001"} {
+		if depth.Bids[i].Price != want {
+			t.Fatalf("bid[%d] expected price %s, got %s", i, want, depth.Bids[i].Price)
+		}
+		if depth.Bids[i].OrderCount != 1 {
+			t.Fatalf("bid[%d] expected orderCount=1, got %d", i, depth.Bids[i].OrderCount)
+		}
+	}
+}
+

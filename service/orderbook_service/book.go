@@ -12,6 +12,9 @@ import (
 
 const (
 	maxInMemoryTradesPerPair = 500
+	// DefaultDepthPrecision preserves up to 12 fractional digits (matching PriceToDecimal)
+	// so sub-1 prices (e.g. 0.003 SPACE/MC or 3e-9 WBTC/MC) are never floored to "0" and merged.
+	DefaultDepthPrecision int32 = 12
 )
 
 // LiveOrder represents one currently unspent OrderAskV2, OrderBidV2, or OrderTokenV2 UTXO in the orderbook.

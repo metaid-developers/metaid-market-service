@@ -430,20 +430,34 @@ export class OrderbookTxBuilder {
     label: string
   ): void {
     const Interpreter = mvc.Script.Interpreter
+    // Match mvc-scrypt AbstractContract.run_verify exactly:
+    //  1. Raise element size caps for large Token preimages / check scripts (>520B).
+    //  2. Omit SCRIPT_VERIFY_P2SH and include NULLDUMMY | CLEANSTACK (mvc-scrypt DEFAULT_FLAGS).
+    Interpreter.MAX_SCRIPT_ELEMENT_SIZE = Number.MAX_SAFE_INTEGER
+    Interpreter.MAXIMUM_ELEMENT_SIZE = Number.MAX_SAFE_INTEGER
     const flags =
-      Interpreter.SCRIPT_VERIFY_P2SH |
       Interpreter.SCRIPT_VERIFY_STRICTENC |
       Interpreter.SCRIPT_VERIFY_DERSIG |
       Interpreter.SCRIPT_VERIFY_LOW_S |
+      Interpreter.SCRIPT_VERIFY_NULLDUMMY |
       Interpreter.SCRIPT_VERIFY_NULLFAIL |
       Interpreter.SCRIPT_VERIFY_MINIMALDATA |
       Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS |
       Interpreter.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY |
       Interpreter.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY |
+      Interpreter.SCRIPT_VERIFY_CLEANSTACK |
       Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID |
       Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES |
       Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES
     const interp = new Interpreter()
+    let lastOpNum = -1
+    let lastPc = -1
+    interp.stepListener = (step: any) => {
+      if (step && step.fExec && step.opcode) {
+        lastOpNum = step.opcode.toNumber()
+        lastPc = step.pc ?? -1
+      }
+    }
     const ok = interp.verify(
       unlockingScript,
       lockingScript,
@@ -453,7 +467,17 @@ export class OrderbookTxBuilder {
       new mvc.crypto.BN(satoshis)
     )
     if (!ok) {
-      throw new Error(`${label} verify failed at input ${inputIndex}: ${interp.errstr}`)
+      let lastOpLabel = ''
+      if (lastOpNum >= 0) {
+        try {
+          lastOpLabel = `${new mvc.Opcode(lastOpNum).toString()}@${lastPc}`
+        } catch {
+          lastOpLabel = `0x${lastOpNum.toString(16)}@${lastPc}`
+        }
+      }
+      throw new Error(
+        `${label} verify failed at input ${inputIndex}: ${interp.errstr || 'script returned false'}${lastOpLabel ? ` (lastOp=${lastOpLabel})` : ''}`
+      )
     }
   }
 
@@ -519,6 +543,71 @@ export class OrderbookTxBuilder {
       }
     }
     throw new Error(`Unable to resolve token backtrace for ${getMvcV10TxId(tokenTx)}:${tokenVout}`)
+  }
+
+  /**
+   * Resolve the locked FT token UTXO owned by `hash160(orderScriptBuf)`.
+   * Fast-paths when the caller's `(hintTxid, hintVout)` already points to the matching locked token
+   * (e.g. a 0-conf partial-fill continuation or optimistically cached lockTx); otherwise falls back
+   * to querying unspent FT UTXOs for `contractAddr = P2PKH(hash160(orderScriptBuf))`, making
+   * TakeAsk / CancelAsk / TakeTokenOrder / CancelTokenOrder resilient to Go restarts and Higun resets.
+   */
+  private async resolveLockedTokenForOrder(params: {
+    orderScriptBuf: Buffer
+    tokenCodeHash: Buffer
+    tokenID: Buffer
+    expectedAmount: bigint
+    hintTxid?: string
+    hintVout?: number
+    orderTx?: any
+  }): Promise<{ txid: string; vout: number; tx: any }> {
+    const orderHash20 = mvc.crypto.Hash.sha256ripemd160(params.orderScriptBuf)
+    const tokenCodeHashHex = params.tokenCodeHash.toString('hex')
+    const tokenIDHex = params.tokenID.toString('hex')
+
+    const matchesLockedToken = (out: any): boolean => {
+      if (!out || !out.script) return false
+      const buf: Buffer = out.script.toBuffer()
+      if (buf.length <= TokenProto.DATA_LEN) return false
+      try {
+        return (
+          TokenProto.getScriptCodeHash(buf).toString('hex') === tokenCodeHashHex &&
+          TokenProto.getTokenID(buf).toString('hex') === tokenIDHex &&
+          TokenProto.getTokenAddress(buf).equals(orderHash20) &&
+          TokenProto.getTokenAmount(buf) === params.expectedAmount
+        )
+      } catch {
+        return false
+      }
+    }
+
+    if (params.hintTxid && params.hintVout !== undefined && params.hintVout >= 0) {
+      try {
+        const hintTx =
+          params.orderTx && getMvcV10TxId(params.orderTx).toLowerCase() === params.hintTxid.toLowerCase()
+            ? params.orderTx
+            : new mvc.Transaction(await this.chain.getRawTx(params.hintTxid))
+        if (matchesLockedToken(hintTx.outputs[params.hintVout])) {
+          return { txid: params.hintTxid, vout: params.hintVout, tx: hintTx }
+        }
+      } catch {
+        // Fall through to on-chain lookup by contract hash160 address
+      }
+    }
+
+    const contractAddr = mvc.Address.fromPublicKeyHash(orderHash20, this.net).toString()
+    const utxos = await this.chain.getTokenUtxos(contractAddr, tokenCodeHashHex, tokenIDHex)
+    for (const u of utxos) {
+      if (u.tokenAmount !== params.expectedAmount) continue
+      const raw = await this.chain.getRawTx(u.txid)
+      const tx = new mvc.Transaction(raw)
+      if (matchesLockedToken(tx.outputs[u.vout])) {
+        return { txid: u.txid, vout: u.vout, tx }
+      }
+    }
+    throw new Error(
+      `Locked FT token UTXO not found for order contract ${contractAddr} (expected ${params.expectedAmount.toString()} of ${tokenCodeHashHex}:${tokenIDHex})`
+    )
   }
 
   private verifyAndSetTransferCheck(
@@ -1199,18 +1288,25 @@ export class OrderbookTxBuilder {
     let totalFillToken = BigInt(0)
     let prepOutputsSats = 0
 
-    for (const leg of params.legs) {
-      const [orderRaw, tokenRaw] = await Promise.all([
-        this.chain.getRawTx(leg.orderTxid),
-        this.chain.getRawTx(leg.tokenTxid),
-      ])
+    for (const rawLeg of params.legs) {
+      const orderRaw = await this.chain.getRawTx(rawLeg.orderTxid)
       const orderTx = new mvc.Transaction(orderRaw)
-      const tokenTx = new mvc.Transaction(tokenRaw)
-      const orderScriptBuf = orderTx.outputs[leg.orderVout].script.toBuffer()
+      const orderScriptBuf = orderTx.outputs[rawLeg.orderVout].script.toBuffer()
       const orderData = OrderProto.parseOrderScript(orderScriptBuf)
       if (orderData.orderSide !== OrderProto.SIDE_ASK) {
-        throw new Error(`Order ${leg.orderTxid}:${leg.orderVout} is not an Ask order`)
+        throw new Error(`Order ${rawLeg.orderTxid}:${rawLeg.orderVout} is not an Ask order`)
       }
+      const resolvedTok = await this.resolveLockedTokenForOrder({
+        orderScriptBuf,
+        tokenCodeHash: orderData.tokenCodeHash,
+        tokenID: orderData.tokenID,
+        expectedAmount: orderData.remainAmount,
+        hintTxid: rawLeg.tokenTxid,
+        hintVout: rawLeg.tokenVout,
+        orderTx,
+      })
+      const leg: TakeAskLeg = { ...rawLeg, tokenTxid: resolvedTok.txid, tokenVout: resolvedTok.vout }
+      const tokenTx = resolvedTok.tx
 
       const orderInst = new this.contracts.OrderAskV2(this.contracts.askUnlockCheckHashes)
       orderInst.setDataPart(orderScriptBuf.subarray(orderScriptBuf.length - OrderProto.RAW_DATA_LEN).toString('hex'))
@@ -2106,12 +2202,19 @@ export class OrderbookTxBuilder {
     if (orderData.orderSide !== OrderProto.SIDE_ASK) {
       throw new Error('Order side mismatch: expected Ask')
     }
-    if (!params.tokenTxid || params.tokenVout === undefined) {
-      throw new Error('tokenTxid and tokenVout are required to cancel an Ask order')
-    }
-    const tokenRaw = await this.chain.getRawTx(params.tokenTxid)
-    const tokenTx = new mvc.Transaction(tokenRaw)
-    const tokenOut = tokenTx.outputs[params.tokenVout]
+    const resolvedTok = await this.resolveLockedTokenForOrder({
+      orderScriptBuf,
+      tokenCodeHash: orderData.tokenCodeHash,
+      tokenID: orderData.tokenID,
+      expectedAmount: orderData.remainAmount,
+      hintTxid: params.tokenTxid,
+      hintVout: params.tokenVout,
+      orderTx,
+    })
+    const resolvedTokTxid = resolvedTok.txid
+    const resolvedTokVout = resolvedTok.vout
+    const tokenTx = resolvedTok.tx
+    const tokenOut = tokenTx.outputs[resolvedTokVout]
     const lockedTokBuf = tokenOut.script.toBuffer()
 
     const orderInst = new this.contracts.OrderAskV2(this.contracts.askUnlockCheckHashes)
@@ -2184,7 +2287,7 @@ export class OrderbookTxBuilder {
           cancelTx = new mvc.Transaction()
           cancelTx.version = Common.TX_VERSION
           addTxInput(cancelTx, params.orderTxid, params.orderVout, mvc.Script.fromBuffer(orderScriptBuf), orderOut.satoshis)
-          addTxInput(cancelTx, params.tokenTxid!, params.tokenVout!, tokenOut.script, tokenOut.satoshis)
+          addTxInput(cancelTx, resolvedTokTxid, resolvedTokVout, tokenOut.script, tokenOut.satoshis)
           addTxInput(cancelTx, signedPrepTxid, 0, unlockCheckInst.lockingScript, DUST)
           addTxInput(cancelTx, signedPrepTxid, 1, makerP2pkh, cancelFeeBudget)
 
@@ -2271,14 +2374,14 @@ export class OrderbookTxBuilder {
           checkTx: prepTx,
           checkVout: 0,
           tokenTx,
-          tokenVout: params.tokenVout!,
+          tokenVout: resolvedTokVout,
           contractInputIdx: 0,
           contractTx: orderTx,
           contractVout: params.orderVout,
           localTxMap: localMap,
         })
 
-        this.verifyAndSetUnlockCheck(cancelTx, 2, unlockCheckInst, DUST, [tokenTx], [params.tokenVout!], [0])
+        this.verifyAndSetUnlockCheck(cancelTx, 2, unlockCheckInst, DUST, [tokenTx], [resolvedTokVout], [0])
         applyP2PKHSig(cancelTx, 3, getSigOrThrow(sigMap, 0, 3))
 
         const txHexes = [prepTx.uncheckedSerialize(), cancelTx.uncheckedSerialize()]
@@ -2638,15 +2741,22 @@ export class OrderbookTxBuilder {
     let totalFeeAmount = BigInt(0)
     let prepFillerAndCheckSats = 0
 
-    for (const leg of params.legs) {
-      const [orderRaw, sellTokenRaw] = await Promise.all([
-        this.chain.getRawTx(leg.orderTxid),
-        this.chain.getRawTx(leg.tokenTxid),
-      ])
+    for (const rawLeg of params.legs) {
+      const orderRaw = await this.chain.getRawTx(rawLeg.orderTxid)
       const orderTx = new mvc.Transaction(orderRaw)
-      const sellTokenTx = new mvc.Transaction(sellTokenRaw)
-      const orderScriptBuf = orderTx.outputs[leg.orderVout].script.toBuffer()
+      const orderScriptBuf = orderTx.outputs[rawLeg.orderVout].script.toBuffer()
       const orderData = OrderTokenProto.parseOrderTokenScript(orderScriptBuf)
+      const resolvedTok = await this.resolveLockedTokenForOrder({
+        orderScriptBuf,
+        tokenCodeHash: orderData.sellTokenCodeHash,
+        tokenID: orderData.sellTokenID,
+        expectedAmount: orderData.remainAmount,
+        hintTxid: rawLeg.tokenTxid,
+        hintVout: rawLeg.tokenVout,
+        orderTx,
+      })
+      const leg: TakeTokenLeg = { ...rawLeg, tokenTxid: resolvedTok.txid, tokenVout: resolvedTok.vout }
+      const sellTokenTx = resolvedTok.tx
 
       if (
         !orderData.buyTokenCodeHash.equals(buyCodeHashBuf) ||
@@ -3213,16 +3323,8 @@ export class OrderbookTxBuilder {
     const makerHash20 = addressToHash20(params.makerAddress, this.net)
     const makerP2pkh = p2pkhScript(params.makerAddress, this.net)
 
-    if (!params.tokenTxid || params.tokenVout === undefined) {
-      throw new Error('tokenTxid and tokenVout are required to cancel a Token order')
-    }
-
-    const [orderRaw, tokenRaw] = await Promise.all([
-      this.chain.getRawTx(params.orderTxid),
-      this.chain.getRawTx(params.tokenTxid),
-    ])
+    const orderRaw = await this.chain.getRawTx(params.orderTxid)
     const orderTx = new mvc.Transaction(orderRaw)
-    const tokenTx = new mvc.Transaction(tokenRaw)
     const orderOut = orderTx.outputs[params.orderVout]
     const orderScriptBuf = orderOut.script.toBuffer()
     const orderData = OrderTokenProto.parseOrderTokenScript(orderScriptBuf)
@@ -3237,7 +3339,19 @@ export class OrderbookTxBuilder {
       throw new Error('Only the order maker can cancel this token order')
     }
 
-    const tokenOut = tokenTx.outputs[params.tokenVout]
+    const resolvedTok = await this.resolveLockedTokenForOrder({
+      orderScriptBuf,
+      tokenCodeHash: orderData.sellTokenCodeHash,
+      tokenID: orderData.sellTokenID,
+      expectedAmount: orderData.remainAmount,
+      hintTxid: params.tokenTxid,
+      hintVout: params.tokenVout,
+      orderTx,
+    })
+    const resolvedTokTxid = resolvedTok.txid
+    const resolvedTokVout = resolvedTok.vout
+    const tokenTx = resolvedTok.tx
+    const tokenOut = tokenTx.outputs[resolvedTokVout]
     const lockedTokBuf = tokenOut.script.toBuffer()
 
     const orderInst = new this.contracts.OrderTokenV2(this.contracts.askUnlockCheckHashes)
@@ -3314,7 +3428,7 @@ export class OrderbookTxBuilder {
           cancelTx = new mvc.Transaction()
           cancelTx.version = Common.TX_VERSION
           addTxInput(cancelTx, params.orderTxid, params.orderVout, mvc.Script.fromBuffer(orderScriptBuf), orderOut.satoshis)
-          addTxInput(cancelTx, params.tokenTxid!, params.tokenVout!, tokenOut.script, tokenOut.satoshis)
+          addTxInput(cancelTx, resolvedTokTxid, resolvedTokVout, tokenOut.script, tokenOut.satoshis)
           addTxInput(cancelTx, signedPrepTxid, 0, unlockCheckInst.lockingScript, DUST)
           addTxInput(cancelTx, signedPrepTxid, 1, makerP2pkh, cancelFeeBudget)
 
@@ -3366,7 +3480,7 @@ export class OrderbookTxBuilder {
         const localMap = new Map<string, any>()
         localMap.set(signedPrepTxid.toLowerCase(), prepTx)
         localMap.set(params.orderTxid.toLowerCase(), orderTx)
-        localMap.set(params.tokenTxid!.toLowerCase(), tokenTx)
+        localMap.set(resolvedTokTxid.toLowerCase(), tokenTx)
 
         const makerSig = getSigOrThrow(sigMap, 0, 0)
         const orderPreimage = getPreimage(cancelTx, orderInst.lockingScript, orderOut.satoshis, 0, SIG_ALL)
@@ -3407,14 +3521,14 @@ export class OrderbookTxBuilder {
           checkTx: prepTx,
           checkVout: 0,
           tokenTx,
-          tokenVout: params.tokenVout!,
+          tokenVout: resolvedTokVout,
           contractInputIdx: 0,
           contractTx: orderTx,
           contractVout: params.orderVout,
           localTxMap: localMap,
         })
 
-        this.verifyAndSetUnlockCheck(cancelTx, 2, unlockCheckInst, DUST, [tokenTx], [params.tokenVout!], [0])
+        this.verifyAndSetUnlockCheck(cancelTx, 2, unlockCheckInst, DUST, [tokenTx], [resolvedTokVout], [0])
         applyP2PKHSig(cancelTx, 3, getSigOrThrow(sigMap, 0, 3))
 
         const txHexes = [prepTx.uncheckedSerialize(), cancelTx.uncheckedSerialize()]

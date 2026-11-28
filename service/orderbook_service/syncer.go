@@ -660,7 +660,7 @@ func (s *Syncer) recordAndBroadcastTrade(tr TradeRecord) {
 }
 
 func (s *Syncer) broadcastDepth(pairKey string) {
-	depth := s.book.GetDepth(pairKey, 0, 50)
+	depth := s.book.GetDepth(pairKey, DefaultDepthPrecision, 50)
 	s.hub.Broadcast("depth:"+pairKey, WSMessage{
 		Channel: "depth",
 		Pair:    pairKey,
