@@ -9,6 +9,7 @@ import (
 	"metaid-market-service/protobuf/btc_service"
 	"metaid-market-service/protobuf/doge_service"
 	"metaid-market-service/service/grpc_service"
+	"metaid-market-service/service/mempool_space_service"
 	"metaid-market-service/service/own_service"
 	"metaid-market-service/tool"
 	"strings"
@@ -501,8 +502,8 @@ func FetchTxHex(chain, txId string) (string, error) {
 				return resp.GetTxRaw(), nil
 			}
 		}
-		hexStr, _, hexErr := tool.GetUrlAndCode(fmt.Sprintf("%s/api/tx/%s/hex", conf.MempoolSpace, txId), nil, nil)
-		if hexErr == nil && hexStr != "" && !strings.HasPrefix(hexStr, "{") {
+		hexStr, status, hexErr := mempool_space_service.Get(fmt.Sprintf("/api/tx/%s/hex", txId), mempool_space_service.Foreground)
+		if hexErr == nil && status == 200 && hexStr != "" && !strings.HasPrefix(hexStr, "{") {
 			return strings.TrimSpace(hexStr), nil
 		}
 		return "", errors.New("btc fetch tx hex failed")
@@ -515,12 +516,12 @@ func FetchTxHex(chain, txId string) (string, error) {
 // (2026-11-08 incident), so destructive actions must confirm with this
 // second source first. Returns false when the source is unavailable or for
 // doge (no mempool.space data) so callers keep their local verdict.
-func IsBtcUtxoSpentByMempool(chain, txId string, txIndex int64) bool {
+func IsBtcUtxoSpentByMempool(chain, txId string, txIndex int64, prio mempool_space_service.Priority) bool {
 	if chain == "doge" {
 		return false
 	}
-	body, _, err := tool.GetUrlAndCode(fmt.Sprintf("%s/api/tx/%s/outspend/%d", conf.MempoolSpace, txId, txIndex), nil, nil)
-	if err != nil || body == "" {
+	body, status, err := mempool_space_service.Get(fmt.Sprintf("/api/tx/%s/outspend/%d", txId, txIndex), prio)
+	if err != nil || status != 200 || body == "" {
 		return false
 	}
 	return strings.Contains(body, "\"spent\":true")
@@ -541,7 +542,7 @@ func CheckUtxoSpendWithMempool(net, chain, txId string, txIndex int64) (bool, st
 	if chain == "doge" {
 		return utxoInfo == nil || !utxoInfo.IsExist || utxoInfo.SpendStatus == "spend", address
 	}
-	return IsBtcUtxoSpentByMempool(chain, txId, txIndex), address
+	return IsBtcUtxoSpentByMempool(chain, txId, txIndex, mempool_space_service.Foreground), address
 }
 
 // AddressFromPsbtInput derives the input owner address from the psbt's
