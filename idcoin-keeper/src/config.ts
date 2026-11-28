@@ -7,6 +7,7 @@ export interface KeeperConfig {
   dbPath: string
   pollMs: number
   higunBtcUrl: string
+  higunMvcUrl: string
   mempoolUrl: string
   coinsUrl: string
   dryRun: boolean
@@ -60,6 +61,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): KeeperConfig {
     dbPath: String(pick('IDCOIN_KEEPER_DB', 'dbPath') || './idcoin-keeper.db'),
     pollMs: num(pick('IDCOIN_KEEPER_POLL_MS', 'pollMs'), 10_000),
     higunBtcUrl: String(pick('IDCOIN_HIGUN_BTC_URL', 'higunBtcUrl') || 'http://172.31.165.190:8085'),
+    higunMvcUrl: String(pick('IDCOIN_HIGUN_MVC_URL', 'higunMvcUrl') || 'http://47.239.239.128:8085'),
     mempoolUrl: String(pick('IDCOIN_MEMPOOL_URL', 'mempoolUrl') || 'https://mempool.space'),
     coinsUrl: String(
       pick('IDCOIN_COINS_URL', 'coinsUrl') ||
@@ -72,7 +74,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): KeeperConfig {
     maxFeeRatio: num(pick('IDCOIN_KEEPER_MAX_FEE_RATIO', 'maxFeeRatio'), 0.3),
     minUtxoSats: num(pick('IDCOIN_KEEPER_MIN_UTXO_SATS', 'minUtxoSats'), 1000),
     opsPort: num(pick('IDCOIN_KEEPER_OPS_PORT', 'opsPort'), 18090),
-    bridgeUrl: String(pick('IDCOIN_BRIDGE_URL', 'bridgeUrl') || 'https://bridge.octopus.space/api'),
+    bridgeUrl: String(pick('IDCOIN_BRIDGE_URL', 'bridgeUrl') || 'https://api.octopus.space/api-bridge-v3'),
     bridgeVaultAddress: String(pick('IDCOIN_BRIDGE_VAULT', 'bridgeVaultAddress') || 'bc1qh90z428z4s0g9prcdf6rq00yg27uhxrtxlvvvv'),
     bridgeFeeAllowlist: new Set(
       String(pick('IDCOIN_BRIDGE_FEE_ALLOWLIST', 'bridgeFeeAllowlist') || 'bc1qyjg3wtuk7gyzd7tuug7sghhdj79whdf8wravre')

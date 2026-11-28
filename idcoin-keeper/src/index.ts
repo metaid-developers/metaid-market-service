@@ -31,7 +31,7 @@ async function main() {
   // orderbook contracts cannot load — sweeping must never be blocked by it.
   let pipe: ReturnType<typeof createProductionPipeline> | null = null
   try {
-    pipe = createProductionPipeline({ config, db, log, chain, lpKeys: keeper.lpKeys })
+    pipe = createProductionPipeline({ config, db, log, chain, lpKeys: keeper.lpKeys, higunMvcUrl: config.higunMvcUrl })
     const n = await pipe.refreshPairs()
     log.info('bridge pairs loaded', { count: n })
   } catch (e: any) {
