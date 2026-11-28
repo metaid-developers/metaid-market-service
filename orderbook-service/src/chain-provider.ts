@@ -186,20 +186,44 @@ export class HigunChainProvider implements ChainProvider {
     this.txCache.set(txid.toLowerCase(), rawHex)
   }
 
+  private isPermanentBroadcastRejection(msg: string): boolean {
+    const lower = msg.toLowerCase()
+    return (
+      lower.includes('txn-mempool-conflict') ||
+      lower.includes('insufficient priority') ||
+      lower.includes('bad-txns-inputs-missingorspent') ||
+      lower.includes('missing inputs') ||
+      lower.includes('mandatory-script-verify-flag-failed') ||
+      lower.includes('script-verify') ||
+      lower.includes('min relay fee') ||
+      lower.includes('dust') ||
+      lower.includes('non-final') ||
+      lower.includes('oversized')
+    )
+  }
+
   private async retry<T>(label: string, fn: () => Promise<T>, maxRetries = 4, delayMs = 600): Promise<T> {
     let lastErr: any
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await fn()
-      } catch (e) {
+      } catch (e: any) {
         lastErr = e
+        const detail = e?.response?.data?.message || e?.message || String(e)
+        if (e?.nonRetryable || this.isPermanentBroadcastRejection(detail)) {
+          break
+        }
         if (attempt < maxRetries) {
           await new Promise((r) => setTimeout(r, delayMs * attempt))
         }
       }
     }
     const detail = lastErr?.response?.data?.message || lastErr?.message || String(lastErr)
-    throw new Error(`[ChainProvider] ${label} failed: ${detail}`)
+    const wrapped: any = new Error(`[ChainProvider] ${label} failed: ${detail}`)
+    if (lastErr?.nonRetryable || this.isPermanentBroadcastRejection(detail)) {
+      wrapped.nonRetryable = true
+    }
+    throw wrapped
   }
 
   async getRawTx(txid: string): Promise<string> {

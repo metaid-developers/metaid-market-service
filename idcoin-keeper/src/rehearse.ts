@@ -16,6 +16,7 @@ import axios from 'axios'
 import { loadConfig } from './config'
 import { loadLpKeys, loadLegacyKeys, deriveLpVault } from './keys'
 import { HigunBtcClient, MempoolClient } from './chain'
+import { BitcoinRpcClient } from './btcrpc'
 import { planBatches, VaultUtxo } from './batch'
 import { BridgeClient } from './bridge'
 import { computeFloorPrice, floorBidParams, placeFloorBid, batchSaltHex, WBTC_CODEHASH, WBTC_TOKEN_ID } from './bid'
@@ -102,6 +103,17 @@ async function main() {
   // ---- BTC UTXOs ----
   const higunBtc = new HigunBtcClient(config.higunBtcUrl, fast)
   const mempool = new MempoolClient(config.mempoolUrl, fast)
+  let btcRpc: BitcoinRpcClient | null = null
+  if (config.btcRpcCredsFile) {
+    try {
+      const creds = JSON.parse(fs.readFileSync(config.btcRpcCredsFile, 'utf8'))
+      if (creds && typeof creds.user === 'string' && typeof creds.pass === 'string') {
+        btcRpc = new BitcoinRpcClient(config.btcRpcUrl, creds.user, creds.pass)
+      }
+    } catch {
+      btcRpc = null
+    }
+  }
   for (const [label, addr] of [['legacy pool', legacyAddr], ['LP vault', vaultAddress]] as const) {
     if (!addr) continue
     section(`BTC UTXOs at ${label} ${addr}`)
@@ -112,6 +124,18 @@ async function main() {
       for (const u of utxos.slice(0, 10)) {
         console.log(`    ${u.txid}:${u.vout} ${u.sats} sats confirmed=${u.confirmed} inscription=${u.inscriptionBearing}`)
       }
+    }
+    if (utxos && btcRpc) {
+      await attempt('bitcoin core gettxout verification', async () => {
+        let verified = 0
+        let dropped = 0
+        for (const u of utxos) {
+          const out = await btcRpc!.getTxOut(u.txid, u.vout)
+          if (out === null) dropped++
+          else verified++
+        }
+        console.log(`  core gettxout: verified=${verified} dropped=${dropped}`)
+      })
     }
     const mpUtxos = await attempt('mempool.space utxo', () => mempool.getUtxos(addr))
     if (mpUtxos) {

@@ -276,6 +276,59 @@ function selectMvcUtxos(utxos: MvcUtxo[], requiredSats: number): { selected: Mvc
   return { selected, total }
 }
 
+function effectiveFeeRate(feeRate: number): number {
+  return Math.max(Number(feeRate) || 1.25, 1.0)
+}
+
+function estimatePrepTxFee(numInputs: number, outputScripts: Buffer[], feeRate: number, minSats = 2500): number {
+  const rate = effectiveFeeRate(feeRate)
+  // 10B tx overhead + ~150B per P2PKH input + (9B + scriptLen) per output + 34B change output
+  let estBytes = 10 + Math.max(1, numInputs) * 150 + 34
+  for (const s of outputScripts) {
+    estBytes += 9 + s.length
+  }
+  return Math.max(minSats, Math.ceil(estBytes * rate))
+}
+
+function selectMvcWithExactPrepFee(
+  utxos: MvcUtxo[],
+  fixedOutputsSats: number,
+  outputScripts: Buffer[],
+  feeRate: number,
+  minSats = 2500
+): { selected: MvcUtxo[]; total: number; prepFeeBudget: number } {
+  let prepFeeBudget = estimatePrepTxFee(1, outputScripts, feeRate, minSats)
+  for (let iter = 0; iter < 3; iter++) {
+    const { selected, total } = selectMvcUtxos(utxos, fixedOutputsSats + prepFeeBudget)
+    const nextFee = estimatePrepTxFee(selected.length, outputScripts, feeRate, minSats)
+    if (nextFee <= prepFeeBudget && total >= fixedOutputsSats + nextFee) {
+      return { selected, total, prepFeeBudget: nextFee }
+    }
+    prepFeeBudget = nextFee
+  }
+  const { selected, total } = selectMvcUtxos(utxos, fixedOutputsSats + prepFeeBudget)
+  return { selected, total, prepFeeBudget }
+}
+
+function isMempoolConflictError(err: any): boolean {
+  const msg = String(err?.message || err || '').toLowerCase()
+  return (
+    msg.includes('txn-mempool-conflict') ||
+    msg.includes('bad-txns-inputs-missingorspent') ||
+    msg.includes('missing inputs')
+  )
+}
+
+function rethrowWithOutpointContext(err: any, conflictingOutpoints: string[], settledOutpoints: string[] = []): never {
+  if (isMempoolConflictError(err)) {
+    const wrapped: any = err instanceof Error ? err : new Error(String(err))
+    if (conflictingOutpoints.length > 0) wrapped.conflictingOutpoints = conflictingOutpoints
+    if (settledOutpoints.length > 0) wrapped.settledOutpoints = settledOutpoints
+    throw wrapped
+  }
+  throw err
+}
+
 function selectTokenUtxos(utxos: TokenUtxo[], requiredAmount: bigint, maxInputs = 3): { selected: TokenUtxo[]; total: bigint } {
   const sorted = [...utxos].sort((a, b) => (b.tokenAmount > a.tokenAmount ? 1 : b.tokenAmount < a.tokenAmount ? -1 : 0))
   const selected: TokenUtxo[] = []
@@ -929,19 +982,22 @@ export class OrderbookTxBuilder {
       receiverAddresses
     )
 
-    const lockTxFeeBudget = Math.max(8000, Math.ceil((3500 + selTokens.length * 1600) * feeRate))
+    const effRate = effectiveFeeRate(feeRate)
+    const lockTxFeeBudget = Math.max(24000, Math.ceil((14000 + selTokens.length * 8000) * effRate))
     const lockTokenDustOut = DUST * receiverAmounts.length
     const lockInputTokenDust = selTokens.reduce((acc, u) => acc + u.satoshis, 0) + DUST
     const lockFeeUtxoSats = Math.max(
       lockTxFeeBudget + DUST,
       lockTxFeeBudget + Math.max(0, lockTokenDustOut - lockInputTokenDust) + DUST
     )
-    const prepFeeBudget = Math.max(3000, Math.ceil(2200 * feeRate))
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(
-      mvcUtxos,
-      DUST + DUST + lockFeeUtxoSats + prepFeeBudget
-    )
     const makerP2pkh = p2pkhScript(params.makerAddress, this.net)
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      DUST + DUST + lockFeeUtxoSats,
+      [orderLockScript.toBuffer(), transferCheckInst.lockingScript.toBuffer(), makerP2pkh.toBuffer()],
+      effRate,
+      3000
+    )
 
     const prepTx = new mvc.Transaction()
     prepTx.version = Common.TX_VERSION
@@ -1176,9 +1232,14 @@ export class OrderbookTxBuilder {
       }).toString('hex')
     )
     const orderLockScript = orderInst.lockingScript
-    const minerFee = Math.max(2000, Math.ceil(1600 * feeRate))
     const mvcUtxos = await this.chain.getMvcUtxos(params.makerAddress)
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(mvcUtxos, Number(spendSats) + minerFee)
+    const { selected: selMvc, total: totalMvc, prepFeeBudget: minerFee } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      Number(spendSats),
+      [orderLockScript.toBuffer()],
+      feeRate,
+      3000
+    )
     const makerP2pkh = p2pkhScript(params.makerAddress, this.net)
 
     const tx = new mvc.Transaction()
@@ -1354,7 +1415,9 @@ export class OrderbookTxBuilder {
         false
       )
 
-      const fillFeeBudget = Math.max(12000, Math.ceil(9500 * feeRate))
+      const effRate = effectiveFeeRate(feeRate)
+      const fillEstBytes = remainNext > BigInt(0) ? 44000 : 36000
+      const fillFeeBudget = Math.max(fillEstBytes, Math.ceil(fillEstBytes * effRate))
       const outSatsNeeded =
         (remainNext > BigInt(0) ? 2 * DUST : 0) +
         Number(grossSats) +
@@ -1390,9 +1453,18 @@ export class OrderbookTxBuilder {
       prepOutputsSats += DUST + payUtxoSats
     }
 
-    const prepFeeBudget = Math.max(2500, Math.ceil((1200 + prepared.length * 400) * feeRate))
+    const prepOutScripts: Buffer[] = []
+    for (const p of prepared) {
+      prepOutScripts.push(p.unlockCheckInst.lockingScript.toBuffer(), takerP2pkh.toBuffer())
+    }
     const mvcUtxos = await this.chain.getMvcUtxos(params.takerAddress)
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(mvcUtxos, prepOutputsSats + prepFeeBudget)
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      prepOutputsSats,
+      prepOutScripts,
+      feeRate,
+      3000
+    )
 
     const prepTx = new mvc.Transaction()
     prepTx.version = Common.TX_VERSION
@@ -1586,8 +1658,16 @@ export class OrderbookTxBuilder {
         }
 
         if (broadcast) {
-          for (const hex of txHexes) {
-            txids.push(await this.chain.broadcastTx(hex))
+          txids.push(await this.chain.broadcastTx(txHexes[0]))
+          const settledOutpoints: string[] = []
+          for (let i = 0; i < prepared.length; i++) {
+            const op = `${prepared[i].leg.orderTxid.toLowerCase()}:${prepared[i].leg.orderVout}`
+            try {
+              txids.push(await this.chain.broadcastTx(txHexes[1 + i]))
+              settledOutpoints.push(op)
+            } catch (err) {
+              rethrowWithOutpointContext(err, [op], settledOutpoints)
+            }
           }
         } else {
           txids.push(signedPrepTxid, ...prepared.map((p) => getMvcV10TxId(p.fillTx)))
@@ -1689,7 +1769,9 @@ export class OrderbookTxBuilder {
 
       const feeSats = OrderProto.calcFeeSats(spendSats, orderData.feeBps)
       const hasFeeOut = !orderData.feeAddr.equals(OrderProto.NULL_ADDRESS) && feeSats >= BigInt(DUST)
-      const settleMinerFee = Math.max(11000, Math.ceil(9000 * feeRate))
+      const effRate = effectiveFeeRate(feeRate)
+      const settleEstBytes = remainSatsNext > BigInt(0) ? 38000 : 29000
+      const settleMinerFee = Math.max(settleEstBytes, Math.ceil(settleEstBytes * effRate))
       const takerReceiveSats =
         Number(spendSats) + 2 * DUST - (hasFeeOut ? Number(feeSats) : 0) - settleMinerFee
       if (takerReceiveSats < DUST) {
@@ -1764,18 +1846,28 @@ export class OrderbookTxBuilder {
       depositRecAddrs
     )
 
-    const depositFeeBudget = Math.max(8500, Math.ceil((3800 + selTokens.length * 1600) * feeRate))
+    const effRate = effectiveFeeRate(feeRate)
+    const depositFeeBudget = Math.max(
+      24000,
+      Math.ceil((12000 + selTokens.length * 8000 + prepared.length * 5000) * effRate)
+    )
     const depositTokenOutDust = DUST * depositRecAmounts.length
     const depositTokenInDust = selTokens.reduce((a, u) => a + u.satoshis, 0) + DUST
     const depositFeeUtxoSats = Math.max(
       depositFeeBudget + DUST,
       depositFeeBudget + Math.max(0, depositTokenOutDust - depositTokenInDust) + DUST
     )
-    const prepFeeBudget = Math.max(3000, Math.ceil((1800 + prepared.length * 400) * feeRate))
+    const prepOutScripts: Buffer[] = [transferCheckInst.lockingScript.toBuffer(), takerP2pkh.toBuffer()]
+    for (const p of prepared) {
+      prepOutScripts.push(p.fillerInst.lockingScript.toBuffer(), p.unlockCheckInst.lockingScript.toBuffer())
+    }
     const prepFixedDust = DUST + prepared.length * 2 * DUST
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
       mvcUtxos,
-      prepFixedDust + depositFeeUtxoSats + prepFeeBudget
+      prepFixedDust + depositFeeUtxoSats,
+      prepOutScripts,
+      effRate,
+      3000
     )
 
     const prepTx = new mvc.Transaction()
@@ -2075,8 +2167,17 @@ export class OrderbookTxBuilder {
 
         const txids: string[] = []
         if (broadcast) {
-          for (const hex of txHexes) {
-            txids.push(await this.chain.broadcastTx(hex))
+          txids.push(await this.chain.broadcastTx(txHexes[0]))
+          txids.push(await this.chain.broadcastTx(txHexes[1]))
+          const settledOutpoints: string[] = []
+          for (let i = 0; i < prepared.length; i++) {
+            const op = `${prepared[i].leg.orderTxid.toLowerCase()}:${prepared[i].leg.orderVout}`
+            try {
+              txids.push(await this.chain.broadcastTx(txHexes[2 + i]))
+              settledOutpoints.push(op)
+            } catch (err) {
+              rethrowWithOutpointContext(err, [op], settledOutpoints)
+            }
           }
         } else {
           txids.push(signedPrepTxid, signedDepositTxid, ...settleTxids)
@@ -2123,7 +2224,7 @@ export class OrderbookTxBuilder {
       }
       const orderInst = new this.contracts.OrderBidV2()
       orderInst.setDataPart(orderScriptBuf.subarray(orderScriptBuf.length - OrderProto.RAW_DATA_LEN).toString('hex'))
-      const minerFee = Math.max(2500, Math.ceil(2000 * feeRate))
+      const minerFee = Math.max(5500, Math.ceil(4800 * effectiveFeeRate(feeRate)))
       const refundSats = orderOut.satoshis - minerFee
       if (refundSats < DUST) {
         throw new Error(`Bid balance (${orderOut.satoshis}) too small to cover cancel miner fee (${minerFee})`)
@@ -2183,7 +2284,12 @@ export class OrderbookTxBuilder {
           cancelTx.inputs[0].setScript(call.unlockingScript)
 
           const finalHex = cancelTx.uncheckedSerialize()
-          const txid = broadcast ? await this.chain.broadcastTx(finalHex) : getMvcV10TxId(cancelTx)
+          let txid: string
+          try {
+            txid = broadcast ? await this.chain.broadcastTx(finalHex) : getMvcV10TxId(cancelTx)
+          } catch (err) {
+            rethrowWithOutpointContext(err, [`${params.orderTxid.toLowerCase()}:${params.orderVout}`])
+          }
           return {
             draftId: '',
             action: 'cancel_bid',
@@ -2230,10 +2336,16 @@ export class OrderbookTxBuilder {
       false
     )
 
-    const cancelFeeBudget = Math.max(10000, Math.ceil(8000 * feeRate))
-    const prepFeeBudget = Math.max(2500, Math.ceil(1600 * feeRate))
+    const effRate = effectiveFeeRate(feeRate)
+    const cancelFeeBudget = Math.max(36000, Math.ceil(32000 * effRate))
     const mvcUtxos = await this.chain.getMvcUtxos(params.makerAddress)
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(mvcUtxos, DUST + cancelFeeBudget + prepFeeBudget)
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      DUST + cancelFeeBudget,
+      [unlockCheckInst.lockingScript.toBuffer(), makerP2pkh.toBuffer()],
+      effRate,
+      3000
+    )
 
     const prepTx = new mvc.Transaction()
     prepTx.version = Common.TX_VERSION
@@ -2388,7 +2500,11 @@ export class OrderbookTxBuilder {
         const txids: string[] = []
         if (broadcast) {
           txids.push(await this.chain.broadcastTx(txHexes[0]))
-          txids.push(await this.chain.broadcastTx(txHexes[1]))
+          try {
+            txids.push(await this.chain.broadcastTx(txHexes[1]))
+          } catch (err) {
+            rethrowWithOutpointContext(err, [`${params.orderTxid.toLowerCase()}:${params.orderVout}`])
+          }
         } else {
           txids.push(signedPrepTxid, getMvcV10TxId(cancelTx))
         }
@@ -2488,11 +2604,17 @@ export class OrderbookTxBuilder {
       recAddrs
     )
 
-    const lockFeeBudget = Math.max(8000, Math.ceil((3500 + selTokens.length * 1600) * feeRate))
-    const prepFeeBudget = Math.max(2500, Math.ceil(1600 * feeRate))
+    const effRate = effectiveFeeRate(feeRate)
+    const lockFeeBudget = Math.max(24000, Math.ceil((14000 + selTokens.length * 8000) * effRate))
     const lockUtxoSats = lockFeeBudget + DUST
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      DUST + DUST + lockUtxoSats,
+      [orderLockScript.toBuffer(), transferCheckInst.lockingScript.toBuffer(), fundingP2pkh.toBuffer()],
+      effRate,
+      3000
+    )
     const needPrepSats = DUST + DUST + lockUtxoSats + prepFeeBudget
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(mvcUtxos, needPrepSats)
 
     const prepTx = new mvc.Transaction()
     prepTx.version = Common.TX_VERSION
@@ -2841,7 +2963,9 @@ export class OrderbookTxBuilder {
       )
 
       const outCount = (remainNext > BigInt(0) ? 2 : 0) + 1 + (hasFeeOut ? 1 : 0) + 1
-      const settleFeeBudget = Math.max(24000, Math.ceil(20000 * feeRate))
+      const effRate = effectiveFeeRate(feeRate)
+      const settleEstBytes = remainNext > BigInt(0) ? 96000 : 75000
+      const settleFeeBudget = Math.max(settleEstBytes, Math.ceil(settleEstBytes * effRate))
       const inOtherSats =
         orderTx.outputs[leg.orderVout].satoshis +
         sellTokenTx.outputs[leg.tokenVout].satoshis +
@@ -2904,16 +3028,33 @@ export class OrderbookTxBuilder {
       depositRecAddrs
     )
 
-    const depositFeeBudget = Math.max(8500, Math.ceil((3800 + selBuyTokens.length * 1600) * feeRate))
+    const effRate = effectiveFeeRate(feeRate)
+    const depositFeeBudget = Math.max(
+      24000,
+      Math.ceil((12000 + selBuyTokens.length * 8000 + prepared.length * 5000) * effRate)
+    )
     const depositTokenOutDust = DUST * depositRecAmounts.length
     const depositTokenInDust = selBuyTokens.reduce((a, u) => a + u.satoshis, 0) + DUST
     const depositFeeUtxoSats = Math.max(
       depositFeeBudget + DUST,
       depositFeeBudget + Math.max(0, depositTokenOutDust - depositTokenInDust) + DUST
     )
-    const prepFeeBudget = Math.max(3000, Math.ceil((2000 + prepared.length * 500) * feeRate))
+    const prepOutScripts: Buffer[] = [buyTransferCheckInst.lockingScript.toBuffer(), takerP2pkh.toBuffer()]
+    for (const p of prepared) {
+      prepOutScripts.push(
+        p.fillerInst.lockingScript.toBuffer(),
+        p.sellUnlockCheckInst.lockingScript.toBuffer(),
+        p.buyUnlockCheckInst.lockingScript.toBuffer()
+      )
+    }
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      DUST + depositFeeUtxoSats + prepFillerAndCheckSats,
+      prepOutScripts,
+      effRate,
+      3000
+    )
     const prepNeedSats = DUST + depositFeeUtxoSats + prepFillerAndCheckSats + prepFeeBudget
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(mvcUtxos, prepNeedSats)
 
     const prepTx = new mvc.Transaction()
     prepTx.version = Common.TX_VERSION
@@ -3295,8 +3436,17 @@ export class OrderbookTxBuilder {
 
         const txids: string[] = []
         if (broadcast) {
-          for (const hex of txHexes) {
-            txids.push(await this.chain.broadcastTx(hex))
+          txids.push(await this.chain.broadcastTx(txHexes[0]))
+          txids.push(await this.chain.broadcastTx(txHexes[1]))
+          const settledOutpoints: string[] = []
+          for (let i = 0; i < prepared.length; i++) {
+            const op = `${prepared[i].leg.orderTxid.toLowerCase()}:${prepared[i].leg.orderVout}`
+            try {
+              txids.push(await this.chain.broadcastTx(txHexes[2 + i]))
+              settledOutpoints.push(op)
+            } catch (err) {
+              rethrowWithOutpointContext(err, [op], settledOutpoints)
+            }
           }
         } else {
           txids.push(signedPrepTxid, signedDepositTxid, ...settleTxs.map((t) => getMvcV10TxId(t)))
@@ -3375,10 +3525,16 @@ export class OrderbookTxBuilder {
       false
     )
 
-    const cancelFeeBudget = Math.max(10000, Math.ceil(8000 * feeRate))
-    const prepFeeBudget = Math.max(2500, Math.ceil(1600 * feeRate))
+    const effRate = effectiveFeeRate(feeRate)
+    const cancelFeeBudget = Math.max(36000, Math.ceil(32000 * effRate))
     const mvcUtxos = await this.chain.getMvcUtxos(params.makerAddress)
-    const { selected: selMvc, total: totalMvc } = selectMvcUtxos(mvcUtxos, DUST + cancelFeeBudget + prepFeeBudget)
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      DUST + cancelFeeBudget,
+      [unlockCheckInst.lockingScript.toBuffer(), makerP2pkh.toBuffer()],
+      effRate,
+      3000
+    )
 
     const prepTx = new mvc.Transaction()
     prepTx.version = Common.TX_VERSION
@@ -3538,7 +3694,11 @@ export class OrderbookTxBuilder {
         const txids: string[] = []
         if (broadcast) {
           txids.push(await this.chain.broadcastTx(txHexes[0]))
-          txids.push(await this.chain.broadcastTx(txHexes[1]))
+          try {
+            txids.push(await this.chain.broadcastTx(txHexes[1]))
+          } catch (err) {
+            rethrowWithOutpointContext(err, [`${params.orderTxid.toLowerCase()}:${params.orderVout}`])
+          }
         } else {
           txids.push(signedPrepTxid, getMvcV10TxId(cancelTx))
         }

@@ -5,7 +5,11 @@ import { Keeper } from './keeper'
 import { refreshCoinRegistry } from './registry'
 import { startOpsServer } from './ops'
 import { Logger } from './log'
+import { BitcoinRpcClient } from './btcrpc'
+import * as fs from 'fs'
 import { createProductionPipeline } from './pipeline-wiring'
+import { createSerializedTickRunner } from './tick'
+
 
 async function main() {
   const config = loadConfig()
@@ -20,7 +24,19 @@ async function main() {
   const db = new KeeperDb(config.dbPath)
   const higun = new HigunBtcClient(config.higunBtcUrl)
   const mempool = new MempoolClient(config.mempoolUrl)
-  const chain = new CompositeChainClient(higun, mempool, (address, detail) => {
+  let btcRpc: BitcoinRpcClient | null = null
+  if (config.btcRpcCredsFile) {
+    try {
+      const creds = JSON.parse(fs.readFileSync(config.btcRpcCredsFile, 'utf8'))
+      if (creds && typeof creds.user === 'string' && typeof creds.pass === 'string') {
+        btcRpc = new BitcoinRpcClient(config.btcRpcUrl, creds.user, creds.pass)
+      }
+    } catch {
+      btcRpc = null
+    }
+  }
+  if (!btcRpc) log.warn('btc rpc disabled (no creds file)')
+  const chain = new CompositeChainClient(higun, btcRpc, mempool, (address, detail) => {
     db.recordDiscrepancy(address, detail, Date.now())
     log.warn('chain discrepancy', { address, detail })
   })
@@ -74,8 +90,11 @@ async function main() {
     }
   }
 
-  await tick()
-  const timer = setInterval(tick, config.pollMs)
+  const runTick = createSerializedTickRunner(tick, (message) => log.warn(message))
+  await runTick()
+  const timer = setInterval(() => {
+    void runTick()
+  }, config.pollMs)
 
   const shutdown = () => {
     clearInterval(timer)

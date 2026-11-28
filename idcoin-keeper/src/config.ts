@@ -9,6 +9,8 @@ export interface KeeperConfig {
   higunBtcUrl: string
   higunMvcUrl: string
   mempoolUrl: string
+  btcRpcUrl: string
+  btcRpcCredsFile: string
   coinsUrl: string
   dryRun: boolean
   killSwitch: boolean
@@ -63,6 +65,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): KeeperConfig {
     higunBtcUrl: String(pick('IDCOIN_HIGUN_BTC_URL', 'higunBtcUrl') || 'http://172.31.165.190:8085'),
     higunMvcUrl: String(pick('IDCOIN_HIGUN_MVC_URL', 'higunMvcUrl') || 'http://47.239.239.128:8085'),
     mempoolUrl: String(pick('IDCOIN_MEMPOOL_URL', 'mempoolUrl') || 'https://mempool.space'),
+    btcRpcUrl: String(pick('IDCOIN_BTC_RPC_URL', 'btcRpcUrl') || 'http://172.31.168.214:8332'),
+    btcRpcCredsFile: String(pick('IDCOIN_BTC_RPC_CREDS_FILE', 'btcRpcCredsFile') || ''),
     coinsUrl: String(
       pick('IDCOIN_COINS_URL', 'coinsUrl') ||
         'https://api.metaid.market/api-market/api/v1/id-coins/coins-list?cursor=0&size=100'

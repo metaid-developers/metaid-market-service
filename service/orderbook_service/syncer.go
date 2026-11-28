@@ -77,12 +77,13 @@ type Syncer struct {
 	httpClient *http.Client
 	persistDB  bool
 
-	mu           sync.Mutex
-	lastSeq      uint64
-	bootstrapped bool
-	resetCount   uint64
-	cancelFn     context.CancelFunc
-	draftLocks   map[string]DraftReservation // draftId -> reserved outpoints
+	mu               sync.Mutex
+	lastSeq          uint64
+	bootstrapped     bool
+	resetCount       uint64
+	cancelFn         context.CancelFunc
+	draftLocks       map[string]DraftReservation // draftId -> reserved outpoints
+	evictedOutpoints map[string]struct{}         // outpoints proven spent/conflicting in mempool
 }
 
 type DraftReservation struct {
@@ -106,13 +107,14 @@ func NewSyncer(cfg *conf.OrderbookConfig, net string, book *OrderBook, hub *WSHu
 		hub = NewWSHub()
 	}
 	return &Syncer{
-		cfg:        cfg,
-		net:        net,
-		book:       book,
-		hub:        hub,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
-		persistDB:  persistDB,
-		draftLocks: make(map[string]DraftReservation),
+		cfg:              cfg,
+		net:              net,
+		book:             book,
+		hub:              hub,
+		httpClient:       &http.Client{Timeout: 15 * time.Second},
+		persistDB:        persistDB,
+		draftLocks:       make(map[string]DraftReservation),
+		evictedOutpoints: make(map[string]struct{}),
 	}
 }
 
@@ -236,8 +238,10 @@ func (s *Syncer) BootstrapSnapshot(ctx context.Context) error {
 	}
 
 	var dbOpenMap map[string]models.OrderbookOrderModel
+	var dbClosedSet map[string]struct{}
 	if s.persistDB {
 		dbOpenMap, _ = models.OrderbookDao().ListOpenOrdersMap()
+		dbClosedSet, _ = models.OrderbookDao().ListClosedOutpointsSet()
 	}
 
 	var allOrders []*LiveOrder
@@ -259,6 +263,12 @@ func (s *Syncer) BootstrapSnapshot(ctx context.Context) error {
 				}
 				lo, err := ParseLiveOrder(item.TxID, item.Vout, item.Satoshis, item.ScriptHex, item.Height, item.Mempool, 0, s.net)
 				if err != nil {
+					continue
+				}
+				if s.isEvicted(lo.Outpoint) {
+					continue
+				}
+				if _, closed := dbClosedSet[lo.Outpoint]; closed {
 					continue
 				}
 				if dbRow, ok := dbOpenMap[lo.Outpoint]; ok && dbRow.TokenTxid != "" && dbRow.TokenTxid != lo.Txid {
@@ -386,7 +396,7 @@ func (s *Syncer) applyEventsBatch(events []HigunOrderbookEvent) {
 		switch ev.Type {
 		case "created":
 			lo := parsedCreated[ev.Seq]
-			if lo == nil {
+			if lo == nil || s.isEvicted(lo.Outpoint) {
 				continue
 			}
 			s.book.UpsertOrder(lo)
@@ -625,6 +635,55 @@ func (s *Syncer) HandleFinalizeResult(draftID, action, status string, txids []st
 		})
 	}
 
+	for pk := range dirtyPairs {
+		s.broadcastDepth(pk)
+	}
+}
+
+func (s *Syncer) isEvicted(outpoint string) bool {
+	op := strings.ToLower(strings.TrimSpace(outpoint))
+	if op == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.evictedOutpoints[op]
+	return ok
+}
+
+// EvictConflictingOutpoints immediately removes orders proven spent/conflicting in mempool
+// (e.g. txn-mempool-conflict / bad-txns-inputs-missingorspent) from the live book and marks
+// them closed in MySQL so subsequent quotes and restarts cannot resurrect them.
+func (s *Syncer) EvictConflictingOutpoints(outpoints []string, reason string) {
+	if len(outpoints) == 0 {
+		return
+	}
+	now := time.Now().UnixMilli()
+	dirtyPairs := make(map[string]struct{})
+	s.mu.Lock()
+	for _, rawOp := range outpoints {
+		op := strings.ToLower(strings.TrimSpace(rawOp))
+		if op == "" {
+			continue
+		}
+		s.evictedOutpoints[op] = struct{}{}
+	}
+	s.mu.Unlock()
+
+	for _, rawOp := range outpoints {
+		op := strings.ToLower(strings.TrimSpace(rawOp))
+		if op == "" {
+			continue
+		}
+		if prev := s.book.RemoveOrder(op); prev != nil {
+			dirtyPairs[prev.PairKey] = struct{}{}
+			log.Printf("[Orderbook] evicted conflicting outpoint %s (pair=%s reason=%s)", op, prev.PairKey, reason)
+		}
+		_ = s.book.Locker().Release([]string{op}, "")
+		if s.persistDB {
+			_ = models.OrderbookDao().UpdateOrderStatus(op, "spent", reason, 0, 1, now)
+		}
+	}
 	for pk := range dirtyPairs {
 		s.broadcastDepth(pk)
 	}

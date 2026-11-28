@@ -623,6 +623,18 @@ func OrderbookFinalizeSubmit(c *gin.Context) {
 			s.HandleFinalizeResult(draftID, parsed.Data.Action, parsed.Data.Status, parsed.Data.Txids, parsed.Data.NewOrders)
 		}
 	} else {
+		var errResp struct {
+			ConflictingOutpoints []string `json:"conflictingOutpoints"`
+			SettledOutpoints     []string `json:"settledOutpoints"`
+		}
+		if err := json.Unmarshal(raw, &errResp); err == nil {
+			if len(errResp.SettledOutpoints) > 0 {
+				s.EvictConflictingOutpoints(errResp.SettledOutpoints, "settled-partial")
+			}
+			if len(errResp.ConflictingOutpoints) > 0 {
+				s.EvictConflictingOutpoints(errResp.ConflictingOutpoints, "mempool-conflict")
+			}
+		}
 		s.HandleFinalizeResult(draftID, "", "failed", nil, nil)
 	}
 
