@@ -1,0 +1,55 @@
+# Production compose for 47.242.162.36 (b-node).
+#
+# Prerequisites on the host (one-time):
+#   docker load -i metaid-orderbook-service-v1.0.tar     # base image
+#   docker load -i idcoin-keeper-v1.0.tar                # or build locally
+#   sudo mkdir -p /mnt/b-node/idcoin-keeper/data
+#   sudo chown -R 1000:1000 /mnt/b-node/idcoin-keeper/data   # container runs as uid 1000
+#   # secrets must be readable by uid 1000, e.g.:
+#   sudo chown root:1000 /mnt/b-node/octopus-bridge-monorepo/secrets/idcoin_lp_mnemonic.txt \
+#                        /mnt/b-node/octopus-bridge-monorepo/secrets/idcoin_legacy_pool_keys.json
+#   sudo chmod 0440 <same two files>
+#
+# First launch is a NO-OP by design: DRY_RUN=true and the enable list is empty.
+# Enable deliberately, e.g. IDCOIN_KEEPER_ENABLE_TICKS=SUNNY and DRY_RUN=false,
+# only after `docker exec idcoin-keeper npx ts-node --transpile-only src/rehearse.ts SUNNY`
+# output checks out.
+
+services:
+  idcoin-keeper:
+    image: idcoin-keeper:v1.0
+    container_name: idcoin-keeper
+    restart: unless-stopped
+    environment:
+      # safety gates — first boot does nothing
+      IDCOIN_KEEPER_DRY_RUN: "true"
+      IDCOIN_KEEPER_ENABLE_TICKS: ""
+      # secrets (mounted read-only below)
+      IDCOIN_LP_MNEMONIC_FILE: /run/secrets/idcoin_lp_mnemonic.txt
+      IDCOIN_LEGACY_KEYS_FILE: /run/secrets/idcoin_legacy_pool_keys.json
+      # chain access
+      IDCOIN_HIGUN_MVC_URL: http://47.239.239.128:8085
+      IDCOIN_HIGUN_BTC_URL: http://172.31.165.190:8085
+      IDCOIN_MEMPOOL_URL: https://mempool.space
+      # octopus bridge server on the same host (VPC IP); if endpoints 404 the
+      # path prefix may need adjusting — the rehearsal prints exact failures
+      IDCOIN_BRIDGE_URL: http://172.31.165.163:40822
+      # market-service read APIs
+      IDCOIN_DEPTH_URL: https://api.metaid.market/api-market/api/v1/orderbook/depth
+      IDCOIN_COINS_URL: https://api.metaid.market/api-market/api/v1/id-coins/coins-list?cursor=0&size=100
+      # data + contract resolution (matches the orderbook sidecar container)
+      IDCOIN_KEEPER_DB: /app/data/idcoin-keeper.db
+      MVCSWAP_CORE_DIR: /app/mvcswap-core
+      ORDERBOOK_ARTIFACTS_DIR: /app/orderbook-service/data/compiled-orderbook
+      ORDERBOOK_NET: livenet
+    volumes:
+      - /mnt/b-node/octopus-bridge-monorepo/secrets/idcoin_lp_mnemonic.txt:/run/secrets/idcoin_lp_mnemonic.txt:ro
+      - /mnt/b-node/octopus-bridge-monorepo/secrets/idcoin_legacy_pool_keys.json:/run/secrets/idcoin_legacy_pool_keys.json:ro
+      - /mnt/b-node/idcoin-keeper/data:/app/data
+    # no published ports — ops endpoint is 127.0.0.1:18090 inside the container;
+    # read it with: docker exec idcoin-keeper node -e "require('http').get('http://127.0.0.1:18090/status',r=>r.pipe(process.stdout))"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
