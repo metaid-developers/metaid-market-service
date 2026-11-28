@@ -649,10 +649,10 @@ func TestLimitCrossingAndBidEdgeCases(t *testing.T) {
 		t.Fatalf("expected tiny 5000-sat bid to be rejected by settle miner-fee guard")
 	}
 
-	// Non-divisible Bid: 20,000 sats @ 0.003 (3/1000) -> maxTok=floor(20000*1000/3)=6666666 leaves 1 sat;
-	// 6666667 spends exact 20,000 sats (remainSatsNext == 0 -> clean full fill!)
-	oddBidScript := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideBid, maker, tokenID, tokenCodeHash, 3, 1000, 20000, 100000, fee, 0, bytes.Repeat([]byte{0x22}, 8))
-	oddBid, err := ParseLiveOrder(strings.Repeat("b2", 32), 0, 20000, oddBidScript, 200000, false, 1001, "livenet")
+	// Non-divisible Bid: 50,000 sats @ 0.003 (3/1000) -> maxTok=floor(50000*1000/3)=16666666 leaves 2 sats;
+	// 16666667 spends exact 50,000 sats (remainSatsNext == 0 -> clean full fill!)
+	oddBidScript := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideBid, maker, tokenID, tokenCodeHash, 3, 1000, 50000, 100000, fee, 0, bytes.Repeat([]byte{0x22}, 8))
+	oddBid, err := ParseLiveOrder(strings.Repeat("b2", 32), 0, 50000, oddBidScript, 200000, false, 1001, "livenet")
 	if err != nil {
 		t.Fatalf("oddBid parse failed: %v", err)
 	}
@@ -660,15 +660,69 @@ func TestLimitCrossingAndBidEdgeCases(t *testing.T) {
 	sellOdd, err := book.RouteTake(RouteRequest{
 		PairKey:     pairKey,
 		Side:        "sell",
-		TargetToken: 7000000,
+		TargetToken: 17000000,
 		MinPriceNum: 3,
 		MinPriceDen: 1000,
 	})
 	if err != nil {
 		t.Fatalf("oddBid full-fill route failed: %v", err)
 	}
-	if len(sellOdd.Legs) != 1 || sellOdd.Legs[0].IsPartial || sellOdd.Legs[0].SatsAmount != 20000 || sellOdd.Legs[0].FillToken != 6666667 {
-		t.Fatalf("expected clean full fill of 20000 sats with fillToken=6666667, got %+v", sellOdd.Legs)
+	if len(sellOdd.Legs) != 1 || sellOdd.Legs[0].IsPartial || sellOdd.Legs[0].SatsAmount != 50000 || sellOdd.Legs[0].FillToken != 16666667 {
+		t.Fatalf("expected clean full fill of 50000 sats with fillToken=16666667, got %+v", sellOdd.Legs)
+	}
+}
+
+func TestEvictConflictingOutpointsPreventsResurrection(t *testing.T) {
+	maker := bytes.Repeat([]byte{0x33}, 20)
+	fee := make([]byte, 20)
+	tokenID := bytes.Repeat([]byte{0x44}, 20)
+	tokenCodeHash := bytes.Repeat([]byte{0x55}, 20)
+	bidScript := makeDummyOrderScript([]byte{0x51, 0x52, 0x53}, SideBid, maker, tokenID, tokenCodeHash, 11, 1000, 1100000, 100000, fee, 0, bytes.Repeat([]byte{0x77}, 8))
+	staleTxid := strings.Repeat("d1", 32)
+	staleOp := staleTxid + ":0"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/orderbook/utxos":
+			_ = json.NewEncoder(w).Encode(HigunOrderbookUTXOsPage{
+				Seq: 10,
+				Items: []HigunOrderbookUTXO{
+					{TxID: staleTxid, Vout: 0, Satoshis: 1100000, ScriptHex: bidScript, Height: 200000, Mempool: false},
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	cfg := &conf.OrderbookConfig{
+		Enabled:        true,
+		HigunUrl:       srv.URL,
+		BidCodeHash:    strings.Repeat("ab", 20),
+		SoftLockTTLSec: 25,
+	}
+	book := NewOrderBook("livenet", NewMemorySoftLocker())
+	syncer := NewSyncer(cfg, "livenet", book, NewWSHub(), false)
+
+	if err := syncer.BootstrapSnapshot(context.Background()); err != nil {
+		t.Fatalf("initial bootstrap failed: %v", err)
+	}
+	if _, ok := book.GetOrder(staleOp); !ok {
+		t.Fatalf("expected stale bid to be loaded before eviction")
+	}
+
+	syncer.EvictConflictingOutpoints([]string{staleOp}, "mempool-conflict")
+	if _, ok := book.GetOrder(staleOp); ok {
+		t.Fatalf("expected stale bid to be immediately evicted from book")
+	}
+
+	// Simulate snapshot reload while Higun still reports spentBy=null for mempool-spent UTXO
+	if err := syncer.BootstrapSnapshot(context.Background()); err != nil {
+		t.Fatalf("second bootstrap failed: %v", err)
+	}
+	if _, ok := book.GetOrder(staleOp); ok {
+		t.Fatalf("expected evicted stale bid NOT to resurrect after BootstrapSnapshot")
 	}
 }
 

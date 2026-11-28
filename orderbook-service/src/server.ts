@@ -96,7 +96,14 @@ export function createOrderbookSidecarServer(builder: OrderbookTxBuilder): http.
       return sendJson(res, 404, { code: 404, message: `unknown route: ${method} ${url}` })
     } catch (err: any) {
       const msg = err?.message || String(err)
-      return sendJson(res, 400, { code: 400, message: msg })
+      const payload: Record<string, any> = { code: 400, message: msg }
+      if (Array.isArray(err?.conflictingOutpoints) && err.conflictingOutpoints.length > 0) {
+        payload.conflictingOutpoints = err.conflictingOutpoints
+      }
+      if (Array.isArray(err?.settledOutpoints) && err.settledOutpoints.length > 0) {
+        payload.settledOutpoints = err.settledOutpoints
+      }
+      return sendJson(res, 400, payload)
     }
   })
 }

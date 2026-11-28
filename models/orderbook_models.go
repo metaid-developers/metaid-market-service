@@ -139,6 +139,25 @@ func (d *orderbookDao) ListOpenOrdersMap() (map[string]OrderbookOrderModel, erro
 	return out, nil
 }
 
+// ListClosedOutpointsSet returns all outpoints already marked non-open in DB
+// (filled, partial_filled, cancelled, spent) so BootstrapSnapshot does not
+// resurrect mempool-spent orders when Higun still reports spentBy=null.
+func (d *orderbookDao) ListClosedOutpointsSet() (map[string]struct{}, error) {
+	db := major.GetSqlDB()
+	if db == nil {
+		return nil, nil
+	}
+	var outpoints []string
+	if err := db.Model(&OrderbookOrderModel{}).Where("status <> ?", "open").Pluck("outpoint", &outpoints).Error; err != nil {
+		return nil, err
+	}
+	out := make(map[string]struct{}, len(outpoints))
+	for _, op := range outpoints {
+		out[op] = struct{}{}
+	}
+	return out, nil
+}
+
 func (d *orderbookDao) ListPairs() ([]OrderbookPairModel, error) {
 	db := major.GetSqlDB()
 	if db == nil {

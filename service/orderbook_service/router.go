@@ -13,9 +13,10 @@ const (
 	DefaultMaxAskLegs   = 4
 	DefaultMaxBidLegs   = 2
 	DefaultMaxTokenLegs = 2
-	// Mirrors buildTakeBid's SettleTx miner fee floor (Math.max(11000, ...)) so RouteTake
-	// never selects a tiny Bid leg that buildTakeBid would reject for insufficient proceeds.
-	MinBidSettleMinerFee uint64 = 11000
+	// Mirrors buildTakeBid's SettleTx miner fee budget (29,000 B full / 38,000 B partial @ 1.25 sat/B)
+	// so RouteTake never selects a tiny Bid leg that buildTakeBid would reject for insufficient proceeds.
+	MinBidSettleMinerFee        uint64 = 36250
+	MinBidSettleMinerFeePartial uint64 = 47500
 )
 
 // RouteRequest defines a Taker quote or sweep routing request.
@@ -342,8 +343,12 @@ func planOrderLeg(o *LiveOrder, wantToken uint64) (PlannedLeg, bool) {
 	if o.FeeAddr == "" || fee < DustLimit {
 		fee = 0
 	}
-	// Taker pays SettleTx miner fee (~11000 sats) out of spendSats + 2*546 dust, and must receive >= 546 dust.
-	if spend+2*DustLimit < fee+MinBidSettleMinerFee+DustLimit {
+	// Taker pays SettleTx miner fee out of spendSats + 2*546 dust, and must receive >= 546 dust.
+	minSettleFee := MinBidSettleMinerFee
+	if remainSatsNext > 0 {
+		minSettleFee = MinBidSettleMinerFeePartial
+	}
+	if spend+2*DustLimit < fee+minSettleFee+DustLimit {
 		return PlannedLeg{}, false
 	}
 	return PlannedLeg{
