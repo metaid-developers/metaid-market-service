@@ -839,6 +839,153 @@ async function runTests() {
     'Flow 8i: cancel of burn-maker order fails with explicit error'
   )
 
+  // --- Flow 9: Stranded OrderBidFiller & OrderTokenFiller discovery + one-click OP_REFUND ---
+  {
+    // 9a: Simulate stranded OrderBidFiller (PrepTx + DepositTx broadcast, SettleTx NOT broadcast)
+    chain.setMvcUtxos(addrMaker, [fundMvc(addrMaker, 3_000_000)])
+    const bidForRefund = await completeDraft(
+      builder,
+      await builder.buildPlaceBid({
+        makerAddress: addrMaker,
+        tokenCodeHash,
+        tokenID,
+        spendSats: '1000000',
+        priceNum: '1000',
+        priceDen: '1',
+        minFillAmount: '200',
+        feeBps: 0,
+      }),
+      privMaker
+    )
+    const bidOrder = bidForRefund.newOrders[0]
+    const takerTokForBid = mintTokenFor(addrTaker, BigInt(1000))
+    chain.setTokenUtxos(addrTaker, [takerTokForBid])
+    chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+
+    const takeBidDraft = await builder.buildTakeBid({
+      takerAddress: addrTaker,
+      tokenCodeHash,
+      tokenID,
+      legs: [{ orderTxid: bidOrder.txid, orderVout: bidOrder.vout, fillToken: '1000' }],
+    })
+    // Complete draft WITHOUT broadcasting SettleTx (broadcast=false), then broadcast ONLY PrepTx + DepositTx
+    let stepRes: any = takeBidDraft
+    while (stepRes.status === 'awaiting_signature') {
+      const sigs = signRequestsWithPrivKey(stepRes.signRequests, privTaker)
+      stepRes = await builder.finalizeAndBroadcast(takeBidDraft.draftId, sigs, false)
+    }
+    const strandedPrepTxid = await chain.broadcastTx(stepRes.txHexes[0])
+    const strandedDepTxid = await chain.broadcastTx(stepRes.txHexes[1])
+    // Expose locked token UTXO under filler's P2PKH hash so listRefundableFillers confirms it unspent
+    const strandedPrepTx = new mvc.Transaction(stepRes.txHexes[0])
+    const strandedDepTx = new mvc.Transaction(stepRes.txHexes[1])
+    const fillerHash20 = mvc.crypto.Hash.sha256ripemd160(strandedPrepTx.outputs[2].script.toBuffer())
+    const fillerP2pkhAddr = mvc.Address.fromPublicKeyHash(fillerHash20, 'testnet').toString()
+    chain.setTokenUtxos(fillerP2pkhAddr, [
+      {
+        txid: strandedDepTxid,
+        vout: 0,
+        satoshis: strandedDepTx.outputs[0].satoshis,
+        scriptHex: strandedDepTx.outputs[0].script.toHex(),
+        tokenAmount: BigInt(1000),
+        tokenID,
+        tokenCodeHash,
+      },
+    ])
+
+    const foundBidFillers = await builder.listRefundableFillers(addrTaker)
+    assert.strictEqual(foundBidFillers.length, 1, 'must discover exactly 1 stranded OrderBidFiller')
+    assert.strictEqual(foundBidFillers[0].kind, 'bid_filler')
+    assert.strictEqual(foundBidFillers[0].fillerTxid, strandedPrepTxid)
+    assert.strictEqual(foundBidFillers[0].tokenTxid, strandedDepTxid)
+    assert.strictEqual(foundBidFillers[0].tokenAmount, '1000')
+
+    // Execute one-click OP_REFUND!
+    chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+    const refundBidDraft = await builder.buildRefundFiller({
+      takerAddress: addrTaker,
+      items: [foundBidFillers[0]],
+    })
+    const refundBidRes = await completeDraft(builder, refundBidDraft, privTaker)
+    assert.strictEqual(refundBidRes.verified, true)
+    assert.strictEqual(refundBidRes.txids.length, 2) // RefundPrepTx + RefundTx
+    // Verify RefundTx output 0 returns full 1000 tokens to addrTaker
+    const bidRefundTx = new mvc.Transaction(refundBidRes.txHexes[1])
+    const returnedBidTokAddr = TokenProto.getTokenAddress(bidRefundTx.outputs[0].script.toBuffer())
+    assert.ok(returnedBidTokAddr.equals(takerHash20), 'OrderBidFiller OP_REFUND must return tokens to taker')
+    assert.strictEqual(TokenProto.getTokenAmount(bidRefundTx.outputs[0].script.toBuffer()).toString(), '1000')
+    // Immediately after refund, listRefundableFillers must return 0!
+    const afterBidRefund = await builder.listRefundableFillers(addrTaker)
+    assert.strictEqual(afterBidRefund.length, 0, 'refunded OrderBidFiller must disappear immediately')
+    console.log('[PASS] Flow 9a: Stranded OrderBidFiller discovered & refunded via OP_REFUND')
+
+    // 9b: Simulate stranded OrderTokenFiller (PrepTx + DepositTx broadcast, SettleTx NOT broadcast)
+    const takerMcForTokRefund = mintTokenFor(addrTaker, BigInt(100))
+    chain.setTokenUtxos(addrTaker, [takerMcForTokRefund])
+    chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+    const takeTokDraft = await builder.buildTakeTokenOrder({
+      takerAddress: addrTaker,
+      buyTokenCodeHash: tokenCodeHash,
+      buyTokenID: tokenID,
+      legs: [
+        {
+          orderTxid: burnContinuation.txid,
+          orderVout: burnContinuation.vout,
+          tokenTxid: burnContinuation.tokenTxid!,
+          tokenVout: burnContinuation.tokenVout!,
+          fillSellAmount: '50000',
+        },
+      ],
+    })
+    let tokStepRes: any = takeTokDraft
+    while (tokStepRes.status === 'awaiting_signature') {
+      const sigs = signRequestsWithPrivKey(tokStepRes.signRequests, privTaker)
+      tokStepRes = await builder.finalizeAndBroadcast(takeTokDraft.draftId, sigs, false)
+    }
+    const strandedTokPrepTxid = await chain.broadcastTx(tokStepRes.txHexes[0])
+    const strandedTokDepTxid = await chain.broadcastTx(tokStepRes.txHexes[1])
+    const strandedTokPrepTx = new mvc.Transaction(tokStepRes.txHexes[0])
+    const strandedTokDepTx = new mvc.Transaction(tokStepRes.txHexes[1])
+    const tokFillerHash20 = mvc.crypto.Hash.sha256ripemd160(strandedTokPrepTx.outputs[2].script.toBuffer())
+    const tokFillerAddr = mvc.Address.fromPublicKeyHash(tokFillerHash20, 'testnet').toString()
+    chain.setTokenUtxos(tokFillerAddr, [
+      {
+        txid: strandedTokDepTxid,
+        vout: 0,
+        satoshis: strandedTokDepTx.outputs[0].satoshis,
+        scriptHex: strandedTokDepTx.outputs[0].script.toHex(),
+        tokenAmount: BigInt(100),
+        tokenID,
+        tokenCodeHash,
+      },
+    ])
+
+    const foundTokFillers = await builder.listRefundableFillers(addrTaker)
+    assert.strictEqual(foundTokFillers.length, 1, 'must discover exactly 1 stranded OrderTokenFiller')
+    assert.strictEqual(foundTokFillers[0].kind, 'token_filler')
+    assert.strictEqual(foundTokFillers[0].fillerTxid, strandedTokPrepTxid)
+    assert.strictEqual(foundTokFillers[0].tokenTxid, strandedTokDepTxid)
+    assert.strictEqual(foundTokFillers[0].tokenAmount, '100')
+
+    chain.setMvcUtxos(addrTaker, [fundMvc(addrTaker, 5_000_000)])
+    const refundTokDraft = await builder.buildRefundFiller({
+      takerAddress: addrTaker,
+      items: [foundTokFillers[0]],
+    })
+    const refundTokRes = await completeDraft(builder, refundTokDraft, privTaker)
+    assert.strictEqual(refundTokRes.verified, true)
+    assert.strictEqual(refundTokRes.txids.length, 2)
+    const tokRefundTx = new mvc.Transaction(refundTokRes.txHexes[1])
+    const returnedTokAddr = TokenProto.getTokenAddress(tokRefundTx.outputs[0].script.toBuffer())
+    assert.ok(returnedTokAddr.equals(takerHash20), 'OrderTokenFiller OP_REFUND must return tokens to taker')
+    assert.strictEqual(TokenProto.getTokenAmount(tokRefundTx.outputs[0].script.toBuffer()).toString(), '100')
+    // OrderTokenFiller also refunds its trapped SPACE satoshis via output 1!
+    assert.ok(tokRefundTx.outputs.length >= 2 && tokRefundTx.outputs[1].satoshis > 50000, 'OrderTokenFiller OP_REFUND must also return surplus SPACE satoshis')
+    const afterTokRefund = await builder.listRefundableFillers(addrTaker)
+    assert.strictEqual(afterTokRefund.length, 0, 'refunded OrderTokenFiller must disappear immediately')
+    console.log('[PASS] Flow 9b: Stranded OrderTokenFiller discovered & refunded (tokens + SPACE) via OP_REFUND')
+  }
+
   srv.close()
   console.log('[PASS] Flow 5: HTTP sidecar health & canonical Go proxy routes verified')
 

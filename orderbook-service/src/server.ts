@@ -86,6 +86,21 @@ export function createOrderbookSidecarServer(builder: OrderbookTxBuilder): http.
         const data = await builder.buildCancel(body)
         return sendJson(res, 200, { code: 0, data })
       }
+      if (method === 'GET' && url === '/internal/ob/refund/list') {
+        const qs = new URLSearchParams((req.url || '').split('?')[1] || '')
+        const address = (qs.get('address') || '').trim()
+        const limit = Number(qs.get('limit') || 80)
+        if (!address) {
+          return sendJson(res, 400, { code: 400, message: 'address query param is required' })
+        }
+        const items = await builder.listRefundableFillers(address, Number.isFinite(limit) && limit > 0 ? limit : 80)
+        return sendJson(res, 200, { code: 0, data: { address, items } })
+      }
+      if (method === 'POST' && (url === '/internal/ob/refund/prepare' || url === '/internal/ob/build-refund')) {
+        const body = await readJsonBody(req)
+        const data = await builder.buildRefundFiller(body)
+        return sendJson(res, 200, { code: 0, data })
+      }
       if (method === 'POST' && (url === '/internal/ob/finalize' || url === '/internal/ob/finalize-and-broadcast')) {
         const body = await readJsonBody(req)
         const broadcast = body.broadcast !== undefined ? Boolean(body.broadcast) : true

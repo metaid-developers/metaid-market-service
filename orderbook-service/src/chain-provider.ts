@@ -27,11 +27,19 @@ export interface TokenUtxo {
   tokenCodeHash: string
 }
 
+export interface AddressTxSummary {
+  txid: string
+  time: number
+  height: number
+}
+
 export interface ChainProvider {
   getRawTx(txid: string): Promise<string>
   broadcastTx(txHex: string): Promise<string>
   getMvcUtxos(address: string): Promise<MvcUtxo[]>
   getTokenUtxos(address: string, tokenCodeHash: string, tokenID: string): Promise<TokenUtxo[]>
+  getRecentAddressTxs?(address: string, limit?: number): Promise<AddressTxSummary[]>
+  isOutpointRecentlySpent?(txid: string, vout: number): boolean
 }
 
 /**
@@ -540,6 +548,44 @@ export class HigunChainProvider implements ChainProvider {
     out.sort((a, b) => (a.tokenAmount > b.tokenAmount ? -1 : a.tokenAmount < b.tokenAmount ? 1 : 0))
     return out
   }
+
+  isOutpointRecentlySpent(txid: string, vout: number): boolean {
+    this.pruneZeroConfOverlay()
+    return this.recentSpent.has(`${txid.toLowerCase()}:${vout}`)
+  }
+
+  async getRecentAddressTxs(address: string, limit = 80): Promise<AddressTxSummary[]> {
+    const maxPages = Math.min(10, Math.max(1, Math.ceil(limit / 10)))
+    const seen = new Map<string, AddressTxSummary>()
+    let flag = ''
+    for (let page = 0; page < maxPages && seen.size < limit; page++) {
+      const params: Record<string, any> = { address, net: this.net, size: 20 }
+      if (flag) params.flag = flag
+      const resp = await axios.get(`${this.metaletMvcBase}/address/tx-list`, {
+        params,
+        timeout: 10000,
+      })
+      const list = resp.data?.data?.list || []
+      if (!Array.isArray(list) || list.length === 0) break
+      let nextFlag = ''
+      for (const item of list) {
+        const id = String(item?.txid || '').toLowerCase()
+        if (id && !seen.has(id)) {
+          seen.set(id, {
+            txid: id,
+            time: Number(item?.time || 0),
+            height: Number(item?.height ?? -1),
+          })
+        }
+        if (item?.flag !== undefined && item?.flag !== null && String(item.flag) !== '') {
+          nextFlag = String(item.flag)
+        }
+      }
+      if (!nextFlag || nextFlag === flag) break
+      flag = nextFlag
+    }
+    return Array.from(seen.values())
+  }
 }
 
 /**
@@ -550,6 +596,7 @@ export class InMemoryChainProvider implements ChainProvider {
   readonly broadcasted: Array<{ txid: string; txHex: string }> = []
   private readonly mvcUtxos = new Map<string, MvcUtxo[]>()
   private readonly tokenUtxos = new Map<string, TokenUtxo[]>()
+  private readonly spentOutpoints = new Set<string>()
 
   registerTx(tx: any): string {
     const txid = canonicalV10TxId(tx)
@@ -578,8 +625,30 @@ export class InMemoryChainProvider implements ChainProvider {
     const txid = canonicalV10TxId(tx)
     this.rawTxs.set(txid.toLowerCase(), txHex)
     this.rawTxs.set(tx.id.toLowerCase(), txHex)
+    for (const inp of tx.inputs || []) {
+      const pid = Buffer.isBuffer(inp.prevTxId)
+        ? inp.prevTxId.toString('hex').toLowerCase()
+        : String(inp.prevTxId || '').toLowerCase()
+      if (pid) this.spentOutpoints.add(`${pid}:${inp.outputIndex}`)
+    }
     this.broadcasted.push({ txid, txHex })
     return txid
+  }
+
+  isOutpointRecentlySpent(txid: string, vout: number): boolean {
+    return this.spentOutpoints.has(`${txid.toLowerCase()}:${vout}`)
+  }
+
+  async getRecentAddressTxs(_address: string, limit = 80): Promise<AddressTxSummary[]> {
+    const seen = new Set<string>()
+    const out: AddressTxSummary[] = []
+    for (let i = this.broadcasted.length - 1; i >= 0 && out.length < limit; i--) {
+      const id = this.broadcasted[i].txid.toLowerCase()
+      if (seen.has(id)) continue
+      seen.add(id)
+      out.push({ txid: id, time: Math.floor(Date.now() / 1000), height: -1 })
+    }
+    return out
   }
 
   async getMvcUtxos(address: string): Promise<MvcUtxo[]> {

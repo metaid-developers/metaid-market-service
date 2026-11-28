@@ -27,7 +27,7 @@ export interface SignRequestItem {
   satoshis: number
   sigtype: number
   address: string
-  kind: 'p2pkh' | 'token_p2pkh' | 'order_cancel'
+  kind: 'p2pkh' | 'token_p2pkh' | 'order_cancel' | 'filler_refund'
   message: string
 }
 
@@ -40,7 +40,17 @@ export interface UserSignatureInput {
 
 export interface DraftBuildResult {
   draftId: string
-  action: 'place_ask' | 'place_bid' | 'place_token' | 'take_ask' | 'take_bid' | 'take_token' | 'cancel_ask' | 'cancel_bid' | 'cancel_token'
+  action:
+    | 'place_ask'
+    | 'place_bid'
+    | 'place_token'
+    | 'take_ask'
+    | 'take_bid'
+    | 'take_token'
+    | 'cancel_ask'
+    | 'cancel_bid'
+    | 'cancel_token'
+    | 'refund_filler'
   status: 'awaiting_signature'
   step: number
   totalSteps: number
@@ -138,6 +148,35 @@ export interface CancelOrderParams {
   orderVout: number
   tokenTxid?: string
   tokenVout?: number
+  feeRate?: number
+}
+
+export interface RefundableFillerItem {
+  kind: 'bid_filler' | 'token_filler'
+  fillerTxid: string
+  fillerVout: number
+  fillerSatoshis: number
+  tokenTxid: string
+  tokenVout: number
+  tokenCodeHash: string
+  tokenID: string
+  tokenSymbol: string
+  tokenDecimals: number
+  tokenAmount: string
+  time: number
+}
+
+export interface RefundFillerItemInput {
+  kind?: 'bid_filler' | 'token_filler'
+  fillerTxid: string
+  fillerVout: number
+  tokenTxid: string
+  tokenVout: number
+}
+
+export interface RefundFillerParams {
+  takerAddress: string
+  items: RefundFillerItemInput[]
   feeRate?: number
 }
 
@@ -368,6 +407,8 @@ export class OrderbookTxBuilder {
   private readonly draftTtlMs: number
   private readonly transferCheckHashes: any[]
   private readonly unlockCheckHashes: any[]
+  private readonly bidFillerSuffix: string
+  private readonly tokenFillerSuffix: string
   private readonly drafts = new Map<string, InternalDraft>()
 
   constructor(opts: {
@@ -388,6 +429,33 @@ export class OrderbookTxBuilder {
     const ucHex = opts.unlockCheckHashesHex || PROD_UNLOCK_CHECK_HASHES
     this.transferCheckHashes = tcHex.map((h) => new Bytes(h))
     this.unlockCheckHashes = ucHex.map((h) => new Bytes(h))
+
+    // Precompute invariant compiled bytecode suffixes for OrderBidFiller and OrderTokenFiller
+    // so stranded escrow UTXOs can be deterministically identified for any user address.
+    const commonHexSuffix = (a: string, b: string): string => {
+      let n = 0
+      const max = Math.min(a.length, b.length)
+      while (n < max && a[a.length - 1 - n] === b[b.length - 1 - n]) n++
+      const even = n - (n % 2)
+      return a.slice(a.length - even)
+    }
+    const bf1 = new this.contracts.OrderBidFiller(new Ripemd160('11'.repeat(20)), 123456).lockingScript.toHex()
+    const bf2 = new this.contracts.OrderBidFiller(new Ripemd160('22'.repeat(20)), 999999999).lockingScript.toHex()
+    this.bidFillerSuffix = commonHexSuffix(bf1, bf2)
+
+    const tf1 = new this.contracts.OrderTokenFiller(
+      new Ripemd160('11'.repeat(20)),
+      new Bytes('33'.repeat(20)),
+      new Bytes('44'.repeat(20)),
+      123456
+    ).lockingScript.toHex()
+    const tf2 = new this.contracts.OrderTokenFiller(
+      new Ripemd160('22'.repeat(20)),
+      new Bytes('55'.repeat(20)),
+      new Bytes('66'.repeat(20)),
+      999999999
+    ).lockingScript.toHex()
+    this.tokenFillerSuffix = commonHexSuffix(tf1, tf2)
   }
 
   getContractMeta() {
@@ -3705,6 +3773,526 @@ export class OrderbookTxBuilder {
         return {
           draftId: '',
           action: 'cancel_token',
+          status: 'completed',
+          txids,
+          txHexes,
+          verified: true,
+          broadcasted: broadcast,
+          newOrders: [],
+        }
+      }
+    )
+  }
+
+  // =========================================================================
+  // 9. DISCOVER & REFUND STRANDED ESCROW FILLERS (OrderBidFiller / OrderTokenFiller)
+  // If a TakeBid or TakeTokenOrder failed at SettleTx after PrepTx + DepositTx
+  // already broadcasted (e.g. txn-mempool-conflict), the taker's locked tokens
+  // (and SPACE for OrderTokenFiller) remain safely controlled by takerAddress
+  // via OP_REFUND = 2.
+  // =========================================================================
+  private classifyFillerScript(scriptHex: string, takerHashHex: string): 'bid_filler' | 'token_filler' | null {
+    const marker = '14' + takerHashHex.toLowerCase()
+    if (scriptHex.endsWith(this.bidFillerSuffix) && scriptHex.includes(marker)) {
+      return 'bid_filler'
+    }
+    if (scriptHex.endsWith(this.tokenFillerSuffix) && scriptHex.includes(marker)) {
+      return 'token_filler'
+    }
+    return null
+  }
+
+  async listRefundableFillers(address: string, limit = 80): Promise<RefundableFillerItem[]> {
+    const addrHashHex = Buffer.from(parseP2pkhAddress(address, this.net, 'address').hashBuffer).toString('hex')
+    if (!this.chain.getRecentAddressTxs) {
+      return []
+    }
+    const recentTxs = await this.chain.getRecentAddressTxs(address, limit)
+    if (recentTxs.length === 0) return []
+
+    // Fetch raw transactions concurrently (8 workers) using chain cache
+    const parsedTxs: Array<{ txid: string; tx: any; time: number }> = []
+    const workerLimit = Math.min(8, recentTxs.length)
+    let cursor = 0
+    await Promise.all(
+      Array.from({ length: workerLimit }, async () => {
+        while (true) {
+          const idx = cursor++
+          if (idx >= recentTxs.length) break
+          const meta = recentTxs[idx]
+          try {
+            const raw = await this.chain.getRawTx(meta.txid)
+            const tx = new mvc.Transaction(raw)
+            parsedTxs.push({ txid: meta.txid.toLowerCase(), tx, time: meta.time })
+          } catch (_) {
+            // Skip unavailable historical txs
+          }
+        }
+      })
+    )
+
+    const spentOutpoints = new Set<string>()
+    const prepFillers = new Map<
+      string,
+      Array<{ vout: number; kind: 'bid_filler' | 'token_filler'; fillerHash20: string; satoshis: number; time: number }>
+    >()
+
+    for (const { txid, tx, time } of parsedTxs) {
+      for (const inp of tx.inputs || []) {
+        const prevHex = Buffer.isBuffer(inp.prevTxId)
+          ? inp.prevTxId.toString('hex').toLowerCase()
+          : String(inp.prevTxId || '').toLowerCase()
+        if (prevHex) spentOutpoints.add(`${prevHex}:${inp.outputIndex}`)
+      }
+      for (let v = 0; v < tx.outputs.length; v++) {
+        const scriptHex = tx.outputs[v].script.toHex()
+        const kind = this.classifyFillerScript(scriptHex, addrHashHex)
+        if (!kind) continue
+        const fh = mvc.crypto.Hash.sha256ripemd160(tx.outputs[v].script.toBuffer()).toString('hex')
+        const arr = prepFillers.get(txid) || []
+        arr.push({ vout: v, kind, fillerHash20: fh, satoshis: tx.outputs[v].satoshis, time })
+        prepFillers.set(txid, arr)
+      }
+    }
+
+    if (prepFillers.size === 0) return []
+
+    const utxoCache = new Map<string, Set<string>>()
+    const stranded: RefundableFillerItem[] = []
+
+    for (const { txid: depTxid, tx: depTx, time } of parsedTxs) {
+      const parentPrepIds = new Set<string>()
+      for (const inp of depTx.inputs || []) {
+        const pid = Buffer.isBuffer(inp.prevTxId)
+          ? inp.prevTxId.toString('hex').toLowerCase()
+          : String(inp.prevTxId || '').toLowerCase()
+        if (prepFillers.has(pid)) parentPrepIds.add(pid)
+      }
+      if (parentPrepIds.size === 0) continue
+
+      for (const prepTxid of parentPrepIds) {
+        const fillers = prepFillers.get(prepTxid)!
+        const usedFillerVouts = new Set<number>()
+        for (let v = 0; v < depTx.outputs.length; v++) {
+          const buf = depTx.outputs[v].script.toBuffer()
+          if (buf.length < 180) continue
+          let tokAddr = ''
+          let codeHash = ''
+          let tokenID = ''
+          let amount = BigInt(0)
+          let symbol = ''
+          let decimals = 8
+          try {
+            tokAddr = TokenProto.getTokenAddress(buf).toString('hex').toLowerCase()
+            codeHash = TokenProto.getScriptCodeHash(buf).toString('hex').toLowerCase()
+            tokenID = TokenProto.getTokenID(buf).toString('hex').toLowerCase()
+            amount = BigInt(TokenProto.getTokenAmount(buf).toString())
+            const rawSym = TokenProto.getTokenSymbol ? TokenProto.getTokenSymbol(buf) : ''
+            symbol = (Buffer.isBuffer(rawSym) ? rawSym.toString('utf8') : String(rawSym || '')).replace(/\0/g, '').trim()
+            const rawDec = TokenProto.getTokenDecimal ? Number(TokenProto.getTokenDecimal(buf)) : 8
+            if (Number.isFinite(rawDec) && rawDec >= 0 && rawDec <= 18) decimals = rawDec
+          } catch (_) {
+            continue
+          }
+
+          const matched = fillers.find((f) => f.fillerHash20 === tokAddr && !usedFillerVouts.has(f.vout))
+          if (!matched) continue
+          usedFillerVouts.add(matched.vout)
+
+          const fillerOp = `${prepTxid}:${matched.vout}`
+          const tokenOp = `${depTxid}:${v}`
+          if (spentOutpoints.has(fillerOp) || spentOutpoints.has(tokenOp)) continue
+          if (
+            this.chain.isOutpointRecentlySpent?.(prepTxid, matched.vout) ||
+            this.chain.isOutpointRecentlySpent?.(depTxid, v)
+          ) {
+            continue
+          }
+
+          const fillerP2pkh = mvc.Address.fromPublicKeyHash(
+            Buffer.from(tokAddr, 'hex'),
+            this.net
+          ).toString()
+          const cacheKey = `${fillerP2pkh}:${codeHash}:${tokenID}`
+          if (!utxoCache.has(cacheKey)) {
+            const live = await this.chain.getTokenUtxos(fillerP2pkh, codeHash, tokenID)
+            utxoCache.set(
+              cacheKey,
+              new Set(live.map((u) => `${u.txid.toLowerCase()}:${u.vout}`))
+            )
+          }
+          if (!utxoCache.get(cacheKey)!.has(tokenOp)) continue
+
+          stranded.push({
+            kind: matched.kind,
+            fillerTxid: prepTxid,
+            fillerVout: matched.vout,
+            fillerSatoshis: matched.satoshis,
+            tokenTxid: depTxid,
+            tokenVout: v,
+            tokenCodeHash: codeHash,
+            tokenID,
+            tokenSymbol: symbol || 'TOKEN',
+            tokenDecimals: decimals,
+            tokenAmount: amount.toString(),
+            time: time || matched.time,
+          })
+        }
+      }
+    }
+
+    stranded.sort((a, b) => b.time - a.time)
+    return stranded
+  }
+
+  async buildRefundFiller(params: RefundFillerParams): Promise<DraftBuildResult> {
+    const feeRate = params.feeRate ?? this.defaultFeeRate
+    const effRate = effectiveFeeRate(feeRate)
+    if (!Array.isArray(params.items) || params.items.length === 0) {
+      throw new Error('At least 1 refundable filler item is required')
+    }
+    if (params.items.length > 4) {
+      throw new Error('At most 4 refundable fillers can be batched in a single refund flow')
+    }
+
+    const takerHash20 = Buffer.from(parseP2pkhAddress(params.takerAddress, this.net, 'takerAddress').hashBuffer)
+    const takerHashHex = takerHash20.toString('hex')
+    const takerP2pkh = p2pkhScript(params.takerAddress, this.net)
+
+    interface PreparedRefundLeg {
+      kind: 'bid_filler' | 'token_filler'
+      fillerTxid: string
+      fillerVout: number
+      fillerTx: any
+      fillerOut: any
+      tokenTxid: string
+      tokenVout: number
+      tokenTx: any
+      tokenOut: any
+      tokenBuf: Buffer
+      tokenAmount: bigint
+      tokenCodeHash: string
+      tokenID: string
+      unlockCheckInst: any
+      refundFeeBudget: number
+      feeUtxoSats: number
+      spaceRefundSats: number
+      checkVoutInPrep: number
+      feeVoutInPrep: number
+    }
+
+    const prepared: PreparedRefundLeg[] = []
+    const seenKeys = new Set<string>()
+    let prepOutputsSats = 0
+
+    for (const item of params.items) {
+      const fTxid = String(item.fillerTxid || '').trim().toLowerCase()
+      const tTxid = String(item.tokenTxid || '').trim().toLowerCase()
+      if (!fTxid || !tTxid || item.fillerVout < 0 || item.tokenVout < 0) {
+        throw new Error('Each refund item requires fillerTxid, fillerVout, tokenTxid, tokenVout')
+      }
+      const dedupeKey = `${fTxid}:${item.fillerVout}|${tTxid}:${item.tokenVout}`
+      if (seenKeys.has(dedupeKey)) {
+        throw new Error(`Duplicate refund filler item: ${fTxid}:${item.fillerVout}`)
+      }
+      seenKeys.add(dedupeKey)
+
+      const fillerTx = new mvc.Transaction(await this.chain.getRawTx(fTxid))
+      const fillerOut = fillerTx.outputs[item.fillerVout]
+      if (!fillerOut) throw new Error(`Filler output ${fTxid}:${item.fillerVout} not found`)
+      const fillerScriptBuf = fillerOut.script.toBuffer()
+      const kind = this.classifyFillerScript(fillerScriptBuf.toString('hex'), takerHashHex)
+      if (!kind) {
+        throw new Error(`Output ${fTxid}:${item.fillerVout} is not a valid OrderBidFiller/OrderTokenFiller owned by ${params.takerAddress}`)
+      }
+
+      const tokenTx = new mvc.Transaction(await this.chain.getRawTx(tTxid))
+      const tokenOut = tokenTx.outputs[item.tokenVout]
+      if (!tokenOut) throw new Error(`Locked token output ${tTxid}:${item.tokenVout} not found`)
+      const tokenBuf = tokenOut.script.toBuffer()
+      const expectedFillerHash = mvc.crypto.Hash.sha256ripemd160(fillerScriptBuf)
+      const actualTokOwner = TokenProto.getTokenAddress(tokenBuf)
+      if (!actualTokOwner.equals(expectedFillerHash)) {
+        throw new Error(`Locked token ${tTxid}:${item.tokenVout} is not locked to filler ${fTxid}:${item.fillerVout}`)
+      }
+
+      const tokenIDBuf = TokenProto.getTokenID(tokenBuf)
+      const tokenCodeHashBuf = TokenProto.getScriptCodeHash(tokenBuf)
+      const tokenAmount = BigInt(TokenProto.getTokenAmount(tokenBuf).toString())
+      if (tokenAmount <= BigInt(0)) {
+        throw new Error(`Locked token ${tTxid}:${item.tokenVout} has zero amount`)
+      }
+
+      const unlockCheckInst = SwapEngine.buildTokenUnlockContractCheck(
+        this.contracts,
+        tokenIDBuf,
+        tokenCodeHashBuf,
+        [1],
+        [tokenAmount],
+        [takerHash20],
+        false
+      )
+
+      const refundFeeBudget = Math.max(22000, Math.ceil(20000 * effRate))
+      // For OrderTokenFiller, fillerOut already carries ~90k-120k sats; reuse those sats
+      // so the taker only needs minimal P2PKH fee input and gets surplus SPACE refunded.
+      const nonFeeIn = fillerOut.satoshis + tokenOut.satoshis + DUST
+      const feeUtxoSats = Math.max(DUST, refundFeeBudget + DUST - nonFeeIn)
+      const surplus = nonFeeIn + feeUtxoSats - DUST - refundFeeBudget
+      const spaceRefundSats = surplus >= DUST ? surplus : 0
+
+      prepared.push({
+        kind,
+        fillerTxid: fTxid,
+        fillerVout: item.fillerVout,
+        fillerTx,
+        fillerOut,
+        tokenTxid: tTxid,
+        tokenVout: item.tokenVout,
+        tokenTx,
+        tokenOut,
+        tokenBuf,
+        tokenAmount,
+        tokenCodeHash: tokenCodeHashBuf.toString('hex'),
+        tokenID: tokenIDBuf.toString('hex'),
+        unlockCheckInst,
+        refundFeeBudget,
+        feeUtxoSats,
+        spaceRefundSats,
+        checkVoutInPrep: 0,
+        feeVoutInPrep: 0,
+      })
+      prepOutputsSats += DUST + feeUtxoSats
+    }
+
+    const prepOutScripts: Buffer[] = []
+    for (const p of prepared) {
+      prepOutScripts.push(p.unlockCheckInst.lockingScript.toBuffer(), takerP2pkh.toBuffer())
+    }
+    const mvcUtxos = await this.chain.getMvcUtxos(params.takerAddress)
+    const { selected: selMvc, total: totalMvc, prepFeeBudget } = selectMvcWithExactPrepFee(
+      mvcUtxos,
+      prepOutputsSats,
+      prepOutScripts,
+      effRate,
+      3000
+    )
+
+    const prepTx = new mvc.Transaction()
+    prepTx.version = Common.TX_VERSION
+    for (const u of selMvc) {
+      addTxInput(prepTx, u.txid, u.vout, mvc.Script.fromHex(u.scriptHex), u.satoshis)
+    }
+    for (const p of prepared) {
+      p.checkVoutInPrep = prepTx.outputs.length
+      prepTx.addOutput(new mvc.Transaction.Output({ script: p.unlockCheckInst.lockingScript, satoshis: DUST }))
+      p.feeVoutInPrep = prepTx.outputs.length
+      prepTx.addOutput(new mvc.Transaction.Output({ script: takerP2pkh, satoshis: p.feeUtxoSats }))
+    }
+    const prepChange = totalMvc - prepOutputsSats - prepFeeBudget
+    if (prepChange >= DUST) {
+      prepTx.addOutput(new mvc.Transaction.Output({ script: takerP2pkh, satoshis: prepChange }))
+    }
+
+    const step0Reqs: SignRequestItem[] = selMvc.map((u, i) => ({
+      txIndex: 0,
+      inputIndex: i,
+      txHex: prepTx.uncheckedSerialize(),
+      scriptHex: u.scriptHex,
+      satoshis: u.satoshis,
+      sigtype: SIG_ALL,
+      address: params.takerAddress,
+      kind: 'p2pkh',
+      message: `Sign Refund PrepTx (${prepared.length} escrow(s))`,
+    }))
+
+    let step = 0
+    let signedPrepTxid = ''
+    let refundTxs: any[] = []
+
+    const totalRefundFee = prepared.reduce((a, p) => a + p.refundFeeBudget, 0)
+    const totalSpaceRefund = prepared.reduce((a, p) => a + p.spaceRefundSats, 0)
+
+    return this.saveDraft(
+      'refund_filler',
+      2,
+      step0Reqs,
+      {
+        count: prepared.length,
+        totalSpaceRefundSats: totalSpaceRefund,
+        estimatedMinerFee: prepFeeBudget + totalRefundFee,
+      },
+      async (sigs, broadcast) => {
+        const sigMap = new Map(sigs.map((s) => [`${s.txIndex}:${s.inputIndex}`, s]))
+
+        if (step === 0) {
+          for (let i = 0; i < selMvc.length; i++) {
+            applyP2PKHSig(prepTx, i, getSigOrThrow(sigMap, 0, i))
+          }
+          signedPrepTxid = getMvcV10TxId(prepTx)
+
+          refundTxs = []
+          const step1Reqs: SignRequestItem[] = []
+          for (let i = 0; i < prepared.length; i++) {
+            const p = prepared[i]
+            const rtx = new mvc.Transaction()
+            rtx.version = Common.TX_VERSION
+            addTxInput(rtx, p.fillerTxid, p.fillerVout, p.fillerOut.script, p.fillerOut.satoshis)
+            addTxInput(rtx, p.tokenTxid, p.tokenVout, p.tokenOut.script, p.tokenOut.satoshis)
+            addTxInput(rtx, signedPrepTxid, p.checkVoutInPrep, p.unlockCheckInst.lockingScript, DUST)
+            addTxInput(rtx, signedPrepTxid, p.feeVoutInPrep, takerP2pkh, p.feeUtxoSats)
+
+            const retTokBuf = TokenProto.getNewTokenScript(p.tokenBuf, takerHash20, p.tokenAmount)
+            rtx.addOutput(new mvc.Transaction.Output({ script: mvc.Script.fromBuffer(retTokBuf), satoshis: DUST }))
+            if (p.spaceRefundSats >= DUST) {
+              rtx.addOutput(new mvc.Transaction.Output({ script: takerP2pkh, satoshis: p.spaceRefundSats }))
+            }
+            refundTxs.push(rtx)
+
+            const rtxHex = rtx.uncheckedSerialize()
+            step1Reqs.push(
+              {
+                txIndex: i,
+                inputIndex: 0,
+                txHex: rtxHex,
+                scriptHex: p.fillerOut.script.toHex(),
+                satoshis: p.fillerOut.satoshis,
+                sigtype: SIG_ALL,
+                address: params.takerAddress,
+                kind: 'filler_refund',
+                message: `Sign Escrow OP_REFUND #${i + 1}`,
+              },
+              {
+                txIndex: i,
+                inputIndex: 3,
+                txHex: rtxHex,
+                scriptHex: takerP2pkh.toHex(),
+                satoshis: p.feeUtxoSats,
+                sigtype: SIG_ALL,
+                address: params.takerAddress,
+                kind: 'p2pkh',
+                message: `Sign Refund miner fee #${i + 1}`,
+              }
+            )
+          }
+
+          step = 1
+          return {
+            draftId: '',
+            action: 'refund_filler',
+            status: 'awaiting_signature',
+            step: 1,
+            totalSteps: 2,
+            signRequests: step1Reqs,
+            txids: [],
+            txHexes: [],
+            verified: false,
+            broadcasted: false,
+            newOrders: [],
+          }
+        }
+
+        // Step 1 finalize: unlock each RefundTx (Filler OP_REFUND + Token op=2 + UnlockCheck + P2PKH fee)
+        const localMap = new Map<string, any>([[signedPrepTxid.toLowerCase(), prepTx]])
+        const txHexes: string[] = [prepTx.uncheckedSerialize()]
+        for (let i = 0; i < prepared.length; i++) {
+          const p = prepared[i]
+          const rtx = refundTxs[i]
+          localMap.set(p.fillerTxid.toLowerCase(), p.fillerTx)
+          localMap.set(p.tokenTxid.toLowerCase(), p.tokenTx)
+
+          const takerSig = getSigOrThrow(sigMap, i, 0)
+          let unlockScript: any
+          if (p.kind === 'bid_filler') {
+            const dummy = new this.contracts.OrderBidFiller(new Ripemd160('00'.repeat(20)), 0)
+            unlockScript = dummy
+              .unlock(
+                new SigHashPreimage('00'),
+                0,
+                new Bytes(''),
+                new Bytes(''),
+                new PubKey(takerSig.publicKey),
+                new Sig(takerSig.sig),
+                2 // OP_REFUND
+              )
+              .toScript()
+          } else {
+            const dummy = new this.contracts.OrderTokenFiller(
+              new Ripemd160('00'.repeat(20)),
+              new Bytes('00'.repeat(20)),
+              new Bytes('00'.repeat(20)),
+              0
+            )
+            unlockScript = dummy
+              .unlock(
+                new SigHashPreimage('00'),
+                new Bytes(''),
+                0,
+                new Bytes(''),
+                new Bytes(''),
+                new Bytes(''),
+                new Bytes(''),
+                0,
+                0,
+                new Bytes(''),
+                new Bytes(''),
+                new PubKey(takerSig.publicKey),
+                new Sig(takerSig.sig),
+                2 // OP_REFUND
+              )
+              .toScript()
+          }
+          this.verifyScriptAgainstChain(
+            rtx,
+            0,
+            unlockScript,
+            p.fillerOut.script,
+            p.fillerOut.satoshis,
+            `${p.kind} OP_REFUND leg #${i + 1}`
+          )
+          rtx.inputs[0].setScript(unlockScript)
+
+          await this.verifyAndSetTokenOp2({
+            tx: rtx,
+            tokenInputIdx: 1,
+            tokenIndexInCheck: 0,
+            amountCheckHashIndex: 0,
+            checkInputIdx: 2,
+            checkTx: prepTx,
+            checkVout: p.checkVoutInPrep,
+            tokenTx: p.tokenTx,
+            tokenVout: p.tokenVout,
+            contractInputIdx: 0,
+            contractTx: p.fillerTx,
+            contractVout: p.fillerVout,
+            localTxMap: localMap,
+          })
+
+          this.verifyAndSetUnlockCheck(rtx, 2, p.unlockCheckInst, DUST, [p.tokenTx], [p.tokenVout], [0])
+          applyP2PKHSig(rtx, 3, getSigOrThrow(sigMap, i, 3))
+          txHexes.push(rtx.uncheckedSerialize())
+        }
+
+        const txids: string[] = []
+        if (broadcast) {
+          txids.push(await this.chain.broadcastTx(txHexes[0]))
+          const settledOutpoints: string[] = []
+          for (let i = 0; i < prepared.length; i++) {
+            const op = `${prepared[i].fillerTxid}:${prepared[i].fillerVout}`
+            try {
+              txids.push(await this.chain.broadcastTx(txHexes[1 + i]))
+              settledOutpoints.push(op)
+            } catch (err) {
+              rethrowWithOutpointContext(err, [op], settledOutpoints)
+            }
+          }
+        } else {
+          txids.push(signedPrepTxid, ...refundTxs.map((t) => getMvcV10TxId(t)))
+        }
+
+        return {
+          draftId: '',
+          action: 'refund_filler',
           status: 'completed',
           txids,
           txHexes,

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +53,10 @@ func RegisterOrderbookRoutes(v1 *gin.RouterGroup) {
 
 		g.POST("/cancel/prepare", OrderbookCancelPrepare)
 		g.POST("/cancel/submit", OrderbookFinalizeSubmit)
+
+		g.GET("/refund/list", OrderbookRefundList)
+		g.POST("/refund/prepare", OrderbookRefundPrepare)
+		g.POST("/refund/submit", OrderbookFinalizeSubmit)
 	}
 }
 
@@ -665,4 +670,92 @@ func callOrderbookSidecar(c *gin.Context, baseURL, path string, body interface{}
 		return 0, nil, err
 	}
 	return resp.StatusCode, respBytes, nil
+}
+
+func callOrderbookSidecarGet(c *gin.Context, baseURL, path string) (int, []byte, error) {
+	base := strings.TrimRight(baseURL, "/")
+	if base == "" {
+		base = "http://127.0.0.1:18082"
+	}
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, base+path, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	resp, err := obHTTPClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return 0, nil, err
+	}
+	return resp.StatusCode, respBytes, nil
+}
+
+// GET /api/v1/orderbook/refund/list?address=...&limit=80
+// Discovers stranded OrderBidFiller / OrderTokenFiller escrow UTXOs owned by address.
+func OrderbookRefundList(c *gin.Context) {
+	addr := strings.TrimSpace(c.Query("address"))
+	if addr == "" {
+		obErr(c, http.StatusBadRequest, "address query param is required")
+		return
+	}
+	limit := strings.TrimSpace(c.Query("limit"))
+	qs := url.Values{}
+	qs.Set("address", addr)
+	if limit != "" {
+		qs.Set("limit", limit)
+	}
+	s := ob.GetOrderbookSyncer()
+	status, raw, err := callOrderbookSidecarGet(c, s.Config().ServiceUrl, "/internal/ob/refund/list?"+qs.Encode())
+	if err != nil {
+		obErr(c, http.StatusBadGateway, "orderbook-service unavailable: "+err.Error())
+		return
+	}
+	c.Data(status, "application/json; charset=utf-8", raw)
+}
+
+type refundFillerItemReq struct {
+	Kind       string `json:"kind,omitempty"`
+	FillerTxid string `json:"fillerTxid"`
+	FillerVout int    `json:"fillerVout"`
+	TokenTxid  string `json:"tokenTxid"`
+	TokenVout  int    `json:"tokenVout"`
+}
+
+type refundPrepareRequest struct {
+	TakerAddress string                `json:"takerAddress"`
+	Items        []refundFillerItemReq `json:"items"`
+	FeeRate      float64               `json:"feeRate,omitempty"`
+}
+
+// POST /api/v1/orderbook/refund/prepare
+// Builds a 2-step non-custodial OP_REFUND draft reclaiming locked tokens (and SPACE) from stranded fillers.
+func OrderbookRefundPrepare(c *gin.Context) {
+	if !obWriteLimiter.allow(c.ClientIP(), 60, time.Minute) {
+		obErr(c, http.StatusTooManyRequests, "orderbook rate limit exceeded")
+		return
+	}
+	var req refundPrepareRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		obErr(c, http.StatusBadRequest, "invalid refund prepare body: "+err.Error())
+		return
+	}
+	req.TakerAddress = strings.TrimSpace(req.TakerAddress)
+	if req.TakerAddress == "" || len(req.Items) == 0 {
+		obErr(c, http.StatusBadRequest, "takerAddress and at least 1 item are required")
+		return
+	}
+	if len(req.Items) > 4 {
+		obErr(c, http.StatusBadRequest, "at most 4 items can be refunded per batch")
+		return
+	}
+	s := ob.GetOrderbookSyncer()
+	status, raw, err := callOrderbookSidecar(c, s.Config().ServiceUrl, "/internal/ob/refund/prepare", req)
+	if err != nil {
+		obErr(c, http.StatusBadGateway, "orderbook-service unavailable: "+err.Error())
+		return
+	}
+	c.Data(status, "application/json; charset=utf-8", raw)
 }
