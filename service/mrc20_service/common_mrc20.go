@@ -27,13 +27,22 @@ func MakeTransferPayload(tickId string, transferMrc20s []*TransferMrc20, mrc20Ou
 		totalAmountDe = totalAmountDe.Add(mrc20AmountDe)
 	}
 
+	outTotalDe := decimal.New(0, 0)
 	for i, v := range mrc20Outs {
+		outAmountDe, err := decimal.NewFromString(v.Amount)
+		if err != nil || !outAmountDe.IsPositive() {
+			return "", fmt.Errorf("invalid mrc20 output amount: %s", v.Amount)
+		}
+		outTotalDe = outTotalDe.Add(outAmountDe)
 		dataItem := &Mrc20DataItem{
 			Id:     tickId,
 			Amount: v.Amount,
 			Vout:   int64(i + 1),
 		}
 		dataItems = append(dataItems, dataItem)
+	}
+	if totalAmountDe.IsPositive() && outTotalDe.GreaterThan(totalAmountDe) {
+		return "", fmt.Errorf("mrc20 output amount %s exceeds input amount %s", outTotalDe.String(), totalAmountDe.String())
 	}
 	payload = tool.AnyToStr(dataItems)
 

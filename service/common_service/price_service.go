@@ -148,5 +148,8 @@ func CalMarketPrice(marketInfo *models.MarketMrc20InfoModel) (string, error) {
 
 	fmt.Printf("[%s]24hTxCount:%d, LastPrice:%f, FloorPrice:%f, CalPrice:%f\n", marketInfo.Tick, len(orderList), marketInfo.LastPrice, marketInfo.FloorPrice, calPrice)
 
+	if calPrice > 0 && calPrice < 1e-8 {
+		return strconv.FormatFloat(calPrice, 'f', -1, 64), nil
+	}
 	return fmt.Sprintf("%.8f", calPrice), nil
 }

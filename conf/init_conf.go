@@ -55,6 +55,9 @@ var (
 
 	SwapServiceUrl string = "http://127.0.0.1:18080"
 
+	MinOrderPriceAmountBtc  int64 = 2000
+	MinOrderPriceAmountDoge int64 = 1000000
+
 	OrderbookConfigData *OrderbookConfig = DefaultOrderbookConfig()
 )
 
@@ -254,6 +257,12 @@ func InitConfig() {
 	AdminAPIKey = viper.GetString("admin.api_key")
 	if v := viper.GetString("swap.service_url"); v != "" {
 		SwapServiceUrl = v
+	}
+	if v := viper.GetInt64("order.min_price_amount_btc"); v > 0 {
+		MinOrderPriceAmountBtc = v
+	}
+	if v := viper.GetInt64("order.min_price_amount_doge"); v > 0 {
+		MinOrderPriceAmountDoge = v
 	}
 
 	obCfg := DefaultOrderbookConfig()

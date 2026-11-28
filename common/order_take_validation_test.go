@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -283,3 +285,112 @@ func TestValidateExpectedInputFinalizedSighashEncoding(t *testing.T) {
 		t.Fatal("script without a valid signature was accepted")
 	}
 }
+
+func TestMinOrderPriceAmountAndDustLimits(t *testing.T) {
+	prevBtc := conf.MinOrderPriceAmountBtc
+	prevDoge := conf.MinOrderPriceAmountDoge
+	t.Cleanup(func() {
+		conf.MinOrderPriceAmountBtc = prevBtc
+		conf.MinOrderPriceAmountDoge = prevDoge
+	})
+
+	conf.MinOrderPriceAmountBtc = 0
+	conf.MinOrderPriceAmountDoge = 0
+	if got := GetMinOrderPriceAmount("btc"); got != 546 {
+		t.Fatalf("expected btc safety floor 546 when unset, got %d", got)
+	}
+	if got := GetMinOrderPriceAmount("doge"); got != 1000000 {
+		t.Fatalf("expected doge safety floor 1000000 when unset, got %d", got)
+	}
+
+	conf.MinOrderPriceAmountBtc = 100
+	conf.MinOrderPriceAmountDoge = 500
+	if got := GetMinOrderPriceAmount("btc"); got != 546 {
+		t.Fatalf("expected btc safety floor 546, got %d", got)
+	}
+	if got := GetMinOrderPriceAmount("doge"); got != 1000000 {
+		t.Fatalf("expected doge safety floor 1000000, got %d", got)
+	}
+
+	conf.MinOrderPriceAmountBtc = 2000
+	if got := GetMinOrderPriceAmount("btc"); got != 2000 {
+		t.Fatalf("expected configured btc min 2000, got %d", got)
+	}
+
+	priv, err := btcec.NewPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubHex := hex.EncodeToString(priv.PubKey().SerializeCompressed())
+	p2wpkhAddr, err := GetSegwitAddressFromPublicKey(GetNetParams("mainnet", "btc"), pubHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2wpkhScript, _ := AddressToPkScript("mainnet", "btc", p2wpkhAddr)
+	p2wpkhBytes, _ := hex.DecodeString(p2wpkhScript)
+	if got := MinScriptDustLimit("mainnet", "btc", p2wpkhBytes); got != 294 {
+		t.Fatalf("expected P2WPKH dust limit 294, got %d", got)
+	}
+	if got := MinScriptDustLimit("mainnet", "doge", p2wpkhBytes); got != 1000000 {
+		t.Fatalf("expected DOGE dust limit 1000000, got %d", got)
+	}
+
+	taprootKey := txscript.ComputeTaprootKeyNoScript(priv.PubKey())
+	p2trAddrObj, err := btcutil.NewAddressTaproot(schnorr.SerializePubKey(taprootKey), GetNetParams("mainnet", "btc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2trAddr := p2trAddrObj.EncodeAddress()
+	p2trScript, _ := AddressToPkScript("mainnet", "btc", p2trAddr)
+	p2trBytes, _ := hex.DecodeString(p2trScript)
+	if got := MinScriptDustLimit("mainnet", "btc", p2trBytes); got != 330 {
+		t.Fatalf("expected P2TR dust limit 330, got %d", got)
+	}
+
+	if got, err := adjustedAssetOutputValue("mainnet", "btc", p2trAddr, 69); err != nil || got != 330 {
+		t.Fatalf("expected P2TR asset output floor 330, got %d (err=%v)", got, err)
+	}
+	if got, err := adjustedAssetOutputValue("mainnet", "btc", p2wpkhAddr, 69); err != nil || got != 546 {
+		t.Fatalf("expected non-taproot BTC asset output floor 546, got %d (err=%v)", got, err)
+	}
+	if got, err := adjustedAssetOutputValue("mainnet", "doge", p2wpkhAddr, 546); err != nil || got != 1000000 {
+		t.Fatalf("expected DOGE asset output floor 1000000, got %d (err=%v)", got, err)
+	}
+}
+
+func TestValidateTakePsbtRejectsSellerAndChangeDust(t *testing.T) {
+	buyerPublicKey, buyerAddress, sellerAddress, dummyAddress := setupTakeValidation(t)
+
+	// MRC20 order with dust seller payout (69 sats)
+	entity, builder, dummies := validMrc20Take(t, buyerPublicKey, buyerAddress, sellerAddress, dummyAddress)
+	entity.PriceAmount = 69
+	builder.PsbtUpdater.Upsbt.UnsignedTx.TxOut[1].Value = 69
+	if _, err := ValidateMrc20TakePsbt("testnet", "btc", entity, builder, buyerPublicKey, dummies); err == nil {
+		t.Fatal("expected ValidateMrc20TakePsbt to reject dust seller payout (69 sats)")
+	}
+
+	// MRC20 order with dust buyer change output (100 sats)
+	entity2, builder2, dummies2 := validMrc20Take(t, buyerPublicKey, buyerAddress, sellerAddress, dummyAddress)
+	buyerScript, _ := AddressToPkScript("testnet", "btc", buyerAddress)
+	buyerScriptBytes, _ := hex.DecodeString(buyerScript)
+	builder2.PsbtUpdater.Upsbt.UnsignedTx.TxOut = append(builder2.PsbtUpdater.Upsbt.UnsignedTx.TxOut, wire.NewTxOut(100, buyerScriptBytes))
+	if _, err := ValidateMrc20TakePsbt("testnet", "btc", entity2, builder2, buyerPublicKey, dummies2); err == nil {
+		t.Fatal("expected ValidateMrc20TakePsbt to reject dust buyer change output (100 sats)")
+	}
+
+	// PIN order with dust seller payout (69 sats)
+	pinEntity, pinBuilder, pinDummies := validPinTake(t, buyerPublicKey, buyerAddress, sellerAddress, dummyAddress)
+	pinEntity.SellPriceAmount = 69
+	pinBuilder.PsbtUpdater.Upsbt.UnsignedTx.TxOut[2].Value = 69
+	if _, err := ValidatePinTakePsbt("testnet", "btc", pinEntity, pinBuilder, buyerPublicKey, pinDummies); err == nil {
+		t.Fatal("expected ValidatePinTakePsbt to reject dust seller payout (69 sats)")
+	}
+
+	// PIN order with dust buyer change output (100 sats)
+	pinEntity2, pinBuilder2, pinDummies2 := validPinTake(t, buyerPublicKey, buyerAddress, sellerAddress, dummyAddress)
+	pinBuilder2.PsbtUpdater.Upsbt.UnsignedTx.TxOut = append(pinBuilder2.PsbtUpdater.Upsbt.UnsignedTx.TxOut, wire.NewTxOut(100, buyerScriptBytes))
+	if _, err := ValidatePinTakePsbt("testnet", "btc", pinEntity2, pinBuilder2, buyerPublicKey, pinDummies2); err == nil {
+		t.Fatal("expected ValidatePinTakePsbt to reject dust buyer change output (100 sats)")
+	}
+}
+

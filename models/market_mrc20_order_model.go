@@ -147,7 +147,7 @@ func (_ *marketMrc20OrderModelDao) SetForPushOrder(model *MarketMrc20OrderModel,
 				TokenName:   model.TokenName,
 				Decimals:    model.Decimals,
 				Chain:       model.Chain,
-				Supply:      "0",
+				Supply:      supply,
 				TotalVolume: 0,
 				MarketCap:   0,
 				LastPrice:   0,
@@ -506,9 +506,6 @@ func (_ *marketMrc20OrderModelDao) UpdateOrderEntityListForJobFunc(chain string,
 			if lastPrice != 0 {
 				lastPriceDe := decimal.NewFromFloat(lastPrice)
 				change24HDe := currentPriceDe.Sub(lastPriceDe).Div(lastPriceDe).Mul(decimal.New(10000, 0))
-				if currentPriceDe.Sub(lastPriceDe).LessThan(decimal.Zero) {
-					change24HDe = change24HDe.Neg()
-				}
 				change24H = change24HDe.IntPart()
 			} else {
 				change24H = 10000

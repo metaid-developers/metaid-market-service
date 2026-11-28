@@ -92,6 +92,10 @@ auto_bridge_rule:
 swap:
   service_url: "http://127.0.0.1:18080"
 
+order:
+  min_price_amount_btc: 2000
+  min_price_amount_doge: 1000000
+
 orderbook:
   enabled: false
   service_url: "http://127.0.0.1:18082"
